@@ -1,113 +1,160 @@
-# AI-Powered Code Review VS Code Extension Thesis – Weekly Roadmap (16 Weeks)
+# 🧠 AI-Powered Code Review VS Code Extension – 5-Month Thesis Roadmap
 
-## ✅ Month 1: Planning, Setup & Foundation (Weeks 1–4)
+📅 **Development Period:** April 10 – August 31  
+📝 **Thesis Writing:** September – October  
+🎓 **Defense:** November – December
 
-### Week 1: Kickoff & Planning
+---
 
-- Define MVP (Minimum Viable Product) scope and final feature list
-- Set up Git repo and project structure
-- Write initial project documentation (`README.md`, goals, tech stack)
-- Install and test Ollama with DeepSeek-Coder locally
+## ✅ Month 1: Planning & Project Setup (April)
+
+### Week 1: Kickoff & MVP Planning
+
+- Define MVP scope and feature list
+- Set up Git repo and initial file structure
+- Write initial docs: `README.md`, `docs/mvp.md`, `docs/roadmap.md`
+- Install & test Ollama with DeepSeek-Coder 6.7B Instruct
 
 ### Week 2: VS Code Extension Skeleton
 
-- Scaffold extension using VS Code Extension API + TypeScript
-- Add basic UI: command palette, webview/panel
-- Display placeholder suggestion and Accept/Reject buttons
-- Commit progress with Git
+- Scaffold extension with `yo code`
+- Create basic command and activation logic
+- Add Accept/Reject buttons and placeholder suggestion
 
-### Week 3: Git Integration
+### Week 3: Git Integration Basics
 
-- Add basic Git hooks: Accept = commit, Reject = stage only
-- Automate Git actions from the extension using `simple-git` or `child_process`
-- Test rollback, restore original code features
+- Implement Accept = commit, Reject = stage
+- Test undo/restore feature using Git
+- Commit demo interaction
 
-### Week 4: F# Code Parsing & Prompt Design
+### Week 4: Prompt Design & F# Code Handling
 
-- Add support for detecting F# files and extracting code snippets
-- Design prompt templates to send to DeepSeek
-- Test first AI suggestion response (manual query)
+- Design prompt templates for DeepSeek
+- Extract selected F# code from editor
+- Test sending prompt → get response
 
 ---
 
-## ✅ Month 2: Core Functionality (Weeks 5–8)
+## ✅ Month 2: Core Functionality (May)
 
 ### Week 5: AI Suggestion Integration
 
-- Connect extension to local AI backend via Node.js API
-- Display real suggestions from DeepSeek-Coder
-- Return explanations along with suggestions
+- Connect extension to local DeepSeek-Coder
+- Replace placeholder with real AI suggestions
+- Display code + explanation in output panel
 
-### Week 6: Apply Suggestions to Code
+### Week 6: Code Application
 
-- Replace selected code with AI suggestion on Accept
-- Leave code unchanged on Reject, but log feedback
-- Refactor suggestion formatting/styling in panel
+- Apply accepted suggestions to editor
+- Highlight modified lines
+- Log rejection without modifying file
 
 ### Week 7: Feedback Logging System
 
-- Store Accept/Reject data locally (JSON or SQLite)
-- Track frequency, file context, timestamps
-- Prepare for basic learning logic
+- Track accept/reject feedback with timestamp
+- Save to local JSON or SQLite
+- Associate with file/function context
 
-### Week 8: Mini Demo + Sync
+### Week 8: Mini Review & Demo
 
-- Review all progress
-- Record a basic demo (for documentation/supervisor)
-- Catch up on anything delayed
-- Prepare mid-point update notes for internal use
-
----
-
-## ✅ Month 3: Learning System & Refinement (Weeks 9–12)
-
-### Week 9: Interactive Learning Logic
-
-- Implement basic filtering (e.g., don’t show previously rejected suggestions)
-- Prioritize patterns that were accepted often
-- Improve feedback loop
-
-### Week 10: Advanced Git Features
-
-- Add history navigation (“undo” accepted suggestion)
-- View diff before applying changes
-- Optional: snapshot preview in webview
-
-### Week 11: Performance Testing
-
-- Test on large F# project
-- Measure response time, Git integration reliability
-- Fix issues, optimize code
-
-### Week 12: UX Improvements
-
-- Add tooltips, hover info, shortcut keys
-- Polish messages, edge cases, error handling
-- Finalize UI design
+- Record a 1–2 min demo of current extension
+- Write short internal dev summary
+- Refactor or catch up if needed
 
 ---
 
-## ✅ Month 4: Testing, Thesis Writing & Final Submission (Weeks 13–16)
+## ✅ Month 3: Learning & Interaction (June)
 
-### Week 13: Thesis Writing – Part 1
+### Week 9: Feedback-Driven Personalization
 
-- Write introduction, purpose, and methodology
-- Add screenshots of setup, Git integration, feedback logic
+- Suppress repeated rejected suggestions
+- Prioritize accepted patterns in prompt
+- Test "learning loop" over time
 
-### Week 14: Thesis Writing – Part 2
+### Week 10: Git Enhancements
 
-- Document implementation process
-- Write evaluation, testing, conclusion
-- Format bibliography and references
+- Show diff preview before applying suggestion
+- Add "Undo Last Suggestion"
+- Optionally: store AI commits in separate branch
 
-### Week 15: Full Testing & Polish
+### Week 11: Testing with Real Projects
 
-- Final tests across multiple F# files/projects
-- Fix bugs, polish UX
-- Create final presentation/demo
+- Use sample F# + WebSharper repos
+- Measure speed, accuracy, and UX
+- Identify edge cases or crashes
 
-### Week 16: Final Submission
+### Week 12: User Interface Polish
 
-- Submit thesis document
-- Push final code to GitHub
-- Prepare for thesis defense (slides, notes, demo walkthrough)
+- Improve suggestion UI (colors, hover, tooltips)
+- Add hotkeys / keyboard support
+- Finalize Accept/Reject layout
+
+---
+
+## ✅ Month 4: Feature Freeze & Stability (July)
+
+### Week 13: Finalize Features
+
+- Lock feature scope
+- Refactor messy code / remove unused logic
+- Cleanup project folders
+
+### Week 14: Packaging & Docs
+
+- Create installable `.vsix` package
+- Write user guide + dev setup docs
+- Finalize project README
+
+### Week 15: Internal Test Session
+
+- Do a “clean install” test
+- Use it end-to-end on a real repo
+- Log bugs, notes, future TODOs
+
+### Week 16: Optional Stretch Goals
+
+- WebSharper-specific prompt tuning
+- Add inline comment generation
+- Generate test cases from code
+
+---
+
+## ✅ Month 5: Final Testing & Submission (August)
+
+### Week 17 (Aug 1–10): Final Testing Phase
+
+- Run multi-session test
+- Review feedback logging accuracy
+- Final review of Git interaction + logs
+
+### Week 18 (Aug 11–17): Final Bug Fixes
+
+- Fix all critical bugs
+- Polish UI/UX further
+- Final GitHub commit cleanup
+
+### Week 19 (Aug 18–24): Deliverables
+
+- Prepare final demo video
+- Upload project to GitHub
+- Tag release, push all docs
+
+### Week 20 (Aug 25–31): Project Submission
+
+- Submit code, documentation, demo link
+- Take screenshots for thesis writing
+- Rest 😌
+
+---
+
+## 📝 September–October: Thesis Writing
+
+- Write introduction, methodology, implementation, evaluation
+- Include screenshots, charts, and feedback analysis
+- Finalize and submit written thesis
+
+## 🎓 November–December: Defense Prep
+
+- Build slides
+- Prepare live demo + Q&A
+- Pass defense confidently 💪
