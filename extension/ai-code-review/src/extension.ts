@@ -1,33 +1,19 @@
 import * as vscode from 'vscode';
-import simpleGit from 'simple-git';
-import { stat } from 'fs';
+import simpleGit, { SimpleGit } from 'simple-git';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "ai-code-review" is now active!');
 
 	// Showing sugestion command
 	const showSuggestionCommand = vscode.commands.registerCommand('ai-code-review.showSuggestion', () => {
-		const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
 
-		if (!workspaceFolder) {
-			vscode.window.showErrorMessage('❌ No workspace folder found.');
+		const git = getGitClient();
+		if (!git) {
 			return;
 		}
 
-		const git = simpleGit({ baseDir: workspaceFolder });
-
-		const editor = vscode.window.activeTextEditor;
-
-		if(!editor){
-			vscode.window.showErrorMessage('⚠️ No active editor found.');
-			return;
-		}
-
-		const selection = editor.selection;
-		const selectedCode = editor.document.getText(selection);
-
-		if(!selectedCode) {
-			vscode.window.showWarningMessage('📄 Please select some code before running the command.');
+		const selectedCode = getSelectedCode();
+		if (!selectedCode) {
 			return;
 		}
 
@@ -58,13 +44,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Checeking git status command
 	const checkGitStatusCommand = vscode.commands.registerCommand('ai-code-review.checkGitStatus', () => {
-		const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-		if (!workspaceFolder) {
-		  vscode.window.showErrorMessage('❌ No workspace folder found.');
-		  return;
-		}
 	  
-		const git = simpleGit({ baseDir: workspaceFolder });
+		const git = getGitClient();
+		if (!git) {
+			return;
+		}
 	  
 		git.status().then((status) => {
 		  const staged = status.staged;
@@ -80,14 +64,11 @@ export function activate(context: vscode.ExtensionContext) {
 	  
 	// Undo command
 	const undoLastSuggestionCommand = vscode.commands.registerCommand('ai-code-review.undoLastSuggestion', async () => {
-		const workspaceFolder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
 
-		if (!workspaceFolder) {
-			vscode.window.showErrorMessage('❌ No workspace folder found.');
+		const git = getGitClient();
+		if (!git) {
 			return;
 		}
-
-		const git = simpleGit({ baseDir: workspaceFolder });
 
 		const choice = await vscode.window.showInformationMessage(
 			'⏪ Do you want to undo the last suggestion?',
@@ -99,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 
 		try {
-			await git.raw(['--source=HEAD~1', '--staged', '--worktree', '.']);
+			await git.raw(['checkout', 'HEAD~1', '--', '.']);
 			vscode.window.showInformationMessage('🔄 Last suggestion reverted to previous state.');
 		} catch (err: any) {
 			vscode.window.showErrorMessage(`❌ Failed to undo: ${err.message}`);
@@ -107,5 +88,36 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	context.subscriptions.push(showSuggestionCommand, checkGitStatusCommand, undoLastSuggestionCommand);
+
+	function getWorkspaceFolder(): string | null {
+		const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+		if (!folder) {
+			vscode.window.showErrorMessage('❌ No workspace folder found.');
+			return null;
+		}
+		return folder;
+	}
+
+	function getGitClient(): SimpleGit | null {
+		const folder = getWorkspaceFolder();
+		return folder ? simpleGit({ baseDir: folder }) : null;
+	}
+
+	function getSelectedCode(): string | null {
+		const editor = vscode.window.activeTextEditor;
+		if (!editor) {
+			vscode.window.showErrorMessage('⚠️ No active editor found.');
+			return null;
+		}
+	
+		const selected = editor.document.getText(editor.selection);
+		if (!selected) {
+			vscode.window.showWarningMessage('📄 Please select some code before running the command.');
+			return null;
+		}
+	
+		return selected;
+	}
+	
 }
 export function deactivate() {}

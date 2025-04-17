@@ -8,20 +8,20 @@
 
 ## ✅ Month 1: Planning & Project Setup (April)
 
-### Week 1: Kickoff & MVP Planning
+### Week 1: Kickoff & MVP Planning (Done)
 
 - Define MVP scope and feature list
 - Set up Git repo and initial file structure
 - Write initial docs: `README.md`, `docs/mvp.md`, `docs/roadmap.md`
 - Install & test Ollama with DeepSeek-Coder 6.7B Instruct
 
-### Week 2: VS Code Extension Skeleton
+### Week 2: VS Code Extension Skeleton (Done)
 
 - Scaffold extension with `yo code`
 - Create basic command and activation logic
 - Add Accept/Reject buttons and placeholder suggestion
 
-### Week 3: Git Integration Basics
+### Week 3: Git Integration Basics (Done)
 
 - Implement Accept = commit, Reject = stage
 - Test undo/restore feature using Git
