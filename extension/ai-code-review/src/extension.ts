@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import simpleGit, { SimpleGit } from 'simple-git';
+import { buildPrompt, getGitClient, getSelectedCode, queryDeepSeek} from './utils/helpers';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "ai-code-review" is now active!');
 
 	// Showing sugestion command
-	const showSuggestionCommand = vscode.commands.registerCommand('ai-code-review.showSuggestion', () => {
+	const showSuggestionCommand = vscode.commands.registerCommand('ai-code-review.showSuggestion', async () => {
 
 		const git = getGitClient();
 		if (!git) {
@@ -17,8 +17,23 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
+		const editor = vscode.window.activeTextEditor;
+		const fileName = editor?.document.fileName;
+		const prompt = buildPrompt(selectedCode, fileName);
+
+		vscode.window.setStatusBarMessage('🤖 Generating AI suggestion...', 3000);
+
+		const response = await queryDeepSeek(prompt);
+		if (!response) {
+			return;
+		}
+
+		// Extract only the "Summary of Issues"
+		const summaryMatch = response.match(/1\. ?(?:🔍)? ?\*\*Summary of Issues\*\*([\s\S]*?)2\. ?/);
+		const summaryText = summaryMatch ? summaryMatch[1].trim() : "No summary found.";
+
 		vscode.window.showInformationMessage(
-			`💡 AI Suggestion: Replace recursion in selected code:\n\n${selectedCode}`,
+			`💡 AI Suggestion Summary:\n${summaryText}`,
 			'Accept', 'Reject'
 		).then(button  => {
 			if (button  === 'Accept'){
@@ -40,6 +55,13 @@ export function activate(context: vscode.ExtensionContext) {
 					});
 			}
 		});
+
+		// Show full output in Output Panel
+		const outputChannel = vscode.window.createOutputChannel("AI Code Review");
+		outputChannel.clear();
+		outputChannel.appendLine(`📄 File: ${fileName || 'Unknown'}`);
+		outputChannel.appendLine(`\n${response}`);
+		outputChannel.show(true);
 	});
 
 	// Checeking git status command
@@ -87,37 +109,36 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	context.subscriptions.push(showSuggestionCommand, checkGitStatusCommand, undoLastSuggestionCommand);
-
-	function getWorkspaceFolder(): string | null {
-		const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-		if (!folder) {
-			vscode.window.showErrorMessage('❌ No workspace folder found.');
-			return null;
+	// 
+	const aiReviewCommand = vscode.commands.registerCommand('ai-code-review.aiReview', async () => {
+		const selectedCode = getSelectedCode();
+		if (!selectedCode) {
+			return;
 		}
-		return folder;
-	}
 
-	function getGitClient(): SimpleGit | null {
-		const folder = getWorkspaceFolder();
-		return folder ? simpleGit({ baseDir: folder }) : null;
-	}
-
-	function getSelectedCode(): string | null {
 		const editor = vscode.window.activeTextEditor;
-		if (!editor) {
-			vscode.window.showErrorMessage('⚠️ No active editor found.');
-			return null;
+		const fileName = editor?.document.fileName;
+		const prompt = buildPrompt(selectedCode, fileName);
+
+		console.time('DeepSeek response');
+		const response = await queryDeepSeek(prompt);
+		console.timeEnd('DeepSeek response');
+
+		if (!response) {
+			return;
 		}
-	
-		const selected = editor.document.getText(editor.selection);
-		if (!selected) {
-			vscode.window.showWarningMessage('📄 Please select some code before running the command.');
-			return null;
-		}
-	
-		return selected;
-	}
+
+		const doc = await vscode.workspace.openTextDocument({
+			content: response,
+			language: 'markdown'
+		});
+		await vscode.window.showTextDocument(doc, {
+			preview: false,
+			viewColumn: vscode.ViewColumn.Beside
+		});
+	});
+
+	context.subscriptions.push(showSuggestionCommand, checkGitStatusCommand, undoLastSuggestionCommand, aiReviewCommand);
 	
 }
 export function deactivate() {}

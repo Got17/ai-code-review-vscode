@@ -43,6 +43,16 @@
 - Replace placeholder with real AI suggestions
 - Display code + explanation in output panel
 
+### Week 5.5: WebSharper Doc Scraping & Context Injection (lightweight RAG)
+
+- Chunk and store docs (as .json, .md, or in-memory strings)
+
+- Build simple keyword-based retriever (matchTopic("Var") → doc)
+
+- Inject top-matching doc chunks into prompt before the selected code
+
+- Test DeepSeek-Coder response improvement using enriched prompt
+
 ### Week 6: Code Application
 
 - Apply accepted suggestions to editor

@@ -921,6 +921,9 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
+var vscode2 = __toESM(require("vscode"));
+
+// src/utils/helpers.ts
 var vscode = __toESM(require("vscode"));
 
 // node_modules/simple-git/dist/esm/index.js
@@ -5474,10 +5477,92 @@ function gitInstanceFactory(baseDir, options) {
 init_git_response_error();
 var esm_default = gitInstanceFactory;
 
+// src/utils/helpers.ts
+function getWorkspaceFolder() {
+  const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!folder) {
+    vscode.window.showErrorMessage("\u274C No workspace folder found.");
+    return null;
+  }
+  return folder;
+}
+function getGitClient() {
+  const folder = getWorkspaceFolder();
+  return folder ? esm_default({ baseDir: folder }) : null;
+}
+function getSelectedCode() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    vscode.window.showErrorMessage("\u26A0\uFE0F No active editor found.");
+    return null;
+  }
+  const selected = editor.document.getText(editor.selection);
+  if (!selected) {
+    vscode.window.showWarningMessage("\u{1F4C4} Please select some code before running the command.");
+    return null;
+  }
+  return selected;
+}
+function buildPrompt(selectedCode, fileName) {
+  return `
+You are an expert in F# and WebSharper.
+
+Your task is to review the following code and provide constructive suggestions to improve:
+
+- \u2705 Readability (e.g., UI logic clarity, reactive flow structure)
+- \u26A1 Performance (e.g., efficient reactive updates, avoiding unnecessary recomputation)
+- \u{1F527} Maintainability (e.g., modular component structure, clean event handling)
+
+**Important Guidelines**:
+- Do not replace \`Var\` with \`View.Const\` unless you're sure the value is meant to be constant.
+- Always preserve interactivity in UI components using \`Doc.Input\`, \`Var\`, and \`View\` bindings.
+- If reactivity is not needed, explain why it's safe to remove it.
+- If the code is already well-written, say so. Only suggest meaningful changes, and include brief inline comments if helpful.
+
+Respond in this structured format:
+
+1. \u{1F50D} **Summary of Issues**
+2. \u2728 **Improved Code** (inside \`\`\`fsharp blocks)
+3. \u{1F9E0} **Explanation**
+
+${fileName ? `This code is from the file: \`${fileName}\`.` : ""}
+
+\`\`\`fsharp
+${selectedCode}
+\`\`\`
+	`.trim();
+}
+async function queryDeepSeek(prompt) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3e4);
+    const response = await fetch("http://localhost:11434/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "deepseek-coder:6.7b-instruct",
+        prompt,
+        stream: false
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      vscode.window.showErrorMessage(`\u274C AI request failed: ${response.statusText}`);
+      return null;
+    }
+    const data = await response.json();
+    return data.response;
+  } catch (err) {
+    vscode.window.showErrorMessage(`\u274C AI request error: ${err.message}`);
+    return null;
+  }
+}
+
 // src/extension.ts
 function activate(context) {
   console.log('Congratulations, your extension "ai-code-review" is now active!');
-  const showSuggestionCommand = vscode.commands.registerCommand("ai-code-review.showSuggestion", () => {
+  const showSuggestionCommand = vscode2.commands.registerCommand("ai-code-review.showSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5486,29 +5571,44 @@ function activate(context) {
     if (!selectedCode) {
       return;
     }
-    vscode.window.showInformationMessage(
-      `\u{1F4A1} AI Suggestion: Replace recursion in selected code:
-
-${selectedCode}`,
+    const editor = vscode2.window.activeTextEditor;
+    const fileName = editor?.document.fileName;
+    const prompt = buildPrompt(selectedCode, fileName);
+    vscode2.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 3e3);
+    const response = await queryDeepSeek(prompt);
+    if (!response) {
+      return;
+    }
+    const summaryMatch = response.match(/1\. ?(?:🔍)? ?\*\*Summary of Issues\*\*([\s\S]*?)2\. ?/);
+    const summaryText = summaryMatch ? summaryMatch[1].trim() : "No summary found.";
+    vscode2.window.showInformationMessage(
+      `\u{1F4A1} AI Suggestion Summary:
+${summaryText}`,
       "Accept",
       "Reject"
     ).then((button) => {
       if (button === "Accept") {
         git.add("./*").then(() => git.commit("\u{1F4A1} AI suggestion applied")).then(() => {
-          vscode.window.showInformationMessage("\u2705 Changes committed with message: AI suggestion applied");
+          vscode2.window.showInformationMessage("\u2705 Changes committed with message: AI suggestion applied");
         }).catch((err) => {
-          vscode.window.showErrorMessage(`\u274C Git commit failed: ${err.message}`);
+          vscode2.window.showErrorMessage(`\u274C Git commit failed: ${err.message}`);
         });
       } else {
         git.add("./*").then(() => {
-          vscode.window.showInformationMessage("\u26A0\uFE0F Changes staged but not committed.");
+          vscode2.window.showInformationMessage("\u26A0\uFE0F Changes staged but not committed.");
         }).catch((err) => {
-          vscode.window.showErrorMessage(`\u274C Git stage failed: ${err.message}`);
+          vscode2.window.showErrorMessage(`\u274C Git stage failed: ${err.message}`);
         });
       }
     });
+    const outputChannel = vscode2.window.createOutputChannel("AI Code Review");
+    outputChannel.clear();
+    outputChannel.appendLine(`\u{1F4C4} File: ${fileName || "Unknown"}`);
+    outputChannel.appendLine(`
+${response}`);
+    outputChannel.show(true);
   });
-  const checkGitStatusCommand = vscode.commands.registerCommand("ai-code-review.checkGitStatus", () => {
+  const checkGitStatusCommand = vscode2.commands.registerCommand("ai-code-review.checkGitStatus", () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5516,22 +5616,22 @@ ${selectedCode}`,
     git.status().then((status) => {
       const staged = status.staged;
       const notStaged = status.files.filter((f) => f.index === "?" || f.working_dir !== " ");
-      vscode.window.showInformationMessage(
+      vscode2.window.showInformationMessage(
         `\u{1F4C2} Git Status:
 
 Staged: ${staged.length}
 Unstaged: ${notStaged.length}`
       );
     }).catch((err) => {
-      vscode.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
+      vscode2.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
     });
   });
-  const undoLastSuggestionCommand = vscode.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  const undoLastSuggestionCommand = vscode2.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
     }
-    const choice = await vscode.window.showInformationMessage(
+    const choice = await vscode2.window.showInformationMessage(
       "\u23EA Do you want to undo the last suggestion?",
       "Yes",
       "Cancel"
@@ -5541,37 +5641,35 @@ Unstaged: ${notStaged.length}`
     }
     try {
       await git.raw(["checkout", "HEAD~1", "--", "."]);
-      vscode.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+      vscode2.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
     } catch (err) {
-      vscode.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+      vscode2.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
     }
   });
-  context.subscriptions.push(showSuggestionCommand, checkGitStatusCommand, undoLastSuggestionCommand);
-  function getWorkspaceFolder() {
-    const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!folder) {
-      vscode.window.showErrorMessage("\u274C No workspace folder found.");
-      return null;
+  const aiReviewCommand = vscode2.commands.registerCommand("ai-code-review.aiReview", async () => {
+    const selectedCode = getSelectedCode();
+    if (!selectedCode) {
+      return;
     }
-    return folder;
-  }
-  function getGitClient() {
-    const folder = getWorkspaceFolder();
-    return folder ? esm_default({ baseDir: folder }) : null;
-  }
-  function getSelectedCode() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      vscode.window.showErrorMessage("\u26A0\uFE0F No active editor found.");
-      return null;
+    const editor = vscode2.window.activeTextEditor;
+    const fileName = editor?.document.fileName;
+    const prompt = buildPrompt(selectedCode, fileName);
+    console.time("DeepSeek response");
+    const response = await queryDeepSeek(prompt);
+    console.timeEnd("DeepSeek response");
+    if (!response) {
+      return;
     }
-    const selected = editor.document.getText(editor.selection);
-    if (!selected) {
-      vscode.window.showWarningMessage("\u{1F4C4} Please select some code before running the command.");
-      return null;
-    }
-    return selected;
-  }
+    const doc = await vscode2.workspace.openTextDocument({
+      content: response,
+      language: "markdown"
+    });
+    await vscode2.window.showTextDocument(doc, {
+      preview: false,
+      viewColumn: vscode2.ViewColumn.Beside
+    });
+  });
+  context.subscriptions.push(showSuggestionCommand, checkGitStatusCommand, undoLastSuggestionCommand, aiReviewCommand);
 }
 function deactivate() {
 }
