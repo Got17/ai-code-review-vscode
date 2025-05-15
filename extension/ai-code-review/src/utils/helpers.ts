@@ -71,8 +71,7 @@ export async function queryDeepSeek(prompt: string): Promise<string | null> {
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				model: 'deepseek-coder:6.7b-instruct',
-				prompt: prompt,
-				stream: false
+				prompt: prompt
 			}),
 			signal: controller.signal
 		});

@@ -24,10 +24,6 @@
       {
         "command": "ai-code-review.undoLastSuggestion",
         "title": "AI Code Review: Undo Last Suggestion"
-      },
-      {
-        "command": "ai-code-review.aiReview",
-        "title": "AI Code Review: AI Review"
       }
     ]
   },

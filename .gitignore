@@ -3,3 +3,4 @@ node_modules/
 .vscode/
 *.code-workspace
 *.log
+docs/websharper

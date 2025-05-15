@@ -27,7 +27,7 @@
 - Test undo/restore feature using Git
 - Commit demo interaction
 
-### Week 4: Prompt Design & F# Code Handling
+### Week 4: Prompt Design & F# Code Handling (Done)
 
 - Design prompt templates for DeepSeek
 - Extract selected F# code from editor
@@ -37,7 +37,7 @@
 
 ## ✅ Month 2: Core Functionality (May)
 
-### Week 5: AI Suggestion Integration
+### Week 5: AI Suggestion Integration (Done)
 
 - Connect extension to local DeepSeek-Coder
 - Replace placeholder with real AI suggestions
