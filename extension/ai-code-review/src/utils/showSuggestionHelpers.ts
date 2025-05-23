@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import {logRejection} from "../utils/logging";
+import { applySuggestion } from './applySuggestion';
 
 export async function handleUserChoice(summary: string, git: any): Promise<void> {
 	const choice = await vscode.window.showInformationMessage(
@@ -32,62 +34,62 @@ export function showOutput(fileName: string | undefined, response: string): void
 	outputChannel.show(true);
 }
 
-export function showWebview(context: vscode.ExtensionContext, response: string, fileName?: string): void {
+export function showWebview(
+	response: string, 
+	context: vscode.ExtensionContext, 
+	fileName?: string,
+	selection?: vscode.Selection,
+  	documentUri?: vscode.Uri
+): void {
 	const panel = vscode.window.createWebviewPanel(
 		'aiSuggestionPanel',
 		'AI Code Review (F# and WebSharper)',
 		vscode.ViewColumn.Beside,
 		{
-			enableScripts: true
+			enableScripts: true,
+			retainContextWhenHidden: true
 		}
 	);
 	panel.webview.html = getWebviewContent(response, fileName);
-	handleWebviewMessage(response, panel, context);
+	handleWebviewMessage(response, panel, context, fileName, selection, documentUri);
 }
 
 function handleWebviewMessage(
-	response: string, 
-	panel: vscode.WebviewPanel, 
+	response: string,
+	panel: vscode.WebviewPanel,
 	context: vscode.ExtensionContext,
-	fileName?: string
+	fileName?: string,
+	selection?: vscode.Selection,
+	documentUri?: vscode.Uri
 ) {
 	panel.webview.onDidReceiveMessage(
 		async message => {
-			const editor = vscode.window.activeTextEditor;
-			if (!editor) {
-				panel.dispose();
-				return;
-			}
+			console.log("🔥 Received message from Webview:", message);
 
 			if (message.action === "accept") {
 				try {
-					// 1) Apply the edit
-					console.log("Received message:", message);
-					console.log("Raw response string:", response);
-					const improvedCode = extractImprovedCode(response, panel);
-					console.log("Extracted code:", improvedCode);
-						
+					const improvedCode = extractImprovedCode(response, panel);						
 					if (!improvedCode) {
 						return;
 					}
-								
-					const selection = editor.selection;
-					await editor.edit(editBuilder => {
-						editBuilder.replace(selection, improvedCode);
-					});
 					
-					vscode.window.showInformationMessage("Accept suggestion");
-					panel.dispose();
+					await applySuggestion(improvedCode, selection, documentUri);
+					panel.dispose();					
 				} catch (err) {
 					console.log(`Error with accepting: ${err}`);
 				}
 			}
 			else if (message.action === "reject"){
 				try {
-					
+					const improvedCode = extractImprovedCode(response, panel);
+					console.log(`Improved code: ${improvedCode}`);	
+					if (!improvedCode) {
+						return;
+					}
+					logRejection(response, fileName, improvedCode);
 
 					vscode.window.showInformationMessage("Reject suggestion"); 	
-					panel.dispose();
+					
 				} catch (err) {
 					console.log(`Error with rejecting: ${err}`);
 				}
@@ -105,7 +107,6 @@ function extractImprovedCode(response: string, panel: vscode.WebviewPanel) {
 
 	if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
 		vscode.window.showErrorMessage('Could not find the "Improved Code" F# block');
-		panel.dispose();
 		return;
 	}
 
@@ -175,8 +176,8 @@ function getWebviewContent(response: string, fileName?: string): string {
 		<hr>
 		${escaped}
 		<div class="buttons">
-			<button onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">✅ Accept</button>
-			<button onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">❌ Reject</button>
+			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">✅ Accept</button>
+			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">❌ Reject</button>
 		</div>
 	</body>
 	</html>

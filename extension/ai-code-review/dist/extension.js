@@ -923,7 +923,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/commands/showSuggestion.ts
-var vscode3 = __toESM(require("vscode"));
+var vscode4 = __toESM(require("vscode"));
 
 // src/utils/helpers.ts
 var vscode = __toESM(require("vscode"));
@@ -5564,57 +5564,123 @@ async function queryDeepSeek(prompt) {
 }
 
 // src/utils/showSuggestionHelpers.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/utils/logging.ts
+var import_fs = __toESM(require("fs"));
+function logRejection(response, fileName, improvedCode) {
+  const timestamp = getTimestamp();
+  const summary = extractSummary(response);
+  const jsonData = {
+    "timestamp": timestamp,
+    "file": fileName,
+    "codeSnippets": improvedCode,
+    "summary": summary
+  };
+  let jsonDataString = JSON.stringify(jsonData);
+  import_fs.default.writeFile("rejection-log.json", jsonDataString, (err) => {
+    if (err) {
+      throw err;
+    }
+    console.log("File written!");
+  });
+}
+function getTimestamp() {
+  const date = /* @__PURE__ */ new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  const seconds = String(date.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+function extractSummary(response) {
+  const summaryText = response.match(/\*\*Summary of Issues\*\*:\s*([\s\S]*?)\n\s*\*\*/i);
+  if (!summaryText) {
+    return 'Could not find "Summary" block';
+  }
+  return summaryText[1].trim();
+}
+
+// src/utils/applySuggestion.ts
 var vscode2 = __toESM(require("vscode"));
+async function applySuggestion(improvedCode, selection, documentUri) {
+  if (!selection || !documentUri) {
+    vscode2.window.showWarningMessage("\u26A0\uFE0F Cannot apply suggestion: selection or file context is missing.");
+    return;
+  }
+  const doc = await vscode2.workspace.openTextDocument(documentUri);
+  const editor = await vscode2.window.showTextDocument(doc, {
+    preserveFocus: false,
+    viewColumn: vscode2.ViewColumn.One
+  });
+  editor.selection = selection;
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const success = await editor.edit((editBuilder) => {
+    if (selection.isEmpty) {
+      editBuilder.insert(selection.start, improvedCode);
+    } else {
+      editBuilder.replace(selection, improvedCode);
+    }
+  });
+  if (!success) {
+    vscode2.window.showErrorMessage("\u274C Failed to apply suggestion.");
+    return;
+  }
+  if (selection.isEmpty) {
+    vscode2.window.showInformationMessage("\u26A0\uFE0F No code was selected \u2014 the AI suggestion was inserted at your cursor.");
+  } else {
+    vscode2.window.showInformationMessage("\u2705 Suggestion applied to selected code.");
+  }
+}
+
+// src/utils/showSuggestionHelpers.ts
 function showOutput(fileName, response) {
-  const outputChannel = vscode2.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode3.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`\u{1F4C4} File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
 ${response}`);
   outputChannel.show(true);
 }
-function showWebview(context, response, fileName) {
-  const panel = vscode2.window.createWebviewPanel(
+function showWebview(response, context, fileName, selection, documentUri) {
+  const panel = vscode3.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review (F# and WebSharper)",
-    vscode2.ViewColumn.Beside,
+    vscode3.ViewColumn.Beside,
     {
-      enableScripts: true
+      enableScripts: true,
+      retainContextWhenHidden: true
     }
   );
   panel.webview.html = getWebviewContent(response, fileName);
-  handleWebviewMessage(response, panel, context);
+  handleWebviewMessage(response, panel, context, fileName, selection, documentUri);
 }
-function handleWebviewMessage(response, panel, context, fileName) {
+function handleWebviewMessage(response, panel, context, fileName, selection, documentUri) {
   panel.webview.onDidReceiveMessage(
     async (message) => {
-      const editor = vscode2.window.activeTextEditor;
-      if (!editor) {
-        panel.dispose();
-        return;
-      }
+      console.log("\u{1F525} Received message from Webview:", message);
       if (message.action === "accept") {
         try {
-          console.log("Received message:", message);
-          console.log("Raw response string:", response);
           const improvedCode = extractImprovedCode(response, panel);
-          console.log("Extracted code:", improvedCode);
           if (!improvedCode) {
             return;
           }
-          const selection = editor.selection;
-          await editor.edit((editBuilder) => {
-            editBuilder.replace(selection, improvedCode);
-          });
-          vscode2.window.showInformationMessage("Accept suggestion");
+          await applySuggestion(improvedCode, selection, documentUri);
           panel.dispose();
         } catch (err) {
           console.log(`Error with accepting: ${err}`);
         }
       } else if (message.action === "reject") {
         try {
-          vscode2.window.showInformationMessage("Reject suggestion");
-          panel.dispose();
+          const improvedCode = extractImprovedCode(response, panel);
+          console.log(`Improved code: ${improvedCode}`);
+          if (!improvedCode) {
+            return;
+          }
+          logRejection(response, fileName, improvedCode);
+          vscode3.window.showInformationMessage("Reject suggestion");
         } catch (err) {
           console.log(`Error with rejecting: ${err}`);
         }
@@ -5629,8 +5695,7 @@ function extractImprovedCode(response, panel) {
   const improvedCodeMatch = response.match(/Improved Code\s*\*\*[\s\S]*?```fsharp\s*([\s\S]*?)```/i);
   console.log(`Improved code: ${improvedCodeMatch}`);
   if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
-    vscode2.window.showErrorMessage('Could not find the "Improved Code" F# block');
-    panel.dispose();
+    vscode3.window.showErrorMessage('Could not find the "Improved Code" F# block');
     return;
   }
   return improvedCodeMatch[1].trim();
@@ -5692,8 +5757,8 @@ function getWebviewContent(response, fileName) {
 		<hr>
 		${escaped}
 		<div class="buttons">
-			<button onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">\u2705 Accept</button>
-			<button onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">\u274C Reject</button>
+			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">\u2705 Accept</button>
+			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">\u274C Reject</button>
 		</div>
 	</body>
 	</html>
@@ -5703,8 +5768,8 @@ function getWebviewContent(response, fileName) {
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode3.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode3.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 2e4);
+  return vscode4.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+    vscode4.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 2e4);
     const git = getGitClient();
     if (!git) {
       return;
@@ -5713,7 +5778,7 @@ function registerShowSuggestion(context) {
     if (!selectedCode) {
       return;
     }
-    const fileName = vscode3.window.activeTextEditor?.document.fileName;
+    const fileName = vscode4.window.activeTextEditor?.document.fileName;
     const prompt = buildPrompt(selectedCode, fileName);
     console.log(`
 Prompt: ${prompt}
@@ -5723,14 +5788,20 @@ Prompt: ${prompt}
       return;
     }
     showOutput(fileName, response);
-    showWebview(context, response, fileName);
+    const editor = vscode4.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+    const selection = editor.selection;
+    const documentUri = editor.document.uri;
+    showWebview(response, context, fileName, selection, documentUri);
   });
 }
 
 // src/commands/checkGitStatus.ts
-var vscode4 = __toESM(require("vscode"));
+var vscode5 = __toESM(require("vscode"));
 function registerCheckGitStatus() {
-  return vscode4.commands.registerCommand("ai-code-review.checkGitStatus", () => {
+  return vscode5.commands.registerCommand("ai-code-review.checkGitStatus", () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5739,14 +5810,14 @@ function registerCheckGitStatus() {
     git.status().then((status) => {
       const staged = status.staged;
       const notStaged = status.files.filter((f) => f.index === "?" || f.working_dir !== " ");
-      vscode4.window.showInformationMessage(
+      vscode5.window.showInformationMessage(
         `\u{1F4C2} Git Status:
 
 Staged: ${staged.length}
 Unstaged: ${notStaged.length}`
       );
     }).catch((err) => {
-      vscode4.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
+      vscode5.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
     });
   });
 }
@@ -5757,21 +5828,21 @@ async function checkGitStatus(git) {
     const notStaged = status.files.filter(
       (f) => f.index === "?" || f.working_dir !== " "
     );
-    vscode4.window.showInformationMessage(
+    vscode5.window.showInformationMessage(
       `\u{1F4C2} Git Status:
 
 Staged: ${staged.length}
 Unstaged: ${notStaged.length}`
     );
   } catch (err) {
-    vscode4.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
+    vscode5.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
   }
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode5.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  return vscode6.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5784,7 +5855,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode5.window.showInformationMessage(
+  const choice = await vscode6.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -5794,9 +5865,9 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode5.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode6.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode5.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode6.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
 }
 

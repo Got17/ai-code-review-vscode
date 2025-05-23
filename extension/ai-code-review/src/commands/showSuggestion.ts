@@ -31,6 +31,14 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
 
 		// handleUserChoice(summaryText, git);
 		showOutput(fileName, response);
-		showWebview(context, response, fileName);
+
+		const editor = vscode.window.activeTextEditor;
+		if (!editor) {
+			return;
+		}
+
+		const selection = editor.selection;
+		const documentUri = editor.document.uri;
+		showWebview(response,context, fileName, selection, documentUri);
 	});
 }
