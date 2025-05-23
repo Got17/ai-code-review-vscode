@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import {logRejection} from "../utils/logging";
 
 export async function handleUserChoice(summary: string, git: any): Promise<void> {
 	const choice = await vscode.window.showInformationMessage(
