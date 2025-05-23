@@ -55,9 +55,11 @@
 
 ### Week 6: Code Application
 
-- Apply accepted suggestions to editor
+- Apply accepted suggestions to editor [Done]
 - Highlight modified lines
 - Log rejection without modifying file
+- Read the whole project file
+- Add diff file
 
 ### Week 7: Feedback Logging System
 

@@ -7,7 +7,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('AI Code Review extension is active');
 
 	context.subscriptions.push(
-		registerShowSuggestion(),
+		registerShowSuggestion(context),
 		registerCheckGitStatus(),
 		registerUndoLastSuggestion()
 	);

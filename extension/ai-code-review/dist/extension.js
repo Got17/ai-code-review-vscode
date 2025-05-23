@@ -5495,55 +5495,58 @@ function getGitClient() {
 function getSelectedCode() {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    vscode.window.showErrorMessage("\u26A0\uFE0F No active editor found.");
+    vscode.window.showErrorMessage("No active editor found.");
     return null;
   }
   const selected = editor.document.getText(editor.selection);
   if (!selected) {
-    vscode.window.showWarningMessage("\u{1F4C4} Please select some code before running the command.");
+    vscode.window.showWarningMessage("Please select some code before running the command.");
     return null;
   }
   return selected;
 }
 function buildPrompt(selectedCode, fileName) {
   return `
-You are an expert in F# and WebSharper.
+You are an expert in **F#** and **WebSharper**.
 
-Your task is to review the following code and provide constructive suggestions to improve:
+Review the following code and suggest improvements in the areas of:
 
-- \u2705 Readability (e.g., UI logic clarity, reactive flow structure)
-- \u26A1 Performance (e.g., efficient reactive updates, avoiding unnecessary recomputation)
-- \u{1F527} Maintainability (e.g., modular component structure, clean event handling)
+1. **Readability**: UI logic clarity, reactive flow structure.
+2. **Performance**: Efficient reactive updates, avoiding redundant computation.
+3. **Maintainability**: Modular components, clean event handling.
 
-**Important Guidelines**:
-- Do not replace \`Var\` with \`View.Const\` unless you're sure the value is meant to be constant.
-- Always preserve interactivity in UI components using \`Doc.Input\`, \`Var\`, and \`View\` bindings.
-- If reactivity is not needed, explain why it's safe to remove it.
-- If the code is already well-written, say so. Only suggest meaningful changes, and include brief inline comments if helpful.
+**Constraints**:
+- ONLY respond using the three sections below.
+- DO NOT include any introductory or explanatory text outside these sections.
+- DO NOT rephrase the prompt or summarize the task.
+- DO NOT say the code is "already good" unless doing so directly in the **Summary of Issues**.
+- Always include valid **F#** in the code block if suggesting changes.
 
-Respond in this structured format:
+**Formatting (must be exact)**:
 
-1. \u{1F50D} **Summary of Issues**
-2. \u2728 **Improved Code** (inside \`\`\`fsharp blocks)
-3. \u{1F9E0} **Explanation**
+1. **Summary of Issues**:
+2. **Improved Code**:
+3. **Explanation**:
 
 ${fileName ? `This code is from the file: \`${fileName}\`.` : ""}
 
 \`\`\`fsharp
 ${selectedCode}
 \`\`\`
-	`.trim();
+  	`.trim();
 }
 async function queryDeepSeek(prompt) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3e4);
+    const timeout = setTimeout(() => controller.abort(), 6e4);
+    const start = Date.now();
     const response = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "deepseek-coder:6.7b-instruct",
-        prompt
+        prompt,
+        stream: false
       }),
       signal: controller.signal
     });
@@ -5562,33 +5565,6 @@ async function queryDeepSeek(prompt) {
 
 // src/utils/showSuggestionHelpers.ts
 var vscode2 = __toESM(require("vscode"));
-function extractSummary(response) {
-  const summaryMatch = response.match(/1\. ?(?:🔍)? ?\*\*Summary of Issues\*\*([\s\S]*?)2\. ?/);
-  const summaryText = summaryMatch ? summaryMatch[1].trim() : "No summary found.";
-  return summaryText;
-}
-async function handleUserChoice(summary, git) {
-  const choice = await vscode2.window.showInformationMessage(
-    `\u{1F4A1} AI Suggestion Summary:
-${summary}`,
-    "Accept",
-    "Reject"
-  );
-  if (!choice) {
-    return;
-  }
-  try {
-    await git.add("./*");
-    if (choice === "Accept") {
-      await git.commit("AI suggestion applied");
-      vscode2.window.showInformationMessage("\u2705 Changes committed with message: AI suggestion applied");
-    } else {
-      vscode2.window.showInformationMessage("\u26A0\uFE0F Changes staged but not committed.");
-    }
-  } catch (err) {
-    vscode2.window.showErrorMessage(`\u274C Git operation failed: ${err.message}`);
-  }
-}
 function showOutput(fileName, response) {
   const outputChannel = vscode2.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
@@ -5597,10 +5573,138 @@ function showOutput(fileName, response) {
 ${response}`);
   outputChannel.show(true);
 }
+function showWebview(context, response, fileName) {
+  const panel = vscode2.window.createWebviewPanel(
+    "aiSuggestionPanel",
+    "AI Code Review (F# and WebSharper)",
+    vscode2.ViewColumn.Beside,
+    {
+      enableScripts: true
+    }
+  );
+  panel.webview.html = getWebviewContent(response, fileName);
+  handleWebviewMessage(response, panel, context);
+}
+function handleWebviewMessage(response, panel, context, fileName) {
+  panel.webview.onDidReceiveMessage(
+    async (message) => {
+      const editor = vscode2.window.activeTextEditor;
+      if (!editor) {
+        panel.dispose();
+        return;
+      }
+      if (message.action === "accept") {
+        try {
+          console.log("Received message:", message);
+          console.log("Raw response string:", response);
+          const improvedCode = extractImprovedCode(response, panel);
+          console.log("Extracted code:", improvedCode);
+          if (!improvedCode) {
+            return;
+          }
+          const selection = editor.selection;
+          await editor.edit((editBuilder) => {
+            editBuilder.replace(selection, improvedCode);
+          });
+          vscode2.window.showInformationMessage("Accept suggestion");
+          panel.dispose();
+        } catch (err) {
+          console.log(`Error with accepting: ${err}`);
+        }
+      } else if (message.action === "reject") {
+        try {
+          vscode2.window.showInformationMessage("Reject suggestion");
+          panel.dispose();
+        } catch (err) {
+          console.log(`Error with rejecting: ${err}`);
+        }
+      }
+    },
+    void 0,
+    context.subscriptions
+  );
+}
+function extractImprovedCode(response, panel) {
+  console.log("Attempting to extract improved code...");
+  const improvedCodeMatch = response.match(/Improved Code\s*\*\*[\s\S]*?```fsharp\s*([\s\S]*?)```/i);
+  console.log(`Improved code: ${improvedCodeMatch}`);
+  if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
+    vscode2.window.showErrorMessage('Could not find the "Improved Code" F# block');
+    panel.dispose();
+    return;
+  }
+  return improvedCodeMatch[1].trim();
+}
+function getWebviewContent(response, fileName) {
+  const escaped = response.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(
+    /```fsharp([\s\S]*?)```/g,
+    (_, code) => `<pre><code class="language-fsharp">${code.trim()}</code></pre>`
+  ).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+?)`/g, "<code>$1</code>");
+  return `
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>AI Code Review (F# and WebSharper)</title>
+		<style>
+			body {
+				font-family: "Segoe UI", sans-serif;
+				padding: 1rem;
+				line-height: 1.6;
+				color: #d4d4d4;
+				background-color: #1e1e1e;
+			}
+			code {
+				background-color: #2d2d2d;
+				padding: 0.2rem 0.4rem;
+				border-radius: 3px;
+				font-family: Consolas, monospace;
+				font-size: 0.95em;
+			}
+			pre {
+				background: #2d2d2d;
+				padding: 1rem;
+				overflow-x: auto;
+				border-radius: 5px;
+			}
+			h2 { color: #79c0ff; }
+			.file { font-size: 0.9em; opacity: 0.6; }
+			.buttons {
+				margin-top: 1rem;
+			}
+			button {
+				background: #0e639c;
+				color: white;
+				border: none;
+				padding: 0.5rem 1rem;
+				border-radius: 4px;
+				margin-right: 1rem;
+				cursor: pointer;
+			}
+			button:hover {
+				background: #1177bb;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="file">\u{1F4C4} File: ${fileName || "Unknown"}</div>
+		<hr>
+		${escaped}
+		<div class="buttons">
+			<button onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">\u2705 Accept</button>
+			<button onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">\u274C Reject</button>
+		</div>
+	</body>
+	</html>
+	
+	`;
+}
 
 // src/commands/showSuggestion.ts
-function registerShowSuggestion() {
+function registerShowSuggestion(context) {
   return vscode3.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+    vscode3.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 2e4);
     const git = getGitClient();
     if (!git) {
       return;
@@ -5611,14 +5715,15 @@ function registerShowSuggestion() {
     }
     const fileName = vscode3.window.activeTextEditor?.document.fileName;
     const prompt = buildPrompt(selectedCode, fileName);
-    vscode3.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 5e3);
+    console.log(`
+Prompt: ${prompt}
+`);
     const response = await queryDeepSeek(prompt);
     if (!response) {
       return;
     }
-    let summaryText = extractSummary(response);
-    await handleUserChoice(summaryText, git);
     showOutput(fileName, response);
+    showWebview(context, response, fileName);
   });
 }
 
@@ -5699,7 +5804,7 @@ async function undoLastCommit(git) {
 function activate(context) {
   console.log("AI Code Review extension is active");
   context.subscriptions.push(
-    registerShowSuggestion(),
+    registerShowSuggestion(context),
     registerCheckGitStatus(),
     registerUndoLastSuggestion()
   );
