@@ -6,7 +6,7 @@ export async function applySuggestion(
   	documentUri?: vscode.Uri
 ): Promise<void> {
 	if (!selection || !documentUri) {
-		vscode.window.showWarningMessage('⚠️ Cannot apply suggestion: selection or file context is missing.');
+		vscode.window.showWarningMessage('Cannot apply suggestion: selection or file context is missing.');
 		return;
 	}
 
@@ -18,8 +18,6 @@ export async function applySuggestion(
 
 	editor.selection = selection;
 
-	await new Promise(resolve => setTimeout(resolve, 50));
-
 	const success = await editor.edit(editBuilder => {
 		if (selection.isEmpty) {
 			editBuilder.insert(selection.start, improvedCode);
@@ -29,13 +27,13 @@ export async function applySuggestion(
 	});
 
 	if (!success) {
-		vscode.window.showErrorMessage('❌ Failed to apply suggestion.');
+		vscode.window.showErrorMessage('Failed to apply suggestion.');
 		return;
 	}
 
 	if (selection.isEmpty) {
-		vscode.window.showInformationMessage('⚠️ No code was selected — the AI suggestion was inserted at your cursor.');
+		vscode.window.showInformationMessage('No code was selected — the AI suggestion was inserted at your cursor.');
 	} else {
-		vscode.window.showInformationMessage('✅ Suggestion applied to selected code.');
+		vscode.window.showInformationMessage('Suggestion applied to selected code.');
 	}
 }

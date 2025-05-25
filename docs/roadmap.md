@@ -56,9 +56,9 @@
 ### Week 6: Code Application
 
 - Apply accepted suggestions to editor [Done]
-- Highlight modified lines
-- Log rejection without modifying file
-- Read the whole project file
+- Highlight modified lines (Optional)
+- Log rejection without modifying file [Done]
+- Read the whole F# file
 - Add diff file
 
 ### Week 7: Feedback Logging System

@@ -20,8 +20,6 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
 		const fileName = vscode.window.activeTextEditor?.document.fileName;
 		const prompt = helpers.buildPrompt(selectedCode, fileName);
 
-		console.log(`\nPrompt: ${prompt}\n`);
-
 		const response = await helpers.queryDeepSeek(prompt);
 		if (!response) {
             return;
@@ -39,6 +37,6 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
 
 		const selection = editor.selection;
 		const documentUri = editor.document.uri;
-		showWebview(response,context, fileName, selection, documentUri);
+		showWebview(response, context, selectedCode, fileName, selection, documentUri);
 	});
 }
