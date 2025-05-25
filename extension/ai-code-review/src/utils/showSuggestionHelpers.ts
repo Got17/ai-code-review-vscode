@@ -50,7 +50,20 @@ export function showWebview(
 			retainContextWhenHidden: true
 		}
 	);
-	panel.webview.html = getWebviewContent(response, fileName);
+
+	const improvedCode = extractImprovedCode(response);						
+	if (!improvedCode) {
+		return;
+	}
+
+	const editor = vscode.window.activeTextEditor;
+	if(!editor) {
+		return;
+	}
+
+	const originalCode = editor.document.getText(selection);
+
+	panel.webview.html = getWebviewContent(fileName, originalCode, response, selection, documentUri);
 	handleWebviewMessage(response, panel, context, fileName, selection, documentUri);
 }
 
@@ -66,9 +79,9 @@ function handleWebviewMessage(
 		async message => {
 			console.log("🔥 Received message from Webview:", message);
 
-			if (message.action === "accept") {
+			if (message.command === "accept") {
 				try {
-					const improvedCode = extractImprovedCode(response, panel);						
+					const improvedCode = extractImprovedCode(response);						
 					if (!improvedCode) {
 						return;
 					}
@@ -79,17 +92,31 @@ function handleWebviewMessage(
 					console.log(`Error with accepting: ${err}`);
 				}
 			}
-			else if (message.action === "reject"){
+			else if (message.command === "reject"){
 				try {
-					const improvedCode = extractImprovedCode(response, panel);
-					console.log(`Improved code: ${improvedCode}`);	
+					const improvedCode = extractImprovedCode(response);
 					if (!improvedCode) {
 						return;
 					}
-					logRejection(response, fileName, improvedCode);
 
-					vscode.window.showInformationMessage("Reject suggestion"); 	
+					const editor = vscode.window.activeTextEditor;
+					const originalCode = editor?.document.getText(editor.selection);
+					if (!originalCode) {
+						return;
+					}
+
+					logRejection(
+						message.fileName,
+						message.originalCode,
+						message.aiSuggestedCode, 
+						message.aiFullResponse,  
+						message.selection ? new vscode.Selection( 
+							new vscode.Position(message.selection.start.line, message.selection.start.character),
+							new vscode.Position(message.selection.end.line, message.selection.end.character)
+						) : undefined
+					);
 					
+					panel.dispose();						
 				} catch (err) {
 					console.log(`Error with rejecting: ${err}`);
 				}
@@ -100,10 +127,8 @@ function handleWebviewMessage(
 	);
 }
 
-function extractImprovedCode(response: string, panel: vscode.WebviewPanel) {
-	console.log("Attempting to extract improved code...");
+function extractImprovedCode(response: string) {
 	const improvedCodeMatch = response.match(/Improved Code\s*\*\*[\s\S]*?```fsharp\s*([\s\S]*?)```/i);
-	console.log(`Improved code: ${improvedCodeMatch}`);
 
 	if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
 		vscode.window.showErrorMessage('Could not find the "Improved Code" F# block');
@@ -113,7 +138,13 @@ function extractImprovedCode(response: string, panel: vscode.WebviewPanel) {
 	return improvedCodeMatch[1].trim();
 }
 
-function getWebviewContent(response: string, fileName?: string): string {
+function getWebviewContent(
+	fileName: string | undefined,
+    originalCode: string,
+    response: string,  
+	selection: vscode.Selection | undefined,
+  	documentUri: vscode.Uri | undefined
+): string {
 	const escaped = response
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -176,9 +207,41 @@ function getWebviewContent(response: string, fileName?: string): string {
 		<hr>
 		${escaped}
 		<div class="buttons">
-			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'accept' })">✅ Accept</button>
-			<button type="button" onclick="acquireVsCodeApi().postMessage({ action: 'reject' })">❌ Reject</button>
+			<button id="accept-button">✅ Accept</button>
+			<button id="reject-button">❌ Reject</button>
 		</div>
+		<script>
+			const originalCode = ${JSON.stringify(originalCode)};
+			const improvedCodeBlock = ${JSON.stringify(extractImprovedCode(response))};
+			const fullAiResponse = ${JSON.stringify(response)};
+			const currentFileName = ${JSON.stringify(fileName)};
+			const currentSelection = ${JSON.stringify(selection ? { start: { line: selection.start.line, character: selection.start.character }, end: { line: selection.end.line, character: selection.end.character } } : null)};
+			const currentDocumentUri = ${JSON.stringify(documentUri ? documentUri.toString() : null)};
+
+			const vscode = acquireVsCodeApi();
+			document.getElementById('accept-button').addEventListener('click', () => {
+				vscode.postMessage({
+					command: 'accept',
+					fileName: currentFileName,
+					originalCode: originalCode,
+					improvedCode: improvedCodeBlock, 
+					selection: currentSelection,
+					documentUri: currentDocumentUri
+				});
+			});
+
+			document.getElementById('reject-button').addEventListener('click', () => {
+				vscode.postMessage({
+					command: 'reject',
+					fileName: currentFileName,
+					originalCode: originalCode,
+					aiSuggestedCode: improvedCodeBlock, 
+					aiFullResponse: fullAiResponse,     
+					selection: currentSelection,
+					documentUri: currentDocumentUri
+				});
+			});
+		</script>
 	</body>
 	</html>
 	
