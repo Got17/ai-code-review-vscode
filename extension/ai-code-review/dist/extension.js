@@ -5483,7 +5483,7 @@ var esm_default = gitInstanceFactory;
 function getWorkspaceFolder() {
   const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
   if (!folder) {
-    vscode.window.showErrorMessage("\u274C No workspace folder found.");
+    vscode.window.showErrorMessage("No workspace folder found.");
     return null;
   }
   return folder;
@@ -5552,13 +5552,13 @@ async function queryDeepSeek(prompt) {
     });
     clearTimeout(timeout);
     if (!response.ok) {
-      vscode.window.showErrorMessage(`\u274C AI request failed: ${response.statusText}`);
+      vscode.window.showErrorMessage(`AI request failed: ${response.statusText}`);
       return null;
     }
     const data = await response.json();
     return data.response;
   } catch (err) {
-    vscode.window.showErrorMessage(`\u274C AI request error: ${err.message}`);
+    vscode.window.showErrorMessage(`AI request error: ${err.message}`);
     return null;
   }
 }
@@ -5580,7 +5580,6 @@ function ensureLogDirectoryExists(workspaceRoot) {
     }
     return logDirPath;
   } catch (error) {
-    console.error("Failed to create log directory:", error);
     vscode2.window.showErrorMessage(`Failed to create AI feedback log directory: ${error}`);
     return null;
   }
@@ -5593,7 +5592,10 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
   }
   const workspaceRoot = workspaceFolders[0].uri.fsPath;
   const logDirPath = ensureLogDirectoryExists(workspaceRoot);
-  if (!logDirPath) return;
+  if (!logDirPath) {
+    console.error("[LogRejectionDebug] Log directory path is null. Aborting logRejection.");
+    return;
+  }
   const logFilePath = path.join(logDirPath, REJECTIONS_FILE_NAME);
   const newEntry = {
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -5608,22 +5610,22 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
       endChar: selectionDetails.end.character
     } : void 0
   };
-  console.log(`[REJECTED] Logging to ${logFilePath}`);
-  console.log(`           File: ${fileName}`);
-  console.log(`           Original: ${originalCode.substring(0, 50)}...`);
-  console.log(`           Suggested: ${aiSuggestedCode.substring(0, 50)}...`);
   try {
     let logs = [];
     if (fs.existsSync(logFilePath)) {
       const fileContent = fs.readFileSync(logFilePath, "utf-8");
-      logs = JSON.parse(fileContent);
+      if (fileContent.trim() === "") {
+        logs = [];
+      } else {
+        logs = JSON.parse(fileContent);
+      }
     }
     logs.push(newEntry);
-    fs.writeFileSync(logFilePath, JSON.stringify(logs, null, 2), "utf-8");
-    vscode2.window.showInformationMessage("\u274C Suggestion rejected and logged.");
+    const jsonString = JSON.stringify(logs, null, 2);
+    fs.writeFileSync(logFilePath, jsonString, "utf-8");
+    vscode2.window.showInformationMessage("Suggestion rejected and logged.");
   } catch (error) {
-    console.error("Failed to write rejection log:", error);
-    vscode2.window.showErrorMessage(`Failed to write rejection log: ${error}`);
+    vscode2.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
   }
 }
 
@@ -5631,7 +5633,7 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
 var vscode3 = __toESM(require("vscode"));
 async function applySuggestion(improvedCode, selection, documentUri) {
   if (!selection || !documentUri) {
-    vscode3.window.showWarningMessage("\u26A0\uFE0F Cannot apply suggestion: selection or file context is missing.");
+    vscode3.window.showWarningMessage("Cannot apply suggestion: selection or file context is missing.");
     return;
   }
   const doc = await vscode3.workspace.openTextDocument(documentUri);
@@ -5640,7 +5642,6 @@ async function applySuggestion(improvedCode, selection, documentUri) {
     viewColumn: vscode3.ViewColumn.One
   });
   editor.selection = selection;
-  await new Promise((resolve) => setTimeout(resolve, 50));
   const success = await editor.edit((editBuilder) => {
     if (selection.isEmpty) {
       editBuilder.insert(selection.start, improvedCode);
@@ -5649,13 +5650,13 @@ async function applySuggestion(improvedCode, selection, documentUri) {
     }
   });
   if (!success) {
-    vscode3.window.showErrorMessage("\u274C Failed to apply suggestion.");
+    vscode3.window.showErrorMessage("Failed to apply suggestion.");
     return;
   }
   if (selection.isEmpty) {
-    vscode3.window.showInformationMessage("\u26A0\uFE0F No code was selected \u2014 the AI suggestion was inserted at your cursor.");
+    vscode3.window.showInformationMessage("No code was selected \u2014 the AI suggestion was inserted at your cursor.");
   } else {
-    vscode3.window.showInformationMessage("\u2705 Suggestion applied to selected code.");
+    vscode3.window.showInformationMessage("Suggestion applied to selected code.");
   }
 }
 
@@ -5663,37 +5664,51 @@ async function applySuggestion(improvedCode, selection, documentUri) {
 function showOutput(fileName, response) {
   const outputChannel = vscode4.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
-  outputChannel.appendLine(`\u{1F4C4} File: ${fileName || "Unknown"}`);
+  outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
 ${response}`);
   outputChannel.show(true);
 }
-function showWebview(response, context, fileName, selection, documentUri) {
-  const panel = vscode4.window.createWebviewPanel(
-    "aiSuggestionPanel",
-    "AI Code Review (F# and WebSharper)",
-    vscode4.ViewColumn.Beside,
-    {
-      enableScripts: true,
-      retainContextWhenHidden: true
-    }
-  );
+var panel = void 0;
+function showWebview(response, context, originalCode, fileName, selection, documentUri) {
+  const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : void 0;
+  if (panel) {
+    console.log("[ShowWebviewDebug] Revealing existing panel.");
+    panel.reveal(column);
+  } else {
+    console.log("[ShowWebviewDebug] Creating new panel.");
+    panel = vscode4.window.createWebviewPanel(
+      "aiSuggestionPanel",
+      "AI Code Review (F# and WebSharper)",
+      vscode4.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true
+      }
+    );
+    panel.onDidDispose(
+      () => {
+        console.log("[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.");
+        panel = void 0;
+      },
+      null,
+      context.subscriptions
+    );
+  }
   const improvedCode = extractImprovedCode(response);
   if (!improvedCode) {
     return;
   }
   const editor = vscode4.window.activeTextEditor;
-  if (!editor) {
+  if (!editor || !originalCode) {
     return;
   }
-  const originalCode = editor.document.getText(selection);
   panel.webview.html = getWebviewContent(fileName, originalCode, response, selection, documentUri);
-  handleWebviewMessage(response, panel, context, fileName, selection, documentUri);
+  handleWebviewMessage(response, panel, context, selection, documentUri);
 }
-function handleWebviewMessage(response, panel, context, fileName, selection, documentUri) {
-  panel.webview.onDidReceiveMessage(
+function handleWebviewMessage(response, panel2, context, selection, documentUri) {
+  panel2.webview.onDidReceiveMessage(
     async (message) => {
-      console.log("\u{1F525} Received message from Webview:", message);
       if (message.command === "accept") {
         try {
           const improvedCode = extractImprovedCode(response);
@@ -5701,21 +5716,12 @@ function handleWebviewMessage(response, panel, context, fileName, selection, doc
             return;
           }
           await applySuggestion(improvedCode, selection, documentUri);
-          panel.dispose();
+          panel2.dispose();
         } catch (err) {
           console.log(`Error with accepting: ${err}`);
         }
       } else if (message.command === "reject") {
         try {
-          const improvedCode = extractImprovedCode(response);
-          if (!improvedCode) {
-            return;
-          }
-          const editor = vscode4.window.activeTextEditor;
-          const originalCode = editor?.document.getText(editor.selection);
-          if (!originalCode) {
-            return;
-          }
           logRejection(
             message.fileName,
             message.originalCode,
@@ -5726,7 +5732,7 @@ function handleWebviewMessage(response, panel, context, fileName, selection, doc
               new vscode4.Position(message.selection.end.line, message.selection.end.character)
             ) : void 0
           );
-          panel.dispose();
+          panel2.dispose();
         } catch (err) {
           console.log(`Error with rejecting: ${err}`);
         }
@@ -5737,12 +5743,22 @@ function handleWebviewMessage(response, panel, context, fileName, selection, doc
   );
 }
 function extractImprovedCode(response) {
-  const improvedCodeMatch = response.match(/Improved Code\s*\*\*[\s\S]*?```fsharp\s*([\s\S]*?)```/i);
-  if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
-    vscode4.window.showErrorMessage('Could not find the "Improved Code" F# block');
-    return;
+  if (!response) return null;
+  const improvedCodeRegex = /^(?:.*Improved Code.*?\r?\n)(?:[\s\S]*?)```fsharp\n([\s\S]*?)\n```/im;
+  const match = response.match(improvedCodeRegex);
+  if (match && match[1]) {
+    return match[1].trim();
+  } else {
+    console.warn("Could not find the 'Improved Code' F# block with the new regex. AI Response was:\n", response);
+    const simplerCodeBlockRegex = /```fsharp\n([\s\S]*?)\n```/i;
+    const simplerMatch = response.match(simplerCodeBlockRegex);
+    if (simplerMatch && simplerMatch[1]) {
+      console.warn("Falling back to simpler regex, found an F# code block without a clear 'Improved Code' header.");
+      return simplerMatch[1].trim();
+    }
+    vscode4.window.showErrorMessage('Could not find the "Improved Code" F# block in the AI response.');
+    return null;
   }
-  return improvedCodeMatch[1].trim();
 }
 function getWebviewContent(fileName, originalCode, response, selection, documentUri) {
   const escaped = response.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(
@@ -5856,9 +5872,6 @@ function registerShowSuggestion(context) {
     }
     const fileName = vscode5.window.activeTextEditor?.document.fileName;
     const prompt = buildPrompt(selectedCode, fileName);
-    console.log(`
-Prompt: ${prompt}
-`);
     const response = await queryDeepSeek(prompt);
     if (!response) {
       return;
@@ -5870,7 +5883,7 @@ Prompt: ${prompt}
     }
     const selection = editor.selection;
     const documentUri = editor.document.uri;
-    showWebview(response, context, fileName, selection, documentUri);
+    showWebview(response, context, selectedCode, fileName, selection, documentUri);
   });
 }
 

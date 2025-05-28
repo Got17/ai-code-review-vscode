@@ -17,39 +17,61 @@ export async function handleUserChoice(summary: string, git: any): Promise<void>
 		if (choice === 'Accept') {
 			// Later on we can let AI generate the commit name as well
 			await git.commit('AI suggestion applied');
-			vscode.window.showInformationMessage('✅ Changes committed with message: AI suggestion applied');
+			vscode.window.showInformationMessage('Changes committed with message: AI suggestion applied');
 		} else {
-			vscode.window.showInformationMessage('⚠️ Changes staged but not committed.');
+			vscode.window.showInformationMessage('Changes staged but not committed.');
 		}
 	} catch (err: any) {
-		vscode.window.showErrorMessage(`❌ Git operation failed: ${err.message}`);
+		vscode.window.showErrorMessage(`Git operation failed: ${err.message}`);
 	}
 }
 
 export function showOutput(fileName: string | undefined, response: string): void {
 	const outputChannel = vscode.window.createOutputChannel("AI Code Review");
 	outputChannel.clear();
-	outputChannel.appendLine(`📄 File: ${fileName || 'Unknown'}`);
+	outputChannel.appendLine(`File: ${fileName || 'Unknown'}`);
 	outputChannel.appendLine(`\n${response}`);
 	outputChannel.show(true);
 }
 
+let panel: vscode.WebviewPanel | undefined = undefined;
+
 export function showWebview(
 	response: string, 
 	context: vscode.ExtensionContext, 
+	originalCode: string | null,
 	fileName?: string,
 	selection?: vscode.Selection,
   	documentUri?: vscode.Uri
 ): void {
-	const panel = vscode.window.createWebviewPanel(
-		'aiSuggestionPanel',
-		'AI Code Review (F# and WebSharper)',
-		vscode.ViewColumn.Beside,
-		{
-			enableScripts: true,
-			retainContextWhenHidden: true
-		}
-	);
+	const column = vscode.window.activeTextEditor
+        ? vscode.window.activeTextEditor.viewColumn
+        : undefined;
+
+	if (panel) {
+        console.log('[ShowWebviewDebug] Revealing existing panel.');
+        panel.reveal(column);
+    } else {
+		console.log('[ShowWebviewDebug] Creating new panel.');
+		panel = vscode.window.createWebviewPanel(
+			'aiSuggestionPanel',
+			'AI Code Review (F# and WebSharper)',
+			vscode.ViewColumn.Beside,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true
+			}
+		);
+
+		panel.onDidDispose(
+            () => {
+                console.log('[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.');
+                panel = undefined;
+            },
+            null,
+            context.subscriptions
+        );
+	}
 
 	const improvedCode = extractImprovedCode(response);						
 	if (!improvedCode) {
@@ -57,28 +79,23 @@ export function showWebview(
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	if(!editor) {
+	if(!editor || !originalCode) {
 		return;
 	}
 
-	const originalCode = editor.document.getText(selection);
-
 	panel.webview.html = getWebviewContent(fileName, originalCode, response, selection, documentUri);
-	handleWebviewMessage(response, panel, context, fileName, selection, documentUri);
+	handleWebviewMessage(response, panel, context, selection, documentUri);
 }
 
 function handleWebviewMessage(
 	response: string,
 	panel: vscode.WebviewPanel,
 	context: vscode.ExtensionContext,
-	fileName?: string,
 	selection?: vscode.Selection,
 	documentUri?: vscode.Uri
 ) {
 	panel.webview.onDidReceiveMessage(
 		async message => {
-			console.log("🔥 Received message from Webview:", message);
-
 			if (message.command === "accept") {
 				try {
 					const improvedCode = extractImprovedCode(response);						
@@ -94,17 +111,6 @@ function handleWebviewMessage(
 			}
 			else if (message.command === "reject"){
 				try {
-					const improvedCode = extractImprovedCode(response);
-					if (!improvedCode) {
-						return;
-					}
-
-					const editor = vscode.window.activeTextEditor;
-					const originalCode = editor?.document.getText(editor.selection);
-					if (!originalCode) {
-						return;
-					}
-
 					logRejection(
 						message.fileName,
 						message.originalCode,
@@ -128,14 +134,26 @@ function handleWebviewMessage(
 }
 
 function extractImprovedCode(response: string) {
-	const improvedCodeMatch = response.match(/Improved Code\s*\*\*[\s\S]*?```fsharp\s*([\s\S]*?)```/i);
+	// eslint-disable-next-line curly
+	if (!response) return null;
 
-	if (!improvedCodeMatch || improvedCodeMatch.length < 2) {
-		vscode.window.showErrorMessage('Could not find the "Improved Code" F# block');
-		return;
-	}
+	const improvedCodeRegex = /^(?:.*Improved Code.*?\r?\n)(?:[\s\S]*?)```fsharp\n([\s\S]*?)\n```/im;
+	const match = response.match(improvedCodeRegex);
 
-	return improvedCodeMatch[1].trim();
+	if (match && match[1]) {
+        return match[1].trim();
+    } else {
+        console.warn("Could not find the 'Improved Code' F# block with the new regex. AI Response was:\n", response);
+		
+        const simplerCodeBlockRegex = /```fsharp\n([\s\S]*?)\n```/i;
+        const simplerMatch = response.match(simplerCodeBlockRegex);
+        if (simplerMatch && simplerMatch[1]) {
+            console.warn("Falling back to simpler regex, found an F# code block without a clear 'Improved Code' header.");
+            return simplerMatch[1].trim();
+        }
+        vscode.window.showErrorMessage('Could not find the "Improved Code" F# block in the AI response.');
+        return null;
+    }
 }
 
 function getWebviewContent(

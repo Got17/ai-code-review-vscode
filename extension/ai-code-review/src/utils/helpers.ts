@@ -4,7 +4,7 @@ import simpleGit, { SimpleGit } from 'simple-git';
 function getWorkspaceFolder(): string | null {
 		const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
 		if (!folder) {
-			vscode.window.showErrorMessage('❌ No workspace folder found.');
+			vscode.window.showErrorMessage('No workspace folder found.');
 			return null;
 		}
 		return folder;
@@ -83,14 +83,14 @@ export async function queryDeepSeek(prompt: string): Promise<string | null> {
 		clearTimeout(timeout);
 
 		if (!response.ok) {
-			vscode.window.showErrorMessage(`❌ AI request failed: ${response.statusText}`);
+			vscode.window.showErrorMessage(`AI request failed: ${response.statusText}`);
 			return null;
 		}
 
 		const data = await response.json() as { response: string };
 		return data.response;
 	} catch (err: any) {
-		vscode.window.showErrorMessage(`❌ AI request error: ${err.message}`);
+		vscode.window.showErrorMessage(`AI request error: ${err.message}`);
 		return null;
 	}
 }
