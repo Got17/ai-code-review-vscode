@@ -5492,59 +5492,54 @@ function getGitClient() {
   const folder = getWorkspaceFolder();
   return folder ? esm_default({ baseDir: folder }) : null;
 }
-function getSelectedCode() {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) {
-    vscode.window.showErrorMessage("No active editor found.");
-    return null;
+function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange) {
+  let selectionContextInfo = "";
+  if (selectionRange) {
+    selectionContextInfo = `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.`;
   }
-  const selected = editor.document.getText(editor.selection);
-  if (!selected) {
-    vscode.window.showWarningMessage("Please select some code before running the command.");
-    return null;
-  }
-  return selected;
-}
-function buildPrompt(selectedCode, fileName) {
   return `
-You are an expert in **F#** and **WebSharper**.
+You are an expert F# and WebSharper refactoring tool.
+Your task is to review and improve a specific SELECTION of F# code within the context of an entire FILE.
+The user wants to optimize the SELECTED CODE. To do this, you may need to modify other parts of the FILE (e.g., related functions, types, or module structure) IF AND ONLY IF those changes are ABSOLUTELY NECESSARY to best improve the selected code.
 
-Review the following code and suggest improvements in the areas of:
+**RULES FOR RESPONSE (Strictly Follow):**
+1.  **Focus of Improvement**: The primary goal is to improve the logic/readability/performance/maintainability of the code corresponding to the user's SELECTION.
+2.  **Scope of Changes**:
+    * While focusing on the selection, you ARE ALLOWED to modify other parts of the file ONLY IF it's a necessary consequence of optimally refactoring the selected code (e.g., changing a called function, adjusting a type definition used by the selection).
+    * **MINIMIZE UNNECESSARY CHANGES**: Do not make stylistic changes to parts of the file that are unrelated to your refactoring of the selected code.
+    * **DO NOT DELETE UNRELATED CODE (CRITICAL RULE)**: Do NOT remove any existing code (variables, functions, types, comments, module-level bindings like 'let People = ...', etc.) from the file that is NOT part of the \`USER'S SELECTED CODE\` itself or directly and necessarily impacted by the refactoring of the \`USER'S SELECTED CODE\`. For example, if the selected code is a type definition and your suggestion is to remove it because it's unused by the selection or makes the selection obsolete, that is acceptable. However, do NOT remove other, unrelated variable definitions or functions from elsewhere in the file, even if you perceive them as unused in the broader file context unless that specific item was part of the selection being reviewed. The AI should assume all unselected code is intended to be kept unless its modification is a direct, unavoidable consequence of improving the selected code.
+3.  **"Improved Code" Output**: The "2. Improved Code:" section of your response MUST contain the **ENTIRE, complete F# file content**, with all necessary modifications integrated. It should not just be the changed snippet.
+4.  **Code Style and Formatting Preservation (VERY IMPORTANT for unrelated code):**
+    * **Preserve Existing \`open\` Statements**: Do NOT unnecessarily change how types are qualified. If the original code uses \`open SomeModule;\` and then \`TypeFromModule\`, maintain this. Do NOT change it to \`SomeModule.TypeFromModule\` unless the \`open\` statement itself is part of the refactoring.
+    * **Maintain Original Formatting for Unchanged Code**: For parts of the file that you are not actively refactoring, preserve the original line breaks, indentation, and general code style as closely as possible.
+    * **Only Modify What's Necessary**: If a function or type outside the selection is modified, ensure the modification is minimal and directly supports the improvement of the selected code.
+5.  **Response Structure**: Respond ONLY with the three sections: "1. Summary of Issues:", "2. Improved Code:", "3. Explanation:".
+    * "1. Summary of Issues": Describe issues found, primarily in the selected code.
+    * "2. Improved Code:": Provide the complete, modified F# file content within a single \`\`\`fsharp ... \`\`\` block.
+    * "3. Explanation:": Explain the changes made, especially how they improve the selected code and why any related changes outside the selection were necessary. Clearly state if you had to modify code outside the user's selection and why. If you suggest removing the selected code, explain why.
 
-1. **Readability**: UI logic clarity, reactive flow structure.
-2. **Performance**: Efficient reactive updates, avoiding redundant computation.
-3. **Maintainability**: Modular components, clean event handling.
+**FULL FILE CONTENT from \`${fileName || "current file"}\`:**
+\`\`\`fsharp
+${wholeFileContent}
+\`\`\`
 
-**Constraints**:
-- ONLY respond using the three sections below.
-- DO NOT include any introductory or explanatory text outside these sections.
-- DO NOT rephrase the prompt or summarize the task.
-- DO NOT say the code is "already good" unless doing so directly in the **Summary of Issues**.
-- Always include valid **F#** in the code block if suggesting changes.
-
-**Formatting (must be exact)**:
-
-1. **Summary of Issues**:
-2. **Improved Code**:
-3. **Explanation**:
-
-${fileName ? `This code is from the file: \`${fileName}\`.` : ""}
-
+**USER'S SELECTED CODE (the primary focus for your improvement efforts) from \`${fileName || "current file"}\`:**
+${selectionContextInfo}
 \`\`\`fsharp
 ${selectedCode}
 \`\`\`
-  	`.trim();
+    `.trim();
 }
 async function queryDeepSeek(prompt) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6e4);
-    const start = Date.now();
+    const timeout = setTimeout(() => controller.abort(), 18e4);
+    const aiModel = "qwen2.5-coder:7b-instruct";
     const response = await fetch("http://localhost:11434/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "deepseek-coder:6.7b-instruct",
+        model: aiModel,
         prompt,
         stream: false
       }),
@@ -5631,33 +5626,33 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
 
 // src/utils/applySuggestion.ts
 var vscode3 = __toESM(require("vscode"));
-async function applySuggestion(improvedCode, selection, documentUri) {
-  if (!selection || !documentUri) {
-    vscode3.window.showWarningMessage("Cannot apply suggestion: selection or file context is missing.");
+async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
+  if (!documentUri) {
+    vscode3.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
     return;
   }
   const doc = await vscode3.workspace.openTextDocument(documentUri);
   const editor = await vscode3.window.showTextDocument(doc, {
     preserveFocus: false,
-    viewColumn: vscode3.ViewColumn.One
+    viewColumn: vscode3.window.activeTextEditor?.viewColumn || vscode3.ViewColumn.One
   });
-  editor.selection = selection;
-  const success = await editor.edit((editBuilder) => {
-    if (selection.isEmpty) {
-      editBuilder.insert(selection.start, improvedCode);
-    } else {
-      editBuilder.replace(selection, improvedCode);
-    }
-  });
-  if (!success) {
-    vscode3.window.showErrorMessage("Failed to apply suggestion.");
+  if (editor.document.uri.toString() !== documentUri.toString()) {
+    vscode3.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
     return;
   }
-  if (selection.isEmpty) {
-    vscode3.window.showInformationMessage("No code was selected \u2014 the AI suggestion was inserted at your cursor.");
-  } else {
-    vscode3.window.showInformationMessage("Suggestion applied to selected code.");
+  const firstLine = doc.lineAt(0);
+  const lastLine = doc.lineAt(doc.lineCount - 1);
+  const entireDocumentRange = new vscode3.Range(firstLine.range.start, lastLine.range.end);
+  const success = await editor.edit((editBuilder) => {
+    editBuilder.replace(entireDocumentRange, aiProvidedFullFileContent);
+  });
+  if (!success) {
+    vscode3.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
+    return;
   }
+  editor.selection = originalSelectionForContext;
+  editor.revealRange(originalSelectionForContext, vscode3.TextEditorRevealType.InCenterIfOutsideViewport);
+  vscode3.window.showInformationMessage("AI suggestion applied (entire file updated).");
 }
 
 // src/utils/showSuggestionHelpers.ts
@@ -5670,7 +5665,7 @@ ${response}`);
   outputChannel.show(true);
 }
 var panel = void 0;
-function showWebview(response, context, originalCode, fileName, selection, documentUri) {
+function showWebview(response, context, originalSelectedCode, originalWholeFileContent, fileName, selection, documentUri) {
   const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : void 0;
   if (panel) {
     console.log("[ShowWebviewDebug] Revealing existing panel.");
@@ -5700,23 +5695,34 @@ function showWebview(response, context, originalCode, fileName, selection, docum
     return;
   }
   const editor = vscode4.window.activeTextEditor;
-  if (!editor || !originalCode) {
+  if (!editor || !originalSelectedCode) {
     return;
   }
-  panel.webview.html = getWebviewContent(fileName, originalCode, response, selection, documentUri);
-  handleWebviewMessage(response, panel, context, selection, documentUri);
+  panel.webview.html = getWebviewContent(fileName, originalSelectedCode, originalWholeFileContent, response, selection, documentUri);
+  handleWebviewMessage(panel, context);
 }
-function handleWebviewMessage(response, panel2, context, selection, documentUri) {
+function handleWebviewMessage(panel2, context) {
   panel2.webview.onDidReceiveMessage(
     async (message) => {
       if (message.command === "accept") {
         try {
-          const improvedCode = extractImprovedCode(response);
-          if (!improvedCode) {
+          if (message.improvedCode === null || message.improvedCode === void 0) {
+            vscode4.window.showErrorMessage("AI did not provide improved code to apply.");
             return;
           }
-          await applySuggestion(improvedCode, selection, documentUri);
-          panel2.dispose();
+          if (!message.selection || !message.documentUri) {
+            vscode4.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+            return;
+          }
+          const originalSelection = new vscode4.Selection(
+            new vscode4.Position(message.selection.start.line, message.selection.start.character),
+            new vscode4.Position(message.selection.end.line, message.selection.end.character)
+          );
+          const docUri = vscode4.Uri.parse(message.documentUri);
+          await applySuggestion(message.improvedCode, originalSelection, docUri);
+          if (panel2) {
+            panel2.dispose();
+          }
         } catch (err) {
           console.log(`Error with accepting: ${err}`);
         }
@@ -5760,7 +5766,7 @@ function extractImprovedCode(response) {
     return null;
   }
 }
-function getWebviewContent(fileName, originalCode, response, selection, documentUri) {
+function getWebviewContent(fileName, originalCode, originalWholeFileContent, response, selection, documentUri) {
   const escaped = response.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(
     /```fsharp([\s\S]*?)```/g,
     (_, code) => `<pre><code class="language-fsharp">${code.trim()}</code></pre>`
@@ -5822,6 +5828,7 @@ function getWebviewContent(fileName, originalCode, response, selection, document
 		</div>
 		<script>
 			const originalCode = ${JSON.stringify(originalCode)};
+			const originalWholeFileContent = ${JSON.stringify(originalWholeFileContent)};
 			const improvedCodeBlock = ${JSON.stringify(extractImprovedCode(response))};
 			const fullAiResponse = ${JSON.stringify(response)};
 			const currentFileName = ${JSON.stringify(fileName)};
@@ -5861,29 +5868,57 @@ function getWebviewContent(fileName, originalCode, response, selection, document
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
   return vscode5.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode5.window.setStatusBarMessage("\u{1F916} Generating AI suggestion...", 2e4);
+    vscode5.window.setStatusBarMessage("\u{1F916} Analyzing F# code and generating suggestion...", 2e4);
+    const editor = vscode5.window.activeTextEditor;
+    if (!editor) {
+      vscode5.window.showErrorMessage("No active F# editor found.");
+      return;
+    }
+    if (editor.document.languageId !== "fsharp") {
+      vscode5.window.showErrorMessage("This command only works on F# files.");
+      return;
+    }
+    const document2 = editor.document;
+    const fileName = document2.fileName;
+    const selection = editor.selection;
+    const selectedCode = document2.getText(selection);
+    if (selection.isEmpty && !selectedCode) {
+      vscode5.window.showWarningMessage("Please select some F# code to review.");
+      return;
+    }
+    const wholeFileContent = document2.getText();
     const git = getGitClient();
     if (!git) {
+      vscode5.window.showErrorMessage("Git client not available.");
       return;
     }
-    const selectedCode = getSelectedCode();
-    if (!selectedCode) {
-      return;
-    }
-    const fileName = vscode5.window.activeTextEditor?.document.fileName;
-    const prompt = buildPrompt(selectedCode, fileName);
+    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
+    console.log(`
+Prompt (selected code):
+ ${selectedCode}
+`);
+    console.log(`
+Prompt (full file content - first 500 chars):
+ ${wholeFileContent.substring(0, 500)}...
+`);
+    vscode5.window.setStatusBarMessage("\u{1F916} Querying AI for suggestion...", 2e4);
     const response = await queryDeepSeek(prompt);
+    vscode5.window.setStatusBarMessage("AI Suggestion Received!", 5e3);
     if (!response) {
+      vscode5.window.showErrorMessage("No response from AI.");
       return;
     }
     showOutput(fileName, response);
-    const editor = vscode5.window.activeTextEditor;
-    if (!editor) {
-      return;
-    }
-    const selection = editor.selection;
-    const documentUri = editor.document.uri;
-    showWebview(response, context, selectedCode, fileName, selection, documentUri);
+    const documentUri = document2.uri;
+    showWebview(
+      response,
+      context,
+      selectedCode,
+      wholeFileContent,
+      fileName,
+      selection,
+      documentUri
+    );
   });
 }
 

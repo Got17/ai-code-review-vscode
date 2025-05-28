@@ -37,12 +37,13 @@ export function showOutput(fileName: string | undefined, response: string): void
 let panel: vscode.WebviewPanel | undefined = undefined;
 
 export function showWebview(
-	response: string, 
-	context: vscode.ExtensionContext, 
-	originalCode: string | null,
-	fileName?: string,
-	selection?: vscode.Selection,
-  	documentUri?: vscode.Uri
+	response: string,
+    context: vscode.ExtensionContext,
+    originalSelectedCode: string | null,
+    originalWholeFileContent: string,
+    fileName: string | undefined,
+    selection: vscode.Selection,
+    documentUri: vscode.Uri
 ): void {
 	const column = vscode.window.activeTextEditor
         ? vscode.window.activeTextEditor.viewColumn
@@ -79,32 +80,42 @@ export function showWebview(
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	if(!editor || !originalCode) {
+	if(!editor || !originalSelectedCode) {
 		return;
 	}
 
-	panel.webview.html = getWebviewContent(fileName, originalCode, response, selection, documentUri);
-	handleWebviewMessage(response, panel, context, selection, documentUri);
+	panel.webview.html = getWebviewContent(fileName, originalSelectedCode, originalWholeFileContent, response, selection, documentUri);
+	handleWebviewMessage(panel, context);
 }
 
 function handleWebviewMessage(
-	response: string,
 	panel: vscode.WebviewPanel,
 	context: vscode.ExtensionContext,
-	selection?: vscode.Selection,
-	documentUri?: vscode.Uri
 ) {
 	panel.webview.onDidReceiveMessage(
 		async message => {
 			if (message.command === "accept") {
 				try {
-					const improvedCode = extractImprovedCode(response);						
-					if (!improvedCode) {
+					if (message.improvedCode === null || message.improvedCode === undefined) {
+						vscode.window.showErrorMessage('AI did not provide improved code to apply.');
 						return;
 					}
+					if (!message.selection || !message.documentUri) {
+						vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.');
+						return;
+					}
+
+					const originalSelection = new vscode.Selection(
+						new vscode.Position(message.selection.start.line, message.selection.start.character),
+						new vscode.Position(message.selection.end.line, message.selection.end.character)
+					);
+					const docUri = vscode.Uri.parse(message.documentUri);
+
+					await applySuggestion(message.improvedCode, originalSelection, docUri);
 					
-					await applySuggestion(improvedCode, selection, documentUri);
-					panel.dispose();					
+					if (panel) {
+						panel.dispose();
+					}
 				} catch (err) {
 					console.log(`Error with accepting: ${err}`);
 				}
@@ -159,7 +170,8 @@ function extractImprovedCode(response: string) {
 function getWebviewContent(
 	fileName: string | undefined,
     originalCode: string,
-    response: string,  
+	originalWholeFileContent: string,
+    response: string,
 	selection: vscode.Selection | undefined,
   	documentUri: vscode.Uri | undefined
 ): string {
@@ -230,6 +242,7 @@ function getWebviewContent(
 		</div>
 		<script>
 			const originalCode = ${JSON.stringify(originalCode)};
+			const originalWholeFileContent = ${JSON.stringify(originalWholeFileContent)};
 			const improvedCodeBlock = ${JSON.stringify(extractImprovedCode(response))};
 			const fullAiResponse = ${JSON.stringify(response)};
 			const currentFileName = ${JSON.stringify(fileName)};

@@ -1,39 +1,41 @@
 import * as vscode from 'vscode';
 
 export async function applySuggestion(
-	improvedCode: string,
-	selection?: vscode.Selection,
-  	documentUri?: vscode.Uri
+    aiProvidedFullFileContent: string,
+    originalSelectionForContext: vscode.Selection,
+    documentUri: vscode.Uri
 ): Promise<void> {
-	if (!selection || !documentUri) {
-		vscode.window.showWarningMessage('Cannot apply suggestion: selection or file context is missing.');
-		return;
-	}
+    if (!documentUri) {
+        vscode.window.showWarningMessage('Cannot apply suggestion: file context is missing.');
+        return;
+    }
 
-	const doc = await vscode.workspace.openTextDocument(documentUri);
-	const editor = await vscode.window.showTextDocument(doc, {
-		preserveFocus: false,
-		viewColumn: vscode.ViewColumn.One
-	});
+    const doc = await vscode.workspace.openTextDocument(documentUri);
+    const editor = await vscode.window.showTextDocument(doc, {
+        preserveFocus: false,
+        viewColumn: vscode.window.activeTextEditor?.viewColumn || vscode.ViewColumn.One,
+    });
 
-	editor.selection = selection;
+    if (editor.document.uri.toString() !== documentUri.toString()) {
+        vscode.window.showErrorMessage('Error: The active editor does not match the document URI for applying changes.');
+        return;
+    }
 
-	const success = await editor.edit(editBuilder => {
-		if (selection.isEmpty) {
-			editBuilder.insert(selection.start, improvedCode);
-		} else {
-			editBuilder.replace(selection, improvedCode);
-		}
-	});
+    const firstLine = doc.lineAt(0);
+    const lastLine = doc.lineAt(doc.lineCount - 1);
+    const entireDocumentRange = new vscode.Range(firstLine.range.start, lastLine.range.end);
 
-	if (!success) {
-		vscode.window.showErrorMessage('Failed to apply suggestion.');
-		return;
-	}
+    const success = await editor.edit(editBuilder => {
+        editBuilder.replace(entireDocumentRange, aiProvidedFullFileContent);
+    });
 
-	if (selection.isEmpty) {
-		vscode.window.showInformationMessage('No code was selected — the AI suggestion was inserted at your cursor.');
-	} else {
-		vscode.window.showInformationMessage('Suggestion applied to selected code.');
-	}
+    if (!success) {
+        vscode.window.showErrorMessage('Failed to apply suggestion (replacing whole file).');
+        return;
+    }
+
+    editor.selection = originalSelectionForContext;
+    editor.revealRange(originalSelectionForContext, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+
+    vscode.window.showInformationMessage('AI suggestion applied (entire file updated).');
 }
