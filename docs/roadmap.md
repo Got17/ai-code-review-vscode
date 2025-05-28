@@ -56,7 +56,7 @@
 ### Week 6: Code Application
 
 - Apply accepted suggestions to editor [Done]
-- Highlight modified lines (Optional)
+- Highlight modified lines (Optional, later on)
 - Log rejection without modifying file [Done]
 - Read the whole F# file
 - Add diff file
