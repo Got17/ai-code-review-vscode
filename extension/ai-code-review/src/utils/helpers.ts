@@ -60,13 +60,15 @@ ${selectedCode}
     `.trim();
 }
 
-export async function queryDeepSeek(prompt: string): Promise<string | null> {
+const aiModel = "qwen2.5-coder:7b-instruct";
+const aiApi = 'http://localhost:11434/api/generate';
+
+export async function queryAI(prompt: string): Promise<string | null> {
 	try {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeout
-		const aiModel = "qwen2.5-coder:7b-instruct";
+		const timeout = setTimeout(() => controller.abort(), 180000); // 180s timeouts
 
-		const response = await fetch('http://localhost:11434/api/generate', {
+		const response = await fetch(aiApi, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
@@ -90,4 +92,87 @@ export async function queryDeepSeek(prompt: string): Promise<string | null> {
 		vscode.window.showErrorMessage(`AI request error: ${err.message}`);
 		return null;
 	}
+}
+
+export async function* queryAIStream(prompt: string) {
+	try {
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 120000); //120s
+
+		const response = await fetch(aiApi, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+                model: aiModel,
+                prompt: prompt,
+                stream: true
+            }),
+			signal: controller.signal
+		});
+
+		clearTimeout(timeout);
+
+		if (!response.ok) {
+			const errorBody = await response.text();
+            console.error(`Ollama API Error: ${response.status} ${response.statusText}`, errorBody);
+            vscode.window.showErrorMessage('AI Server Error');
+            return;
+		}
+
+		if (!response.body) {
+            vscode.window.showErrorMessage('AI response body is null.');
+            return;
+        }
+
+		const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+		while(true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				if (buffer.trim()) {
+                    try {
+                        const jsonLine = JSON.parse(buffer);
+                        if (jsonLine.response) {
+                            yield jsonLine.response;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing final buffered JSON line:', e, buffer);
+                    }
+                }
+                break;
+			}
+
+			buffer += decoder.decode(value, { stream: true });
+            let newlineIndex;
+
+			while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
+				const line = buffer.substring(0, newlineIndex).trim();
+				buffer = buffer.substring(newlineIndex + 1);
+				if (line) {
+					try {
+						const jsonLine = JSON.parse(line);
+						if (jsonLine.response) {
+							yield jsonLine.response;
+						}
+						if (jsonLine.done) {
+							return;
+						}
+					} catch (error) {
+                        console.error('Error parsing streaming JSON line:', error, line);
+					}
+				}
+			}
+		}
+
+	} catch (error: any) {
+        if (error.name === 'AbortError') {
+            console.error('AI request timed out.');
+            vscode.window.showErrorMessage('AI request timed out.');
+        } else {
+            console.error('Failed to query AI:', error);
+            vscode.window.showErrorMessage('Failed to query AI');
+        }
+    }
 }

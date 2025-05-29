@@ -5,7 +5,7 @@ import { showOutput, showWebview } from '../utils/showSuggestionHelpers';
 
 export function registerShowSuggestion(context: vscode.ExtensionContext) {
     return vscode.commands.registerCommand('ai-code-review.showSuggestion', async () => {
-        vscode.window.setStatusBarMessage('🤖 Analyzing F# code and generating suggestion...', 20000);
+        vscode.window.setStatusBarMessage('🤖 Analyzing F# code...', 20000);
 
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -21,14 +21,16 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         const document = editor.document;
         const fileName = document.fileName;
         const selection = editor.selection;
-
         const selectedCode = document.getText(selection);
+
         if (selection.isEmpty && !selectedCode) {
             vscode.window.showWarningMessage('Please select some F# code to review.');
             return;
         }
 
         const wholeFileContent = document.getText();
+        const prompt = helpers.buildPrompt(selectedCode, wholeFileContent, fileName, selection);
+        const documentUri = document.uri;
 
         const git = helpers.getGitClient();
         if (!git) {
@@ -36,32 +38,39 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             return;
         }
 
-        const prompt = helpers.buildPrompt(selectedCode, wholeFileContent, fileName, selection);
+        const panel = showWebview(
+            "",
+            context,
+            selectedCode,
+            wholeFileContent,
+            fileName,
+            selection,
+            documentUri
+        );
 
-        console.log(`\nPrompt (selected code):\n ${selectedCode}\n`);
-        console.log(`\nPrompt (full file content - first 500 chars):\n ${wholeFileContent.substring(0, 500)}...\n`);
-
-        vscode.window.setStatusBarMessage('🤖 Querying AI for suggestion...', 20000);
-        const response = await helpers.queryDeepSeek(prompt);
-        vscode.window.setStatusBarMessage('AI Suggestion Received!', 5000);
-
-        if (!response) {
-            vscode.window.showErrorMessage('No response from AI.');
+        if (!panel) {
+            vscode.window.showErrorMessage("Failed to open suggestion panel.");
             return;
         }
 
-        showOutput(fileName, response);
+        let accumulatedResponse = '';
 
-        const documentUri = document.uri;
+        try {
+            for await (const chunk of helpers.queryAIStream(prompt)) {
+                accumulatedResponse += chunk;
+                panel.webview.postMessage({ command: 'aiChunk', chunk: chunk });
+            }
 
-        showWebview(
-            response,
-            context,
-			selectedCode,
-			wholeFileContent,
-			fileName,
-			selection,
-			documentUri
-        );
+            console.log('[ExtensionHost] AI Stream ended. Full response length:', accumulatedResponse.length);
+            panel.webview.postMessage({ command: 'aiStreamEnd', fullResponse: accumulatedResponse });
+            vscode.window.setStatusBarMessage('AI Suggestion Complete!', 5000);
+            showOutput(fileName, accumulatedResponse);
+        } catch (error) {
+            console.error("Error during AI response streaming:", error);
+            vscode.window.showErrorMessage("Error receiving AI suggestion.");
+            if (panel && panel.webview) {
+                panel.webview.postMessage({ command: 'aiError', error: 'Failed to get full response from AI.' });
+            }
+        }
     });
 }

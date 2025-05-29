@@ -5530,31 +5530,79 @@ ${selectedCode}
 \`\`\`
     `.trim();
 }
-async function queryDeepSeek(prompt) {
+var aiModel = "qwen2.5-coder:7b-instruct";
+var aiApi = "http://localhost:11434/api/generate";
+async function* queryAIStream(prompt) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18e4);
-    const aiModel = "qwen2.5-coder:7b-instruct";
-    const response = await fetch("http://localhost:11434/api/generate", {
+    const timeout = setTimeout(() => controller.abort(), 12e4);
+    const response = await fetch(aiApi, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: aiModel,
         prompt,
-        stream: false
+        stream: true
       }),
       signal: controller.signal
     });
     clearTimeout(timeout);
     if (!response.ok) {
-      vscode.window.showErrorMessage(`AI request failed: ${response.statusText}`);
-      return null;
+      const errorBody = await response.text();
+      console.error(`Ollama API Error: ${response.status} ${response.statusText}`, errorBody);
+      vscode.window.showErrorMessage("AI Server Error");
+      return;
     }
-    const data = await response.json();
-    return data.response;
-  } catch (err) {
-    vscode.window.showErrorMessage(`AI request error: ${err.message}`);
-    return null;
+    if (!response.body) {
+      vscode.window.showErrorMessage("AI response body is null.");
+      return;
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        if (buffer.trim()) {
+          try {
+            const jsonLine = JSON.parse(buffer);
+            if (jsonLine.response) {
+              yield jsonLine.response;
+            }
+          } catch (e) {
+            console.error("Error parsing final buffered JSON line:", e, buffer);
+          }
+        }
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.substring(0, newlineIndex).trim();
+        buffer = buffer.substring(newlineIndex + 1);
+        if (line) {
+          try {
+            const jsonLine = JSON.parse(line);
+            if (jsonLine.response) {
+              yield jsonLine.response;
+            }
+            if (jsonLine.done) {
+              return;
+            }
+          } catch (error) {
+            console.error("Error parsing streaming JSON line:", error, line);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    if (error.name === "AbortError") {
+      console.error("AI request timed out.");
+      vscode.window.showErrorMessage("AI request timed out.");
+    } else {
+      console.error("Failed to query AI:", error);
+      vscode.window.showErrorMessage("Failed to query AI");
+    }
   }
 }
 
@@ -5665,8 +5713,8 @@ ${response}`);
   outputChannel.show(true);
 }
 var panel = void 0;
-function showWebview(response, context, originalSelectedCode, originalWholeFileContent, fileName, selection, documentUri) {
-  const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : void 0;
+function showWebview(_initialResponsePlaceholder, context, originalSelectedCode, originalWholeFileContent, fileName, selection, documentUri) {
+  const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : vscode4.ViewColumn.Beside;
   if (panel) {
     console.log("[ShowWebviewDebug] Revealing existing panel.");
     panel.reveal(column);
@@ -5674,11 +5722,12 @@ function showWebview(response, context, originalSelectedCode, originalWholeFileC
     console.log("[ShowWebviewDebug] Creating new panel.");
     panel = vscode4.window.createWebviewPanel(
       "aiSuggestionPanel",
-      "AI Code Review (F# and WebSharper)",
+      "AI Code Review",
       vscode4.ViewColumn.Beside,
       {
         enableScripts: true,
-        retainContextWhenHidden: true
+        retainContextWhenHidden: true,
+        localResourceRoots: []
       }
     );
     panel.onDidDispose(
@@ -5689,21 +5738,25 @@ function showWebview(response, context, originalSelectedCode, originalWholeFileC
       null,
       context.subscriptions
     );
+    handleWebviewMessage(panel);
   }
-  const improvedCode = extractImprovedCode(response);
-  if (!improvedCode) {
+  if (!originalSelectedCode) {
+    console.log("[ShowWebviewDebug] No original code selected.");
     return;
   }
-  const editor = vscode4.window.activeTextEditor;
-  if (!editor || !originalSelectedCode) {
-    return;
-  }
-  panel.webview.html = getWebviewContent(fileName, originalSelectedCode, originalWholeFileContent, response, selection, documentUri);
-  handleWebviewMessage(panel, context);
+  panel.webview.html = getWebviewContent(
+    fileName,
+    originalSelectedCode,
+    originalWholeFileContent,
+    selection,
+    documentUri
+  );
+  return panel;
 }
-function handleWebviewMessage(panel2, context) {
-  panel2.webview.onDidReceiveMessage(
+function handleWebviewMessage(panelInstance) {
+  panelInstance.webview.onDidReceiveMessage(
     async (message) => {
+      console.log(`[ExtensionHost] Received message from Webview in handleWebviewMessage:`, message.command);
       if (message.command === "accept") {
         try {
           if (message.improvedCode === null || message.improvedCode === void 0) {
@@ -5720,11 +5773,14 @@ function handleWebviewMessage(panel2, context) {
           );
           const docUri = vscode4.Uri.parse(message.documentUri);
           await applySuggestion(message.improvedCode, originalSelection, docUri);
-          if (panel2) {
-            panel2.dispose();
+          if (panelInstance && !panelInstance.visible) {
+            panelInstance.dispose();
+          } else if (panel) {
+            panel.dispose();
           }
         } catch (err) {
-          console.log(`Error with accepting: ${err}`);
+          console.error(`Error with accepting: ${err}`);
+          vscode4.window.showErrorMessage("Error applying suggestion");
         }
       } else if (message.command === "reject") {
         try {
@@ -5738,129 +5794,308 @@ function handleWebviewMessage(panel2, context) {
               new vscode4.Position(message.selection.end.line, message.selection.end.character)
             ) : void 0
           );
-          panel2.dispose();
+          if (panelInstance && !panelInstance.visible) {
+            panelInstance.dispose();
+          } else if (panel) {
+            panel.dispose();
+          }
         } catch (err) {
-          console.log(`Error with rejecting: ${err}`);
+          console.error(`Error with rejecting: ${err}`);
+          vscode4.window.showErrorMessage("Error logging rejection");
         }
       }
     },
-    void 0,
-    context.subscriptions
+    void 0
   );
 }
-function extractImprovedCode(response) {
-  if (!response) return null;
-  const improvedCodeRegex = /^(?:.*Improved Code.*?\r?\n)(?:[\s\S]*?)```fsharp\n([\s\S]*?)\n```/im;
-  const match = response.match(improvedCodeRegex);
-  if (match && match[1]) {
-    return match[1].trim();
-  } else {
-    console.warn("Could not find the 'Improved Code' F# block with the new regex. AI Response was:\n", response);
-    const simplerCodeBlockRegex = /```fsharp\n([\s\S]*?)\n```/i;
-    const simplerMatch = response.match(simplerCodeBlockRegex);
-    if (simplerMatch && simplerMatch[1]) {
-      console.warn("Falling back to simpler regex, found an F# code block without a clear 'Improved Code' header.");
-      return simplerMatch[1].trim();
-    }
-    vscode4.window.showErrorMessage('Could not find the "Improved Code" F# block in the AI response.');
-    return null;
-  }
-}
-function getWebviewContent(fileName, originalCode, originalWholeFileContent, response, selection, documentUri) {
-  const escaped = response.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>").replace(
-    /```fsharp([\s\S]*?)```/g,
-    (_, code) => `<pre><code class="language-fsharp">${code.trim()}</code></pre>`
-  ).replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>").replace(/`([^`]+?)`/g, "<code>$1</code>");
+function getWebviewContent(fileName, originalSelectedCodeString, originalWholeFileContentString, selectionObject, documentUriObject) {
+  const css = webviewCss();
+  const html = webviewHtml(fileName);
+  const js = webviewJs(fileName, originalSelectedCodeString, originalWholeFileContentString, selectionObject, documentUriObject);
   return `
 	<!DOCTYPE html>
 	<html>
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
-		<title>AI Code Review (F# and WebSharper)</title>
+		<title>AI Code Review</title>
 		<style>
-			body {
-				font-family: "Segoe UI", sans-serif;
-				padding: 1rem;
-				line-height: 1.6;
-				color: #d4d4d4;
-				background-color: #1e1e1e;
-			}
-			code {
-				background-color: #2d2d2d;
-				padding: 0.2rem 0.4rem;
-				border-radius: 3px;
-				font-family: Consolas, monospace;
-				font-size: 0.95em;
-			}
-			pre {
-				background: #2d2d2d;
-				padding: 1rem;
-				overflow-x: auto;
-				border-radius: 5px;
-			}
-			h2 { color: #79c0ff; }
-			.file { font-size: 0.9em; opacity: 0.6; }
-			.buttons {
-				margin-top: 1rem;
-			}
-			button {
-				background: #0e639c;
-				color: white;
-				border: none;
-				padding: 0.5rem 1rem;
-				border-radius: 4px;
-				margin-right: 1rem;
-				cursor: pointer;
-			}
-			button:hover {
-				background: #1177bb;
-			}
+			${css}
 		</style>
 	</head>
 	<body>
-		<div class="file">\u{1F4C4} File: ${fileName || "Unknown"}</div>
-		<hr>
-		${escaped}
-		<div class="buttons">
-			<button id="accept-button">\u2705 Accept</button>
-			<button id="reject-button">\u274C Reject</button>
-		</div>
+		${html}
+
 		<script>
-			const originalCode = ${JSON.stringify(originalCode)};
-			const originalWholeFileContent = ${JSON.stringify(originalWholeFileContent)};
-			const improvedCodeBlock = ${JSON.stringify(extractImprovedCode(response))};
-			const fullAiResponse = ${JSON.stringify(response)};
-			const currentFileName = ${JSON.stringify(fileName)};
-			const currentSelection = ${JSON.stringify(selection ? { start: { line: selection.start.line, character: selection.start.character }, end: { line: selection.end.line, character: selection.end.character } } : null)};
-			const currentDocumentUri = ${JSON.stringify(documentUri ? documentUri.toString() : null)};
-
-			const vscode = acquireVsCodeApi();
-			document.getElementById('accept-button').addEventListener('click', () => {
-				vscode.postMessage({
-					command: 'accept',
-					fileName: currentFileName,
-					originalCode: originalCode,
-					improvedCode: improvedCodeBlock, 
-					selection: currentSelection,
-					documentUri: currentDocumentUri
-				});
-			});
-
-			document.getElementById('reject-button').addEventListener('click', () => {
-				vscode.postMessage({
-					command: 'reject',
-					fileName: currentFileName,
-					originalCode: originalCode,
-					aiSuggestedCode: improvedCodeBlock, 
-					aiFullResponse: fullAiResponse,     
-					selection: currentSelection,
-					documentUri: currentDocumentUri
-				});
-			});
+			${js}
 		</script>
 	</body>
 	</html>
+	
+	`;
+}
+function webviewCss() {
+  return `
+	body { 
+		font-family: "Segoe UI", sans-serif; 
+		padding: 1rem; 
+		line-height: 1.6; 
+		color: #d4d4d4; 
+		background-color: #1e1e1e; 
+	}
+	code { 
+		background-color: #2d2d2d; 
+		padding: 0.2rem 0.4rem; 
+		border-radius: 3px; 
+		font-family: Consolas, monospace; 
+		font-size: 0.95em; 
+	}
+	pre { 
+		background: #2d2d2d; 
+		padding: 1rem; 
+		overflow-x: auto; 
+		border-radius: 5px; 
+		white-space: pre-wrap; 
+	}
+	h1, h2, h3 { 
+		color: #79c0ff; 
+		margin-top: 1.5em; 
+		margin-bottom: 0.5em; 
+	}
+	hr { 
+		border-color: #444; 
+		margin-top: 1em; 
+		margin-bottom: 1em;
+	}
+	.file-info { 
+		font-size: 0.9em; 
+		opacity: 0.7; 
+		margin-bottom: 1em; 
+	}
+	.buttons { 
+		margin-top: 1.5rem; 
+		padding-top: 1rem; 
+		border-top: 1px solid #444;
+	}
+	button { 
+		background: #0e639c; 
+		color: white; 
+		border: none; 
+		padding: 0.6rem 1.2rem; 
+		border-radius: 4px; 
+		margin-right: 1rem; 
+		cursor: pointer; 
+		font-size: 0.9em;}
+	button:hover { 
+		background: #1177bb; 
+	}
+	button:disabled { 
+		background-color: #555; 
+		color: #999; 
+		cursor: not-allowed; 
+	}
+	#streaming-response-area { 
+		white-space: pre-wrap;
+		margin-bottom: 1rem; 
+		padding: 10px; 
+		background-color: #252526; 
+		border-radius: 4px; 
+		min-height: 50px;
+	}
+	.loading-text { 
+		font-style: italic; 
+		color: #888; 
+	}
+	.final-content-section { 
+		margin-bottom: 15px; 
+		padding: 10px; 
+		border: 1px solid #333; 
+		border-radius: 4px; 
+		background-color: #252526; 
+	}
+	.final-content-section h2 { 
+		margin-top: 0; 
+		font-size: 1.1em; 
+	}
+	.markdown-content p { 
+		margin-top: 0.5em; 
+		margin-bottom: 0.5em; 
+	} 
+	.markdown-content strong { 
+		font-weight: bold; 
+		color:rgb(255, 255, 255); 
+	}
+	`;
+}
+function webviewHtml(fileName) {
+  return `
+		<div class="file-info">\u{1F4C4} File: ${fileName || "N/A"}</div>
+        <hr>
+		
+		<div id="streaming-response-area" class="loading-text">\u{1F916} AI is generating suggestion, please wait... (response will stream here)</div>
+
+		<div id="final-response-display" style="display: none;">
+            <div id="summary-section" class="final-content-section">
+                <h2>1. Summary of Issues:</h2>
+                <div id="summary-content-rendered" class="markdown-content"></div>
+            </div>
+            <div id="improved-code-section" class="final-content-section">
+                <h2>2. Improved Code (Full File):</h2>
+                <pre><code id="improved-code-content"></code></pre>
+            </div>
+            <div id="explanation-section" class="final-content-section">
+                <h2>3. Explanation:</h2>
+                <div id="explanation-content-rendered" class="markdown-content"></div>
+            </div>
+        </div>
+
+		<div class="buttons">
+            <button id="accept-button" disabled>\u2705 Accept & Replace File</button>
+            <button id="reject-button" disabled>\u274C Reject Suggestion</button>
+        </div>
+	`;
+}
+function webviewJs(fileName, originalSelectedCodeString, originalWholeFileContentString, selectionObject, documentUriObject) {
+  return `
+		const vscode = acquireVsCodeApi();
+		let accumulatedRawResponse = '';
+		const streamingResponseArea = document.getElementById('streaming-response-area');
+		const finalResponseDisplay = document.getElementById('final-response-display');
+
+		const summaryContentRenderedEl = document.getElementById('summary-content-rendered');
+		const improvedCodeContentEl = document.getElementById('improved-code-content');
+		const explanationContentRenderedEl = document.getElementById('explanation-content-rendered');
+
+		const acceptButton = document.getElementById('accept-button');
+		const rejectButton = document.getElementById('reject-button');
+
+		let extractedAISuggestedCode = null; 
+		let finalAccumulatedResponseForLog = '';
+
+		const jsOriginalSelectedCode = ${JSON.stringify(originalSelectedCodeString)};
+		const jsOriginalWholeFileContent = ${JSON.stringify(originalWholeFileContentString)};
+		const jsCurrentFileName = ${JSON.stringify(fileName)};
+		const jsCurrentSelection = ${JSON.stringify(selectionObject ? { start: { line: selectionObject.start.line, character: selectionObject.start.character }, end: { line: selectionObject.end.line, character: selectionObject.end.character } } : null)};
+		const jsCurrentDocumentUri = ${JSON.stringify(documentUriObject ? documentUriObject.toString() : null)};
+
+		function extractImprovedCodeJS(aiFullResponse) {
+			if (!aiFullResponse) return null;
+			const improvedCodeRegex = /(?:[\\s\\S].*?)?\\\`\\\`\\\`fsharp\\n([\\s\\S]*?)\\n(?:[\\s\\S].*?)?\\\`\\\`\\\`/im;
+
+			const match = aiFullResponse.match(improvedCodeRegex);
+			if (match && match[1]) {
+				console.log("JS: Main 'Improved Code' regex matched.");
+				return match[1].trim();
+			}
+			
+			console.warn("Main regex failed in JS. Trying simpler fallback for Improved Code block.");
+			const simplerCodeBlockRegex = /\\\`\\\`\\\`fsharp\\n([\\s\\S]*?)\\n\\\`\\\`\\\`/i;
+			const simplerMatch = aiFullResponse.match(simplerCodeBlockRegex);
+			if (simplerMatch && simplerMatch[1]) {
+				console.log("JS: Simpler fallback 'Improved Code' regex matched.");
+				return simplerMatch[1].trim();
+			}
+			console.error("JS: Could not find the 'Improved Code' F# block even with fallback.");
+			return null;
+		}
+
+		function basicMarkdownToHtml(text) {
+			if (text === null || text === undefined) return '';
+			let html = text;
+
+			// 1. Escape basic HTML entities
+			html = html.replace(/&/g, '&amp;')
+						.replace(/</g, '&lt;')
+						.replace(/>/g, '&gt;');
+
+			// 2. Bold: **text** -> <strong>text</strong>
+			html = html.replace(/\\*\\*?(.*?)\\*\\*?/g, '<strong>$1</strong>');
+
+			// 3. Inline code: \`code\` -> <code>code</code>
+			html = html.replace(/\`([^\`]+?)\`/g, '<code>$1</code>');
+			
+			// 4. Newlines to <br> for paragraph-like breaks
+			html = html.replace(/\\n/g, '<br>');
+
+			return html;
+		}
+
+		function processAndDisplayFinalResponse(fullResponse) {
+			streamingResponseArea.style.display = 'none'; 
+			finalResponseDisplay.style.display = 'block'; 
+
+			finalAccumulatedResponseForLog = fullResponse; 
+			extractedAISuggestedCode = extractImprovedCodeJS(fullResponse);
+
+			const summaryRegex = /^.*?\\bSummary of Issues\\b.*(?:\\r?\\n)([\\s\\S]*?)(?=\\n.*?\\bImproved Code\\b|$)/im;
+			const explanationRegex = /^.*\\bExplanation\\b.*(?:\\r?\\n)([\\s\\S]*)$/im;
+
+			const summaryMatch = fullResponse.match(summaryRegex);
+			const explanationMatch = fullResponse.match(explanationRegex); 
+
+			const rawSummaryText = (summaryMatch && summaryMatch[1]) ? summaryMatch[1].trim() : 'Summary not found.';
+			const rawExplanationText = (explanationMatch && explanationMatch[1]) ? explanationMatch[1].trim() : 'Explanation not found.';
+
+			summaryContentRenderedEl.innerHTML = basicMarkdownToHtml(rawSummaryText);
+			explanationContentRenderedEl.innerHTML = basicMarkdownToHtml(rawExplanationText);
+			
+			improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
+			
+			if (extractedAISuggestedCode) { 
+				acceptButton.disabled = false;
+			}
+			rejectButton.disabled = false;
+		}
+
+		window.addEventListener('message', event => {
+			const message = event.data;
+			switch (message.command) {
+				case 'aiChunk':
+					if (streamingResponseArea.classList.contains('loading-text')) {
+						streamingResponseArea.textContent = ''; 
+						streamingResponseArea.classList.remove('loading-text');
+					}
+					accumulatedRawResponse += message.chunk;
+					streamingResponseArea.textContent = accumulatedRawResponse; 
+					break;
+				case 'aiStreamEnd':
+					console.log('JS Webview: aiStreamEnd received. Full response length:', (message.fullResponse || accumulatedRawResponse).length);
+					processAndDisplayFinalResponse(message.fullResponse || accumulatedRawResponse);
+					break;
+				case 'aiError':
+					streamingResponseArea.textContent = 'Error: ' + message.error;
+					streamingResponseArea.classList.remove('loading-text');
+					streamingResponseArea.style.color = 'red';
+					rejectButton.disabled = false;
+					break;
+			}
+		});
+		
+		acceptButton.addEventListener('click', () => {
+			if (extractedAISuggestedCode === null) {
+				alert('Error: No improved code available to apply.'); 
+				return;
+			}
+			vscode.postMessage({
+				command: 'accept',
+				fileName: jsCurrentFileName,
+				improvedCode: extractedAISuggestedCode, 
+				selection: jsCurrentSelection, 
+				documentUri: jsCurrentDocumentUri
+			});
+		});
+
+		rejectButton.addEventListener('click', () => {
+			vscode.postMessage({
+				command: 'reject',
+				fileName: jsCurrentFileName,
+				originalCode: jsOriginalSelectedCode,    
+				aiSuggestedCode: extractedAISuggestedCode, 
+				aiFullResponse: finalAccumulatedResponseForLog, 
+				selection: jsCurrentSelection,
+				documentUri: jsCurrentDocumentUri
+			});
+		});
 	
 	`;
 }
@@ -5868,7 +6103,7 @@ function getWebviewContent(fileName, originalCode, originalWholeFileContent, res
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
   return vscode5.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode5.window.setStatusBarMessage("\u{1F916} Analyzing F# code and generating suggestion...", 2e4);
+    vscode5.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 2e4);
     const editor = vscode5.window.activeTextEditor;
     if (!editor) {
       vscode5.window.showErrorMessage("No active F# editor found.");
@@ -5887,31 +6122,15 @@ function registerShowSuggestion(context) {
       return;
     }
     const wholeFileContent = document2.getText();
+    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
+    const documentUri = document2.uri;
     const git = getGitClient();
     if (!git) {
       vscode5.window.showErrorMessage("Git client not available.");
       return;
     }
-    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
-    console.log(`
-Prompt (selected code):
- ${selectedCode}
-`);
-    console.log(`
-Prompt (full file content - first 500 chars):
- ${wholeFileContent.substring(0, 500)}...
-`);
-    vscode5.window.setStatusBarMessage("\u{1F916} Querying AI for suggestion...", 2e4);
-    const response = await queryDeepSeek(prompt);
-    vscode5.window.setStatusBarMessage("AI Suggestion Received!", 5e3);
-    if (!response) {
-      vscode5.window.showErrorMessage("No response from AI.");
-      return;
-    }
-    showOutput(fileName, response);
-    const documentUri = document2.uri;
-    showWebview(
-      response,
+    const panel2 = showWebview(
+      "",
       context,
       selectedCode,
       wholeFileContent,
@@ -5919,6 +6138,27 @@ Prompt (full file content - first 500 chars):
       selection,
       documentUri
     );
+    if (!panel2) {
+      vscode5.window.showErrorMessage("Failed to open suggestion panel.");
+      return;
+    }
+    let accumulatedResponse = "";
+    try {
+      for await (const chunk of queryAIStream(prompt)) {
+        accumulatedResponse += chunk;
+        panel2.webview.postMessage({ command: "aiChunk", chunk });
+      }
+      console.log("[ExtensionHost] AI Stream ended. Full response length:", accumulatedResponse.length);
+      panel2.webview.postMessage({ command: "aiStreamEnd", fullResponse: accumulatedResponse });
+      vscode5.window.setStatusBarMessage("AI Suggestion Complete!", 5e3);
+      showOutput(fileName, accumulatedResponse);
+    } catch (error) {
+      console.error("Error during AI response streaming:", error);
+      vscode5.window.showErrorMessage("Error receiving AI suggestion.");
+      if (panel2 && panel2.webview) {
+        panel2.webview.postMessage({ command: "aiError", error: "Failed to get full response from AI." });
+      }
+    }
   });
 }
 

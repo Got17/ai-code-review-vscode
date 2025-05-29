@@ -58,7 +58,7 @@
 - Apply accepted suggestions to editor [Done]
 - Highlight modified lines (Optional, later on)
 - Log rejection without modifying file [Done]
-- Read the whole F# file
+- Read the whole F# file [Done]
 - Add diff file
 
 ### Week 7: Feedback Logging System

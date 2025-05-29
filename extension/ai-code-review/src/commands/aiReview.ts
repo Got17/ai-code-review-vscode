@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { buildPrompt, queryDeepSeek } from '../utils/helpers';
+import { buildPrompt, queryAI } from '../utils/helpers';
 
 export function registerAIReview() {
 	// return vscode.commands.registerCommand('ai-code-review.aiReview', async () => {
