@@ -2,30 +2,6 @@ import * as vscode from 'vscode';
 import { logRejection } from "../utils/logging";
 import { applySuggestion } from './applySuggestion';
 
-export async function handleUserChoice(summary: string, git: any): Promise<void> {
-	const choice = await vscode.window.showInformationMessage(
-		`💡 AI Suggestion Summary:\n${summary}`,
-		'Accept', 'Reject'
-	);
-
-	if (!choice) {
-		return;
-	}
-
-	try {
-		await git.add('./*');
-		if (choice === 'Accept') {
-			// Later on we can let AI generate the commit name as well
-			await git.commit('AI suggestion applied');
-			vscode.window.showInformationMessage('Changes committed with message: AI suggestion applied');
-		} else {
-			vscode.window.showInformationMessage('Changes staged but not committed.');
-		}
-	} catch (err: any) {
-		vscode.window.showErrorMessage(`Git operation failed: ${err.message}`);
-	}
-}
-
 export function showOutput(fileName: string | undefined, response: string): void {
 	const outputChannel = vscode.window.createOutputChannel("AI Code Review");
 	outputChannel.clear();
@@ -39,8 +15,8 @@ let panel: vscode.WebviewPanel | undefined = undefined;
 export function showWebview(
 	_initialResponsePlaceholder: string,
     context: vscode.ExtensionContext,
-    originalSelectedCode: string | null,
-    originalWholeFileContent: string,
+    selectedCodeSnippet: string | null,
+    entireFileContent: string,
     fileName: string | undefined,
     selection: vscode.Selection,
     documentUri: vscode.Uri
@@ -56,12 +32,12 @@ export function showWebview(
 		console.log('[ShowWebviewDebug] Creating new panel.');
 		panel = vscode.window.createWebviewPanel(
 			'aiSuggestionPanel',
-			'AI Code Review',
+			'AI Code Review Suggestion for WebSharper',
 			vscode.ViewColumn.Beside,
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
-				localResourceRoots: []
+                localResourceRoots: []
 			}
 		);
 
@@ -75,15 +51,11 @@ export function showWebview(
         );
 		handleWebviewMessage(panel);
 	}
-	if(!originalSelectedCode) {
-		console.log('[ShowWebviewDebug] No original code selected.');
-		return;
-	}
 
 	panel.webview.html = getWebviewContent(
         fileName,
-        originalSelectedCode,
-        originalWholeFileContent,
+        selectedCodeSnippet,
+        entireFileContent,
         selection,
         documentUri
     );
@@ -96,7 +68,6 @@ function handleWebviewMessage(
 ) {
 	panelInstance.webview.onDidReceiveMessage(
 		async message => {
-			console.log(`[ExtensionHost] Received message from Webview in handleWebviewMessage:`, message.command);
 			if (message.command === "accept") {
 				try {
 					if (message.improvedCode === null || message.improvedCode === undefined) {
@@ -156,20 +127,23 @@ function handleWebviewMessage(
 
 function getWebviewContent(
 	fileName: string | undefined,
-    originalSelectedCodeString: string | null,
-    originalWholeFileContentString: string, 
-    selectionObject: vscode.Selection | undefined,
-    documentUriObject: vscode.Uri | undefined
+    selectedCodeSnippet: string | null,
+    entireFileContent: string, 
+    selection: vscode.Selection | undefined,
+    documentUri: vscode.Uri | undefined
 ): string {
 	const css = webviewCss();
 	const html = webviewHtml(fileName);
-	const js = webviewJs(fileName, originalSelectedCodeString, originalWholeFileContentString, selectionObject,documentUriObject);
+	const js = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection,documentUri);
+
+	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 
 	return `
 	<!DOCTYPE html>
 	<html>
 	<head>
 		<meta charset="UTF-8">
+		
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
 		<style>
@@ -194,30 +168,30 @@ function webviewCss(): string {
 		font-family: "Segoe UI", sans-serif; 
 		padding: 1rem; 
 		line-height: 1.6; 
-		color: #d4d4d4; 
-		background-color: #1e1e1e; 
+		color: var(--vscode-editor-foreground, #d4d4d4); 
+		background-color: var(--vscode-editor-background, #1e1e1e); 
 	}
 	code { 
-		background-color: #2d2d2d; 
+		background-color: var(--vscode-textBlockQuote-background, #2d2d2d);
 		padding: 0.2rem 0.4rem; 
 		border-radius: 3px; 
 		font-family: Consolas, monospace; 
 		font-size: 0.95em; 
 	}
 	pre { 
-		background: #2d2d2d; 
+		background: var(--vscode-textBlockQuote-background, #2d2d2d); 
 		padding: 1rem; 
 		overflow-x: auto; 
 		border-radius: 5px; 
 		white-space: pre-wrap; 
 	}
 	h1, h2, h3 { 
-		color: #79c0ff; 
+		color: var(--vscode-textLink-foreground, #79c0ff); 
 		margin-top: 1.5em; 
 		margin-bottom: 0.5em; 
 	}
 	hr { 
-		border-color: #444; 
+		border: 1px solid var(--vscode-editorWidget-border, #444); 
 		margin-top: 1em; 
 		margin-bottom: 1em;
 	}
@@ -229,47 +203,50 @@ function webviewCss(): string {
 	.buttons { 
 		margin-top: 1.5rem; 
 		padding-top: 1rem; 
-		border-top: 1px solid #444;
+		border-top: 1px solid var(--vscode-editorWidget-border, #444);
 	}
 	button { 
-		background: #0e639c; 
-		color: white; 
-		border: none; 
+		background: var(--vscode-button-background, #0e639c); 
+		color: var(--vscode-button-foreground, white); 
+		border: 1px solid var(--vscode-button-border, transparent); 
 		padding: 0.6rem 1.2rem; 
 		border-radius: 4px; 
 		margin-right: 1rem; 
 		cursor: pointer; 
-		font-size: 0.9em;}
+		font-size: 0.9em;
+	}
 	button:hover { 
-		background: #1177bb; 
+		background: var(--vscode-button-hoverBackground, #1177bb); 
 	}
 	button:disabled { 
-		background-color: #555; 
-		color: #999; 
+		background-color: var(--vscode-button-secondaryBackground, #555); 
+		color: var(--vscode-disabledForeground, #999); 
 		cursor: not-allowed; 
 	}
 	#streaming-response-area { 
 		white-space: pre-wrap;
 		margin-bottom: 1rem; 
 		padding: 10px; 
-		background-color: #252526; 
+		background-color: var(--vscode-textBlockQuote-background, #252526); 
 		border-radius: 4px; 
 		min-height: 50px;
+		border: 1px solid var(--vscode-editorWidget-border, #333)
 	}
 	.loading-text { 
 		font-style: italic; 
-		color: #888; 
+		color: var(--vscode-descriptionForeground, #888); 
 	}
 	.final-content-section { 
 		margin-bottom: 15px; 
 		padding: 10px; 
-		border: 1px solid #333; 
+		border: 1px solid var(--vscode-editorWidget-border, #333); 
 		border-radius: 4px; 
-		background-color: #252526; 
+		background-color: var(--vscode-textBlockQuote-background, #252526); 
 	}
 	.final-content-section h2 { 
 		margin-top: 0; 
 		font-size: 1.1em; 
+		border-bottom: none;
 	}
 	.markdown-content p { 
 		margin-top: 0.5em; 
@@ -277,7 +254,7 @@ function webviewCss(): string {
 	} 
 	.markdown-content strong { 
 		font-weight: bold; 
-		color:rgb(255, 255, 255); 
+		color: var(--vscode-editor-foreground, #d4d4d4); 
 	}
 	`;
 }
@@ -292,7 +269,7 @@ function webviewHtml(fileName: string | undefined): string {
 		<div id="final-response-display" style="display: none;">
             <div id="summary-section" class="final-content-section">
                 <h2>1. Summary of Issues:</h2>
-                <div id="summary-content-rendered" class="markdown-content"></div>
+                <div id="summary-content" class="markdown-content"></div>
             </div>
             <div id="improved-code-section" class="final-content-section">
                 <h2>2. Improved Code (Full File):</h2>
@@ -300,7 +277,7 @@ function webviewHtml(fileName: string | undefined): string {
             </div>
             <div id="explanation-section" class="final-content-section">
                 <h2>3. Explanation:</h2>
-                <div id="explanation-content-rendered" class="markdown-content"></div>
+                <div id="explanation-content" class="markdown-content"></div>
             </div>
         </div>
 
@@ -324,9 +301,9 @@ function webviewJs(
 		const streamingResponseArea = document.getElementById('streaming-response-area');
 		const finalResponseDisplay = document.getElementById('final-response-display');
 
-		const summaryContentRenderedEl = document.getElementById('summary-content-rendered');
+		const summaryContentRenderedEl = document.getElementById('summary-content');
 		const improvedCodeContentEl = document.getElementById('improved-code-content');
-		const explanationContentRenderedEl = document.getElementById('explanation-content-rendered');
+		const explanationContentRenderedEl = document.getElementById('explanation-content');
 
 		const acceptButton = document.getElementById('accept-button');
 		const rejectButton = document.getElementById('reject-button');

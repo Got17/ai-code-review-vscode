@@ -34,7 +34,6 @@ This project is a VS Code extension that provides AI-generated code review sugge
 ```text
 ai-code-review-vscode/
 ├── extension/     # VS Code extension source
-├── backend/       # Node.js LLM interface (optional)
 ├── docs/          # Planning, roadmap, and thesis content
 │   └── roadmap.md
 ├── .gitignore
