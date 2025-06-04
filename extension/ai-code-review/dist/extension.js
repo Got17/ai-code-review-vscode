@@ -5813,17 +5813,19 @@ function getWebviewContent(fileName, selectedCodeSnippet, entireFileContent, sel
 	<html>
 	<head>
 		<meta charset="UTF-8">
-		
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
 		<style>
 			${css}
 		</style>
+		<script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js" nonce="${nonce}">
+        </script>
 	</head>
 	<body>
 		${html}
 
-		<script>
+		<script nonce="${nonce}">
 			${js}
 		</script>
 	</body>
@@ -5851,7 +5853,6 @@ function webviewCss() {
 		background: var(--vscode-textBlockQuote-background, #2d2d2d); 
 		padding: 1rem; 
 		overflow-x: auto; 
-		border-radius: 5px; 
 		white-space: pre-wrap; 
 	}
 	h1, h2, h3 { 
@@ -5925,6 +5926,38 @@ function webviewCss() {
 		font-weight: bold; 
 		color: var(--vscode-editor-foreground, #d4d4d4); 
 	}
+	.diff-output {
+		border: 1px solid var(--vscode-editorWidget-border, #444);
+		font-family: Consolas, "Courier New", monospace;
+		font-size: 0.9em;
+		margin-bottom: 1em;
+		background-color: var(--vscode-editor-background, #1e1e1e); 
+	}
+	.diff-output pre { 
+		margin: 0;
+		padding: 0;
+		white-space: pre-wrap; 
+		line-height: 1.4;
+        display: block; 
+        min-height: 1.4em;
+        padding-left: 0.5em;
+	}
+	.diff-output pre.diff-added {
+		background-color: #eaf2c2;
+        border-left: 3px solid #eaf2c2;
+		color: green;
+        opacity: 1;
+	}
+	.diff-output pre.diff-removed {
+        background-color: #fadad7;
+		color: red;
+        border-left: 3px solid #fadad7;
+        opacity: 1; 
+    }
+	.diff-output pre.diff-common {
+        opacity: 0.7; 
+        border-left: 3px solid transparent; 
+    }
 	`;
 }
 function webviewHtml(fileName) {
@@ -5939,9 +5972,13 @@ function webviewHtml(fileName) {
                 <h2>1. Summary of Issues:</h2>
                 <div id="summary-content" class="markdown-content"></div>
             </div>
-            <div id="improved-code-section" class="final-content-section">
+            <div id="improved-code-section" class="final-content-section" style="display: none;">
                 <h2>2. Improved Code (Full File):</h2>
                 <pre><code id="improved-code-content"></code></pre>
+            </div>
+			<div id="diff-view-section" class="final-content-section">
+                <h2>2. Improved Code (Full File with Diff):</h2>
+                <div id="diff-view-area" class="diff-output"></div>
             </div>
             <div id="explanation-section" class="final-content-section">
                 <h2>3. Explanation:</h2>
@@ -5965,6 +6002,8 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 		const summaryContentRenderedEl = document.getElementById('summary-content');
 		const improvedCodeContentEl = document.getElementById('improved-code-content');
 		const explanationContentRenderedEl = document.getElementById('explanation-content');
+		const diffViewArea = document.getElementById('diff-view-area');
+		const improvedCodeDisplaySection = document.getElementById('improved-code-section');
 
 		const acceptButton = document.getElementById('accept-button');
 		const rejectButton = document.getElementById('reject-button');
@@ -6026,6 +6065,50 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 
 			finalAccumulatedResponseForLog = fullResponse; 
 			extractedAISuggestedCode = extractImprovedCodeJS(fullResponse);
+
+			if (typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null) {
+				const changes = Diff.diffLines(jsOriginalWholeFileContent, extractedAISuggestedCode);
+
+				const fragment = document.createDocumentFragment();
+
+				changes.forEach((part) => {
+					const partPre = document.createElement('pre');
+					let prefix = '';
+					if (part.added) {
+						partPre.className = 'diff-added';
+						prefix = '+ ';
+					} else if (part.removed) {
+						partPre.className = 'diff-removed';
+						prefix = '- ';
+					} else {
+						partPre.className = 'diff-common';
+						prefix = '  '; 
+					}
+
+					const lines = String(part.value).replace(/\\r\\n/g, '\\n').split('\\n');
+					if (lines.length > 0 && lines[lines.length - 1] === '') {
+						lines.pop();
+					}
+					if (lines.length === 0 && part.value === '\\n') { 
+						lines.push(''); 
+					}
+					if (lines.length === 0 && !part.value) { 
+						// do nothing or append an empty pre for spacing if desired
+					}
+					lines.forEach(line => {
+						const lineTextNode = document.createTextNode(prefix + line + '\\n'); 
+						partPre.appendChild(lineTextNode);
+					});
+					fragment.appendChild(partPre);
+				});
+				diffViewArea.innerHTML = ''; 
+				diffViewArea.appendChild(fragment);
+				improvedCodeDisplaySection.style.display = 'none';
+			} else {
+				console.warn("Diff library (jsdiff) not found, or original/AI code missing. Showing raw improved code.");
+				improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
+				improvedCodeDisplaySection.style.display = 'block';
+			}
 
 			const summaryRegex = /^.*?\\bSummary of Issues\\b.*(?:\\r?\\n)([\\s\\S]*?)(?=\\n.*?\\bImproved Code\\b|$)/im;
 			const explanationRegex = /^.*\\bExplanation\\b.*(?:\\r?\\n)([\\s\\S]*)$/im;
