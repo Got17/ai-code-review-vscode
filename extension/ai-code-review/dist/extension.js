@@ -5713,11 +5713,21 @@ ${response}`);
   outputChannel.show(true);
 }
 var panel = void 0;
+var webviewLibraryDir = "webview-lib";
 function showWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
   const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : vscode4.ViewColumn.Beside;
   if (panel) {
     console.log("[ShowWebviewDebug] Revealing existing panel.");
     panel.reveal(column);
+    panel.webview.html = getWebviewContent(
+      panel.webview,
+      context.extensionUri,
+      fileName,
+      selectedCodeSnippet,
+      entireFileContent,
+      selection,
+      documentUri
+    );
   } else {
     console.log("[ShowWebviewDebug] Creating new panel.");
     panel = vscode4.window.createWebviewPanel(
@@ -5727,7 +5737,7 @@ function showWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, 
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: []
+        localResourceRoots: [vscode4.Uri.joinPath(context.extensionUri, webviewLibraryDir)]
       }
     );
     panel.onDidDispose(
@@ -5741,6 +5751,8 @@ function showWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, 
     handleWebviewMessage(panel);
   }
   panel.webview.html = getWebviewContent(
+    panel.webview,
+    context.extensionUri,
     fileName,
     selectedCodeSnippet,
     entireFileContent,
@@ -5803,11 +5815,13 @@ function handleWebviewMessage(panelInstance) {
     void 0
   );
 }
-function getWebviewContent(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
-  const css = webviewCss();
-  const html = webviewHtml(fileName);
-  const js = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
+function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
+  const cssContent = webviewCss();
+  const htmlBodyContent = webviewHtml(fileName);
+  const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
+  const diffJsSrcOnDisk = vscode4.Uri.joinPath(extensionUri, webviewLibraryDir, "diff.min.js");
+  const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
   return `
 	<!DOCTYPE html>
 	<html>
@@ -5816,17 +5830,18 @@ function getWebviewContent(fileName, selectedCodeSnippet, entireFileContent, sel
 		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
-		<style>
-			${css}
+		<style nonce="${nonce}">
+			${cssContent}
 		</style>
-		<script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js" nonce="${nonce}">
+		<script src="${diffJsSrcForWebview}" nonce="${nonce}">
+		// jsdiff library from https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js
         </script>
 	</head>
 	<body>
-		${html}
+		${htmlBodyContent}
 
 		<script nonce="${nonce}">
-			${js}
+			${jsContent}
 		</script>
 	</body>
 	</html>
@@ -5941,6 +5956,8 @@ function webviewCss() {
         display: block; 
         min-height: 1.4em;
         padding-left: 0.5em;
+		border: none; 
+        background-color: transparent;
 	}
 	.diff-output pre.diff-added {
 		background-color: #eaf2c2;
@@ -6066,8 +6083,13 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			finalAccumulatedResponseForLog = fullResponse; 
 			extractedAISuggestedCode = extractImprovedCodeJS(fullResponse);
 
-			if (typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null) {
-				const changes = Diff.diffLines(jsOriginalWholeFileContent, extractedAISuggestedCode);
+			const canShowDiff = typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null;
+
+			if (canShowDiff) {
+				const normalizedOriginal = jsOriginalWholeFileContent.replace(/\\r\\n/g, '\\n');
+				const normalizedAISuggestion = extractedAISuggestedCode.replace(/\\r\\n/g, '\\n');
+			
+				const changes = Diff.diffLines(normalizedOriginal, normalizedAISuggestion);
 
 				const fragment = document.createDocumentFragment();
 
@@ -6085,7 +6107,7 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 						prefix = '  '; 
 					}
 
-					const lines = String(part.value).replace(/\\r\\n/g, '\\n').split('\\n');
+					const lines = String(part.value).split('\\n');
 					if (lines.length > 0 && lines[lines.length - 1] === '') {
 						lines.pop();
 					}
@@ -6093,7 +6115,7 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 						lines.push(''); 
 					}
 					if (lines.length === 0 && !part.value) { 
-						// do nothing or append an empty pre for spacing if desired
+						return;
 					}
 					lines.forEach(line => {
 						const lineTextNode = document.createTextNode(prefix + line + '\\n'); 
@@ -6122,8 +6144,9 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			summaryContentRenderedEl.innerHTML = basicMarkdownToHtml(rawSummaryText);
 			explanationContentRenderedEl.innerHTML = basicMarkdownToHtml(rawExplanationText);
 			
-			improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
-			
+			if (!canShowDiff) {
+				improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
+			}
 			if (extractedAISuggestedCode) { 
 				acceptButton.disabled = false;
 			}

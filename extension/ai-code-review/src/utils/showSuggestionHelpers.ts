@@ -11,6 +11,7 @@ export function showOutput(fileName: string | undefined, response: string): void
 }
 
 let panel: vscode.WebviewPanel | undefined = undefined;
+const webviewLibraryDir = 'webview-lib';
 
 export function showWebview(
 	_initialResponsePlaceholder: string,
@@ -28,6 +29,15 @@ export function showWebview(
 	if (panel) {
         console.log('[ShowWebviewDebug] Revealing existing panel.');
         panel.reveal(column);
+		panel.webview.html = getWebviewContent(
+            panel.webview, 
+            context.extensionUri, 
+            fileName,
+            selectedCodeSnippet,
+            entireFileContent,
+            selection,
+            documentUri
+        );
     } else {
 		console.log('[ShowWebviewDebug] Creating new panel.');
 		panel = vscode.window.createWebviewPanel(
@@ -37,7 +47,7 @@ export function showWebview(
 			{
 				enableScripts: true,
 				retainContextWhenHidden: true,
-                localResourceRoots: []
+				localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, webviewLibraryDir)]
 			}
 		);
 
@@ -53,12 +63,14 @@ export function showWebview(
 	}
 
 	panel.webview.html = getWebviewContent(
-        fileName,
-        selectedCodeSnippet,
-        entireFileContent,
-        selection,
-        documentUri
-    );
+		panel.webview, 
+		context.extensionUri, 
+		fileName,
+		selectedCodeSnippet,
+		entireFileContent,
+		selection,
+		documentUri
+	);
 	
 	return panel;
 }
@@ -126,17 +138,22 @@ function handleWebviewMessage(
 }
 
 function getWebviewContent(
+	webview: vscode.Webview,           
+    extensionUri: vscode.Uri,
 	fileName: string | undefined,
     selectedCodeSnippet: string | null,
     entireFileContent: string, 
     selection: vscode.Selection | undefined,
     documentUri: vscode.Uri | undefined
 ): string {
-	const css = webviewCss();
-	const html = webviewHtml(fileName);
-	const js = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection,documentUri);
+	const cssContent = webviewCss();
+	const htmlBodyContent = webviewHtml(fileName);
+	const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
 
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+
+	const diffJsSrcOnDisk = vscode.Uri.joinPath(extensionUri, webviewLibraryDir, 'diff.min.js');
+    const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
 
 	return `
 	<!DOCTYPE html>
@@ -146,17 +163,18 @@ function getWebviewContent(
 		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
-		<style>
-			${css}
+		<style nonce="${nonce}">
+			${cssContent}
 		</style>
-		<script src="https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js" nonce="${nonce}">
+		<script src="${diffJsSrcForWebview}" nonce="${nonce}">
+		// jsdiff library from https://cdn.jsdelivr.net/npm/diff@5.1.0/dist/diff.min.js
         </script>
 	</head>
 	<body>
-		${html}
+		${htmlBodyContent}
 
 		<script nonce="${nonce}">
-			${js}
+			${jsContent}
 		</script>
 	</body>
 	</html>
@@ -272,6 +290,8 @@ function webviewCss(): string {
         display: block; 
         min-height: 1.4em;
         padding-left: 0.5em;
+		border: none; 
+        background-color: transparent;
 	}
 	.diff-output pre.diff-added {
 		background-color: #eaf2c2;
@@ -405,8 +425,13 @@ function webviewJs(
 			finalAccumulatedResponseForLog = fullResponse; 
 			extractedAISuggestedCode = extractImprovedCodeJS(fullResponse);
 
-			if (typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null) {
-				const changes = Diff.diffLines(jsOriginalWholeFileContent, extractedAISuggestedCode);
+			const canShowDiff = typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null;
+
+			if (canShowDiff) {
+				const normalizedOriginal = jsOriginalWholeFileContent.replace(/\\r\\n/g, '\\n');
+				const normalizedAISuggestion = extractedAISuggestedCode.replace(/\\r\\n/g, '\\n');
+			
+				const changes = Diff.diffLines(normalizedOriginal, normalizedAISuggestion);
 
 				const fragment = document.createDocumentFragment();
 
@@ -424,7 +449,7 @@ function webviewJs(
 						prefix = '  '; 
 					}
 
-					const lines = String(part.value).replace(/\\r\\n/g, '\\n').split('\\n');
+					const lines = String(part.value).split('\\n');
 					if (lines.length > 0 && lines[lines.length - 1] === '') {
 						lines.pop();
 					}
@@ -432,7 +457,7 @@ function webviewJs(
 						lines.push(''); 
 					}
 					if (lines.length === 0 && !part.value) { 
-						// do nothing or append an empty pre for spacing if desired
+						return;
 					}
 					lines.forEach(line => {
 						const lineTextNode = document.createTextNode(prefix + line + '\\n'); 
@@ -461,8 +486,9 @@ function webviewJs(
 			summaryContentRenderedEl.innerHTML = basicMarkdownToHtml(rawSummaryText);
 			explanationContentRenderedEl.innerHTML = basicMarkdownToHtml(rawExplanationText);
 			
-			improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
-			
+			if (!canShowDiff) {
+				improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
+			}
 			if (extractedAISuggestedCode) { 
 				acceptButton.disabled = false;
 			}
