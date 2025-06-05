@@ -6,7 +6,7 @@ This project is a VS Code extension that provides AI-generated code review sugge
 
 ## ✨ Key Features
 
-- Code optimization suggestions from AI (DeepSeek-Coder via Ollama)
+- Code optimization suggestions from AI (Qwen2.5-Coder via Ollama)
 - Accept/Reject interface with real-time feedback
 - Git version control integration:
   - Accept → auto-commit
@@ -17,25 +17,13 @@ This project is a VS Code extension that provides AI-generated code review sugge
 ## 🛠️ Tech Stack
 
 - VS Code Extension API (TypeScript)
-- Node.js (optional backend for local LLM bridge)
-- DeepSeek-Coder via [Ollama](https://ollama.com)
-- Git CLI (via Node scripts or `simple-git`)
-- Optional: SQLite / JSON for feedback logging
+- Qwen2.5-Coder via [Ollama](https://ollama.com)
+- Git CLI (`simple-git`)
+- JSON for feedback logging
 
 ## 🚀 Getting Started
 
 1. Install [Ollama](https://ollama.com)
-2. Pull the model: `ollama pull deepseek-coder`
-3. Run: `ollama run deepseek-coder`
+2. Pull the model: `ollama pull qwen2.5-coder:7b-instruct`
+3. Run: `ollama run qwen2.5-coder:7b-instruct`
 4. Launch the extension in development mode
-
-## 📂 Project Structure
-
-```text
-ai-code-review-vscode/
-├── extension/     # VS Code extension source
-├── docs/          # Planning, roadmap, and thesis content
-│   └── roadmap.md
-├── .gitignore
-├── README.md
-```
