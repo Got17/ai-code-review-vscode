@@ -5613,10 +5613,10 @@ var vscode4 = __toESM(require("vscode"));
 var vscode2 = __toESM(require("vscode"));
 var fs = __toESM(require("fs"));
 var path = __toESM(require("path"));
-var LOG_DIR_NAME = ".ai_feedback_log";
-var REJECTIONS_FILE_NAME = "rejections_log.json";
+var logDirName = ".ai_feedback_log";
+var feedbackLogFileName = "feedback_log.json";
 function ensureLogDirectoryExists(workspaceRoot) {
-  const logDirPath = path.join(workspaceRoot, LOG_DIR_NAME);
+  const logDirPath = path.join(workspaceRoot, logDirName);
   try {
     if (!fs.existsSync(logDirPath)) {
       fs.mkdirSync(logDirPath, { recursive: true });
@@ -5627,7 +5627,7 @@ function ensureLogDirectoryExists(workspaceRoot) {
     return null;
   }
 }
-function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, selectionDetails) {
+function logFeedback(action, fileName, originalCode, aiSuggestedCode, aiFullResponse, selectionDetails) {
   const workspaceFolders = vscode2.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     vscode2.window.showWarningMessage("Cannot log rejection: No workspace folder open.");
@@ -5636,12 +5636,13 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
   const workspaceRoot = workspaceFolders[0].uri.fsPath;
   const logDirPath = ensureLogDirectoryExists(workspaceRoot);
   if (!logDirPath) {
-    console.error("[LogRejectionDebug] Log directory path is null. Aborting logRejection.");
+    console.error("[logFeedback] Log directory path is null. Aborting logRejection.");
     return;
   }
-  const logFilePath = path.join(logDirPath, REJECTIONS_FILE_NAME);
+  const logFilePath = path.join(logDirPath, feedbackLogFileName);
   const newEntry = {
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    action,
     fileName,
     originalCode,
     aiSuggestedCode,
@@ -5653,6 +5654,7 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
       endChar: selectionDetails.end.character
     } : void 0
   };
+  console.log(`[FeedbackLogged] Action: ${action}, File: ${fileName}`);
   try {
     let logs = [];
     if (fs.existsSync(logFilePath)) {
@@ -5666,7 +5668,11 @@ function logRejection(fileName, originalCode, aiSuggestedCode, aiFullResponse, s
     logs.push(newEntry);
     const jsonString = JSON.stringify(logs, null, 2);
     fs.writeFileSync(logFilePath, jsonString, "utf-8");
-    vscode2.window.showInformationMessage("Suggestion rejected and logged.");
+    if (action === "accepted") {
+      console.log("Suggestion accepted and logged for learning.");
+    } else {
+      vscode2.window.showInformationMessage("Suggestion rejected and logged.");
+    }
   } catch (error) {
     vscode2.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
   }
@@ -5764,9 +5770,13 @@ function showWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, 
 function handleWebviewMessage(panelInstance) {
   panelInstance.webview.onDidReceiveMessage(
     async (message) => {
+      const originalSelection = new vscode4.Selection(
+        new vscode4.Position(message.selection.start.line, message.selection.start.character),
+        new vscode4.Position(message.selection.end.line, message.selection.end.character)
+      );
       if (message.command === "accept") {
         try {
-          if (message.improvedCode === null || message.improvedCode === void 0) {
+          if (message.aiSuggestedCode === null || message.aiSuggestedCode === void 0) {
             vscode4.window.showErrorMessage("AI did not provide improved code to apply.");
             return;
           }
@@ -5774,12 +5784,16 @@ function handleWebviewMessage(panelInstance) {
             vscode4.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
             return;
           }
-          const originalSelection = new vscode4.Selection(
-            new vscode4.Position(message.selection.start.line, message.selection.start.character),
-            new vscode4.Position(message.selection.end.line, message.selection.end.character)
-          );
           const docUri = vscode4.Uri.parse(message.documentUri);
-          await applySuggestion(message.improvedCode, originalSelection, docUri);
+          await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+          logFeedback(
+            "accepted",
+            message.fileName,
+            message.originalCode,
+            message.aiSuggestedCode,
+            message.aiFullResponse,
+            message.selection ? originalSelection : void 0
+          );
           if (panelInstance && !panelInstance.visible) {
             panelInstance.dispose();
           } else if (panel) {
@@ -5791,15 +5805,13 @@ function handleWebviewMessage(panelInstance) {
         }
       } else if (message.command === "reject") {
         try {
-          logRejection(
+          logFeedback(
+            "rejected",
             message.fileName,
             message.originalCode,
             message.aiSuggestedCode,
             message.aiFullResponse,
-            message.selection ? new vscode4.Selection(
-              new vscode4.Position(message.selection.start.line, message.selection.start.character),
-              new vscode4.Position(message.selection.end.line, message.selection.end.character)
-            ) : void 0
+            message.selection ? originalSelection : void 0
           );
           if (panelInstance && !panelInstance.visible) {
             panelInstance.dispose();
@@ -5827,7 +5839,10 @@ function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet,
 	<html>
 	<head>
 		<meta charset="UTF-8">
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+		<meta http-equiv="Content-Security-Policy" 
+			content="default-src 'none'; 
+					style-src ${webview.cspSource} 'unsafe-inline'; 
+					script-src 'nonce-${nonce}' ${webview.cspSource};">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
 		<style nonce="${nonce}">
@@ -6185,8 +6200,10 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			vscode.postMessage({
 				command: 'accept',
 				fileName: jsCurrentFileName,
-				improvedCode: extractedAISuggestedCode, 
-				selection: jsCurrentSelection, 
+				originalCode: jsOriginalSelectedCode,    
+				aiSuggestedCode: extractedAISuggestedCode, 
+				aiFullResponse: finalAccumulatedResponseForLog, 
+				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});
 		});

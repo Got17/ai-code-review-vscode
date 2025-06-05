@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { logRejection } from "../utils/logging";
+import { logFeedback } from "../utils/logging";
 import { applySuggestion } from './applySuggestion';
 
 export function showOutput(fileName: string | undefined, response: string): void {
@@ -80,9 +80,14 @@ function handleWebviewMessage(
 ) {
 	panelInstance.webview.onDidReceiveMessage(
 		async message => {
+			const originalSelection = new vscode.Selection(
+				new vscode.Position(message.selection.start.line, message.selection.start.character),
+				new vscode.Position(message.selection.end.line, message.selection.end.character)
+			);
+
 			if (message.command === "accept") {
 				try {
-					if (message.improvedCode === null || message.improvedCode === undefined) {
+					if (message.aiSuggestedCode === null || message.aiSuggestedCode === undefined) {
 						vscode.window.showErrorMessage('AI did not provide improved code to apply.');
 						return;
 					}
@@ -90,14 +95,19 @@ function handleWebviewMessage(
 						vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.');
 						return;
 					}
-
-					const originalSelection = new vscode.Selection(
-						new vscode.Position(message.selection.start.line, message.selection.start.character),
-						new vscode.Position(message.selection.end.line, message.selection.end.character)
-					);
+					
 					const docUri = vscode.Uri.parse(message.documentUri);
 
-					await applySuggestion(message.improvedCode, originalSelection, docUri);
+					await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+
+					logFeedback(
+						'accepted',
+						message.fileName,
+						message.originalCode,
+						message.aiSuggestedCode, 
+						message.aiFullResponse,  
+						message.selection ? originalSelection : undefined
+					);
 					
 					if (panelInstance && !panelInstance.visible) { 
                         panelInstance.dispose();
@@ -111,15 +121,13 @@ function handleWebviewMessage(
 			}
 			else if (message.command === "reject"){
 				try {
-					logRejection(
+					logFeedback(
+						'rejected',
 						message.fileName,
 						message.originalCode,
 						message.aiSuggestedCode, 
 						message.aiFullResponse,  
-						message.selection ? new vscode.Selection( 
-							new vscode.Position(message.selection.start.line, message.selection.start.character),
-							new vscode.Position(message.selection.end.line, message.selection.end.character)
-						) : undefined
+						message.selection ? originalSelection : undefined
 					);
 					
 					if (panelInstance && !panelInstance.visible) {
@@ -160,7 +168,10 @@ function getWebviewContent(
 	<html>
 	<head>
 		<meta charset="UTF-8">
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}';">
+		<meta http-equiv="Content-Security-Policy" 
+			content="default-src 'none'; 
+					style-src ${webview.cspSource} 'unsafe-inline'; 
+					script-src 'nonce-${nonce}' ${webview.cspSource};">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>AI Code Review</title>
 		<style nonce="${nonce}">
@@ -527,8 +538,10 @@ function webviewJs(
 			vscode.postMessage({
 				command: 'accept',
 				fileName: jsCurrentFileName,
-				improvedCode: extractedAISuggestedCode, 
-				selection: jsCurrentSelection, 
+				originalCode: jsOriginalSelectedCode,    
+				aiSuggestedCode: extractedAISuggestedCode, 
+				aiFullResponse: finalAccumulatedResponseForLog, 
+				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});
 		});

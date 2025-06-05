@@ -59,13 +59,13 @@
 - Highlight modified lines (Optional, later on)
 - Log rejection without modifying file [Done]
 - Read the whole F# file [Done]
-- Add diff file
+- Add diff file [Done]
 
 ### Week 7: Feedback Logging System
 
-- Track accept/reject feedback with timestamp
-- Save to local JSON or SQLite
-- Associate with file/function context
+- Track accept/reject feedback with timestamp [Done]
+- Save to local JSON or SQLite [Done]
+- Associate with file/function context [Done]
 
 ### Week 8: Mini Review & Demo
 

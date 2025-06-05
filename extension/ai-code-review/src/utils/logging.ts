@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-interface RejectionLogEntry {
+interface FeedbackLogEntry {
     timestamp: string;
+    action: 'accepted' | 'rejected';
     fileName: string | undefined;
     originalCode: string;
     aiSuggestedCode: string; 
@@ -16,11 +17,11 @@ interface RejectionLogEntry {
     } | undefined;
 }
 
-const LOG_DIR_NAME = '.ai_feedback_log';
-const REJECTIONS_FILE_NAME = 'rejections_log.json';
+const logDirName = '.ai_feedback_log';
+const feedbackLogFileName = 'feedback_log.json';
 
 function ensureLogDirectoryExists(workspaceRoot: string): string | null {
-    const logDirPath = path.join(workspaceRoot, LOG_DIR_NAME);    
+    const logDirPath = path.join(workspaceRoot, logDirName);    
 
     try {
         if (!fs.existsSync(logDirPath)) {            
@@ -33,7 +34,8 @@ function ensureLogDirectoryExists(workspaceRoot: string): string | null {
     }
 }
 
-export function logRejection(
+export function logFeedback(
+    action: 'accepted' | 'rejected',
     fileName: string | undefined,
     originalCode: string,
     aiSuggestedCode: string,
@@ -49,14 +51,15 @@ export function logRejection(
     
     const logDirPath = ensureLogDirectoryExists(workspaceRoot);
     if (!logDirPath) {
-        console.error('[LogRejectionDebug] Log directory path is null. Aborting logRejection.');
+        console.error('[logFeedback] Log directory path is null. Aborting logRejection.');
         return; 
     }    
 
-    const logFilePath = path.join(logDirPath, REJECTIONS_FILE_NAME);    
+    const logFilePath = path.join(logDirPath, feedbackLogFileName);    
 
-    const newEntry: RejectionLogEntry = {
+    const newEntry: FeedbackLogEntry = {
         timestamp: new Date().toISOString(),
+        action,
         fileName,
         originalCode,
         aiSuggestedCode,
@@ -69,8 +72,10 @@ export function logRejection(
         } : undefined
     };
 
+    console.log(`[FeedbackLogged] Action: ${action}, File: ${fileName}`);
+
     try {
-        let logs: RejectionLogEntry[] = [];
+        let logs: FeedbackLogEntry[] = [];
         if (fs.existsSync(logFilePath)) {
             const fileContent = fs.readFileSync(logFilePath, 'utf-8');
             
@@ -86,9 +91,12 @@ export function logRejection(
         const jsonString = JSON.stringify(logs, null, 2);
         
         fs.writeFileSync(logFilePath, jsonString, 'utf-8');        
-
-        vscode.window.showInformationMessage('Suggestion rejected and logged.');
-
+        
+        if (action === 'accepted') {
+            console.log('Suggestion accepted and logged for learning.');
+        } else {
+            vscode.window.showInformationMessage('Suggestion rejected and logged.');
+        }
     } catch (error: any) {
         vscode.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
     }
