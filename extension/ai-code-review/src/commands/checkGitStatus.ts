@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getGitClient } from '../utils/helpers';
+import { getGitClient } from '../utils/git';
 
 export function registerCheckGitStatus() {
 	return vscode.commands.registerCommand('ai-code-review.checkGitStatus', () => {

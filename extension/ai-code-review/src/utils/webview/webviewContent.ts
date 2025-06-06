@@ -1,151 +1,7 @@
 import * as vscode from 'vscode';
-import { logFeedback } from "../utils/logging";
-import { applySuggestion } from './applySuggestion';
+import { WEBVIEW_LIBRARY_DIR } from '../constants';
 
-export function showOutput(fileName: string | undefined, response: string): void {
-	const outputChannel = vscode.window.createOutputChannel("AI Code Review");
-	outputChannel.clear();
-	outputChannel.appendLine(`File: ${fileName || 'Unknown'}`);
-	outputChannel.appendLine(`\n${response}`);
-	outputChannel.show(true);
-}
-
-let panel: vscode.WebviewPanel | undefined = undefined;
-const webviewLibraryDir = 'webview-lib';
-
-export function showWebview(
-	_initialResponsePlaceholder: string,
-    context: vscode.ExtensionContext,
-    selectedCodeSnippet: string | null,
-    entireFileContent: string,
-    fileName: string | undefined,
-    selection: vscode.Selection,
-    documentUri: vscode.Uri
-): vscode.WebviewPanel | undefined {
-	const column = vscode.window.activeTextEditor
-        ? vscode.window.activeTextEditor.viewColumn
-        : vscode.ViewColumn.Beside;
-
-	if (panel) {
-        console.log('[ShowWebviewDebug] Revealing existing panel.');
-        panel.reveal(column);
-		panel.webview.html = getWebviewContent(
-            panel.webview, 
-            context.extensionUri, 
-            fileName,
-            selectedCodeSnippet,
-            entireFileContent,
-            selection,
-            documentUri
-        );
-    } else {
-		console.log('[ShowWebviewDebug] Creating new panel.');
-		panel = vscode.window.createWebviewPanel(
-			'aiSuggestionPanel',
-			'AI Code Review Suggestion for WebSharper',
-			vscode.ViewColumn.Beside,
-			{
-				enableScripts: true,
-				retainContextWhenHidden: true,
-				localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, webviewLibraryDir)]
-			}
-		);
-
-		panel.onDidDispose(
-            () => {
-                console.log('[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.');
-                panel = undefined;
-            },
-            null,
-            context.subscriptions
-        );
-		handleWebviewMessage(panel);
-	}
-
-	panel.webview.html = getWebviewContent(
-		panel.webview, 
-		context.extensionUri, 
-		fileName,
-		selectedCodeSnippet,
-		entireFileContent,
-		selection,
-		documentUri
-	);
-	
-	return panel;
-}
-
-function handleWebviewMessage(
-	panelInstance: vscode.WebviewPanel
-) {
-	panelInstance.webview.onDidReceiveMessage(
-		async message => {
-			const originalSelection = new vscode.Selection(
-				new vscode.Position(message.selection.start.line, message.selection.start.character),
-				new vscode.Position(message.selection.end.line, message.selection.end.character)
-			);
-
-			if (message.command === "accept") {
-				try {
-					if (message.aiSuggestedCode === null || message.aiSuggestedCode === undefined) {
-						vscode.window.showErrorMessage('AI did not provide improved code to apply.');
-						return;
-					}
-					if (!message.selection || !message.documentUri) {
-						vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.');
-						return;
-					}
-					
-					const docUri = vscode.Uri.parse(message.documentUri);
-
-					await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-
-					logFeedback(
-						'accepted',
-						message.fileName,
-						message.originalCode,
-						message.aiSuggestedCode, 
-						message.aiFullResponse,  
-						message.selection ? originalSelection : undefined
-					);
-					
-					if (panelInstance && !panelInstance.visible) { 
-                        panelInstance.dispose();
-                    } else if (panel) { 
-                        panel.dispose();
-                    }
-				} catch (err) {
-					console.error(`Error with accepting: ${err}`);
-                    vscode.window.showErrorMessage('Error applying suggestion');
-				}
-			}
-			else if (message.command === "reject"){
-				try {
-					logFeedback(
-						'rejected',
-						message.fileName,
-						message.originalCode,
-						message.aiSuggestedCode, 
-						message.aiFullResponse,  
-						message.selection ? originalSelection : undefined
-					);
-					
-					if (panelInstance && !panelInstance.visible) {
-						panelInstance.dispose();
-                    } else if (panel) {
-						panel.dispose();
-                    } 						
-				} catch (err) {
-					console.error(`Error with rejecting: ${err}`);
-					vscode.window.showErrorMessage('Error logging rejection');
-				}
-			}
-		},
-		undefined
-	);
-}
-
-function getWebviewContent(
+export function getWebviewContent(
 	webview: vscode.Webview,           
     extensionUri: vscode.Uri,
 	fileName: string | undefined,
@@ -160,7 +16,7 @@ function getWebviewContent(
 
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 
-	const diffJsSrcOnDisk = vscode.Uri.joinPath(extensionUri, webviewLibraryDir, 'diff.min.js');
+	const diffJsSrcOnDisk = vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'diff.min.js');
     const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
 
 	return `
@@ -560,5 +416,3 @@ function webviewJs(
 	
 	`;
 }
-
-

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { FEEDBACK_LOG_FILE, LOG_DIR_NAME } from '../constants';
 
 interface FeedbackLogEntry {
     timestamp: string;
@@ -17,11 +18,8 @@ interface FeedbackLogEntry {
     } | undefined;
 }
 
-const logDirName = '.ai_feedback_log';
-const feedbackLogFileName = 'feedback_log.json';
-
 function ensureLogDirectoryExists(workspaceRoot: string): string | null {
-    const logDirPath = path.join(workspaceRoot, logDirName);    
+    const logDirPath = path.join(workspaceRoot, LOG_DIR_NAME);    
 
     try {
         if (!fs.existsSync(logDirPath)) {            
@@ -55,7 +53,7 @@ export function logFeedback(
         return; 
     }    
 
-    const logFilePath = path.join(logDirPath, feedbackLogFileName);    
+    const logFilePath = path.join(logDirPath, FEEDBACK_LOG_FILE);    
 
     const newEntry: FeedbackLogEntry = {
         timestamp: new Date().toISOString(),
@@ -76,21 +74,14 @@ export function logFeedback(
 
     try {
         let logs: FeedbackLogEntry[] = [];
+
         if (fs.existsSync(logFilePath)) {
             const fileContent = fs.readFileSync(logFilePath, 'utf-8');
-            
-            if (fileContent.trim() === "") { 
-                logs = [];
-            } else {
-                logs = JSON.parse(fileContent); 
-            }
+            logs = fileContent.trim() ? JSON.parse(fileContent) : [];
         }
 
         logs.push(newEntry);        
-
-        const jsonString = JSON.stringify(logs, null, 2);
-        
-        fs.writeFileSync(logFilePath, jsonString, 'utf-8');        
+        fs.writeFileSync(logFilePath, JSON.stringify(logs, null, 2), 'utf-8');  
         
         if (action === 'accepted') {
             console.log('Suggestion accepted and logged for learning.');

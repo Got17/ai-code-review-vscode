@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getGitClient } from '../utils/helpers';
+import { getGitClient } from '../utils/git';
 import { SimpleGit } from 'simple-git';
 
 export function registerUndoLastSuggestion() {

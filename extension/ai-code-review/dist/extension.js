@@ -922,10 +922,10 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 
-// src/commands/showSuggestion.ts
-var vscode5 = __toESM(require("vscode"));
+// src/commands/checkGitStatus.ts
+var vscode2 = __toESM(require("vscode"));
 
-// src/utils/helpers.ts
+// src/utils/git/gitUtils.ts
 var vscode = __toESM(require("vscode"));
 
 // node_modules/simple-git/dist/esm/index.js
@@ -5479,9 +5479,9 @@ function gitInstanceFactory(baseDir, options) {
 init_git_response_error();
 var esm_default = gitInstanceFactory;
 
-// src/utils/helpers.ts
+// src/utils/git/gitUtils.ts
 function getWorkspaceFolder() {
-  const folder = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!folder) {
     vscode.window.showErrorMessage("No workspace folder found.");
     return null;
@@ -5492,11 +5492,250 @@ function getGitClient() {
   const folder = getWorkspaceFolder();
   return folder ? esm_default({ baseDir: folder }) : null;
 }
-function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange) {
-  let selectionContextInfo = "";
-  if (selectionRange) {
-    selectionContextInfo = `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.`;
+
+// src/commands/checkGitStatus.ts
+function registerCheckGitStatus() {
+  return vscode2.commands.registerCommand("ai-code-review.checkGitStatus", () => {
+    const git = getGitClient();
+    if (!git) {
+      return;
+    }
+    checkGitStatus(git);
+    git.status().then((status) => {
+      const staged = status.staged;
+      const notStaged = status.files.filter((f) => f.index === "?" || f.working_dir !== " ");
+      vscode2.window.showInformationMessage(
+        `\u{1F4C2} Git Status:
+
+Staged: ${staged.length}
+Unstaged: ${notStaged.length}`
+      );
+    }).catch((err) => {
+      vscode2.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
+    });
+  });
+}
+async function checkGitStatus(git) {
+  try {
+    const status = await git.status();
+    const staged = status.staged || [];
+    const notStaged = status.files.filter(
+      (f) => f.index === "?" || f.working_dir !== " "
+    );
+    vscode2.window.showInformationMessage(
+      `\u{1F4C2} Git Status:
+
+Staged: ${staged.length}
+Unstaged: ${notStaged.length}`
+    );
+  } catch (err) {
+    vscode2.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
   }
+}
+
+// src/commands/showSuggestion.ts
+var vscode10 = __toESM(require("vscode"));
+
+// src/utils/ai/aiClient.ts
+var vscode3 = __toESM(require("vscode"));
+
+// src/utils/constants.ts
+var WEBVIEW_LIBRARY_DIR = "webview-lib";
+var AI_MODEL = "qwen2.5-coder:7b-instruct";
+var AI_API = "http://localhost:11434/api/generate";
+var LOG_DIR_NAME = ".ai_feedback_log";
+var FEEDBACK_LOG_FILE = "feedback_log.json";
+
+// src/utils/ai/aiClient.ts
+async function* queryAIStream(prompt) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12e4);
+    const response = await fetch(AI_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        prompt,
+        stream: true
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      await handleAPIError(response);
+      return;
+    }
+    if (!response.body) {
+      vscode3.window.showErrorMessage("AI response body is null.");
+      return;
+    }
+    yield* streamResponseChunks(response.body);
+  } catch (error) {
+    handleStreamError(error);
+  }
+}
+async function handleAPIError(response) {
+  const errorBody = await response.text();
+  console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
+  vscode3.window.showErrorMessage("AI Server Error");
+}
+function handleStreamError(error) {
+  if (error.name === "AbortError") {
+    console.error("AI request timed out.");
+    vscode3.window.showErrorMessage("AI request timed out.");
+  } else {
+    console.error("Failed to query AI:", error);
+    vscode3.window.showErrorMessage("Failed to query AI");
+  }
+}
+async function* streamResponseChunks(body) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      yield* flushRemainingBuffer(buffer);
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    let newlineIndex;
+    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (!line) {
+        continue;
+      }
+      try {
+        const jsonLine = JSON.parse(line);
+        if (jsonLine.response) {
+          yield jsonLine.response;
+        }
+        if (jsonLine.done) {
+          return;
+        }
+      } catch (err) {
+        console.error("Error parsing stream line:", err, line);
+      }
+    }
+  }
+}
+function* flushRemainingBuffer(buffer) {
+  if (!buffer.trim()) {
+    return;
+  }
+  try {
+    const jsonLine = JSON.parse(buffer);
+    if (jsonLine.response) {
+      yield jsonLine.response;
+    }
+  } catch (e) {
+    console.error("Error parsing final buffered JSON line:", e, buffer);
+  }
+}
+
+// src/utils/ai/applySuggestion.ts
+var vscode4 = __toESM(require("vscode"));
+async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
+  if (!documentUri) {
+    vscode4.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
+    return;
+  }
+  const doc = await vscode4.workspace.openTextDocument(documentUri);
+  const editor = await vscode4.window.showTextDocument(doc, {
+    preserveFocus: false,
+    viewColumn: vscode4.window.activeTextEditor?.viewColumn || vscode4.ViewColumn.One
+  });
+  if (editor.document.uri.toString() !== documentUri.toString()) {
+    vscode4.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
+    return;
+  }
+  const fullRange = new vscode4.Range(
+    doc.lineAt(0).range.start,
+    doc.lineAt(doc.lineCount - 1).range.end
+  );
+  const success = await editor.edit((editBuilder) => {
+    editBuilder.replace(fullRange, aiProvidedFullFileContent);
+  });
+  if (!success) {
+    vscode4.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
+    return;
+  }
+  editor.selection = originalSelectionForContext;
+  editor.revealRange(originalSelectionForContext, vscode4.TextEditorRevealType.InCenterIfOutsideViewport);
+  vscode4.window.showInformationMessage("AI suggestion applied (entire file updated).");
+}
+
+// src/utils/ai/logging.ts
+var vscode5 = __toESM(require("vscode"));
+var fs = __toESM(require("fs"));
+var path = __toESM(require("path"));
+function ensureLogDirectoryExists(workspaceRoot) {
+  const logDirPath = path.join(workspaceRoot, LOG_DIR_NAME);
+  try {
+    if (!fs.existsSync(logDirPath)) {
+      fs.mkdirSync(logDirPath, { recursive: true });
+    }
+    return logDirPath;
+  } catch (error) {
+    vscode5.window.showErrorMessage(`Failed to create AI feedback log directory: ${error}`);
+    return null;
+  }
+}
+function logFeedback(action, fileName, originalCode, aiSuggestedCode, aiFullResponse, selectionDetails) {
+  const workspaceFolders = vscode5.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) {
+    vscode5.window.showWarningMessage("Cannot log rejection: No workspace folder open.");
+    return;
+  }
+  const workspaceRoot = workspaceFolders[0].uri.fsPath;
+  const logDirPath = ensureLogDirectoryExists(workspaceRoot);
+  if (!logDirPath) {
+    console.error("[logFeedback] Log directory path is null. Aborting logRejection.");
+    return;
+  }
+  const logFilePath = path.join(logDirPath, FEEDBACK_LOG_FILE);
+  const newEntry = {
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    action,
+    fileName,
+    originalCode,
+    aiSuggestedCode,
+    aiFullResponse,
+    selection: selectionDetails ? {
+      startLine: selectionDetails.start.line,
+      startChar: selectionDetails.start.character,
+      endLine: selectionDetails.end.line,
+      endChar: selectionDetails.end.character
+    } : void 0
+  };
+  console.log(`[FeedbackLogged] Action: ${action}, File: ${fileName}`);
+  try {
+    let logs = [];
+    if (fs.existsSync(logFilePath)) {
+      const fileContent = fs.readFileSync(logFilePath, "utf-8");
+      logs = fileContent.trim() ? JSON.parse(fileContent) : [];
+    }
+    logs.push(newEntry);
+    fs.writeFileSync(logFilePath, JSON.stringify(logs, null, 2), "utf-8");
+    if (action === "accepted") {
+      console.log("Suggestion accepted and logged for learning.");
+    } else {
+      vscode5.window.showInformationMessage("Suggestion rejected and logged.");
+    }
+  } catch (error) {
+    vscode5.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
+  }
+}
+
+// src/utils/ai/promptBuilder.ts
+function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange) {
+  const fileLabel = fileName || "current file";
+  const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
+  return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo);
+}
+function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo) {
   return `
 You are an expert F# and WebSharper refactoring tool.
 Your task is to review and improve a specific SELECTION of F# code within the context of an entire FILE.
@@ -5518,321 +5757,50 @@ The user wants to optimize the SELECTED CODE. To do this, you may need to modify
     * "2. Improved Code:": Provide the complete, modified F# file content within a single \`\`\`fsharp ... \`\`\` block.
     * "3. Explanation:": Explain the changes made, especially how they improve the selected code and why any related changes outside the selection were necessary. Clearly state if you had to modify code outside the user's selection and why. If you suggest removing the selected code, explain why.
 
-**FULL FILE CONTENT from \`${fileName || "current file"}\`:**
+**FULL FILE CONTENT from \`${fileLabel}\`:**
 \`\`\`fsharp
-${wholeFileContent}
+${fullContent}
 \`\`\`
 
-**USER'S SELECTED CODE (the primary focus for your improvement efforts) from \`${fileName || "current file"}\`:**
+**USER'S SELECTED CODE (the primary focus for your improvement efforts) from \`${fileLabel}\`:**
 ${selectionContextInfo}
 \`\`\`fsharp
-${selectedCode}
+${selectedSnippet}
 \`\`\`
     `.trim();
 }
-var aiModel = "qwen2.5-coder:7b-instruct";
-var aiApi = "http://localhost:11434/api/generate";
-async function* queryAIStream(prompt) {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12e4);
-    const response = await fetch(aiApi, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: aiModel,
-        prompt,
-        stream: true
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`Ollama API Error: ${response.status} ${response.statusText}`, errorBody);
-      vscode.window.showErrorMessage("AI Server Error");
-      return;
-    }
-    if (!response.body) {
-      vscode.window.showErrorMessage("AI response body is null.");
-      return;
-    }
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        if (buffer.trim()) {
-          try {
-            const jsonLine = JSON.parse(buffer);
-            if (jsonLine.response) {
-              yield jsonLine.response;
-            }
-          } catch (e) {
-            console.error("Error parsing final buffered JSON line:", e, buffer);
-          }
-        }
-        break;
-      }
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIndex;
-      while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.substring(0, newlineIndex).trim();
-        buffer = buffer.substring(newlineIndex + 1);
-        if (line) {
-          try {
-            const jsonLine = JSON.parse(line);
-            if (jsonLine.response) {
-              yield jsonLine.response;
-            }
-            if (jsonLine.done) {
-              return;
-            }
-          } catch (error) {
-            console.error("Error parsing streaming JSON line:", error, line);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    if (error.name === "AbortError") {
-      console.error("AI request timed out.");
-      vscode.window.showErrorMessage("AI request timed out.");
-    } else {
-      console.error("Failed to query AI:", error);
-      vscode.window.showErrorMessage("Failed to query AI");
-    }
-  }
-}
 
-// src/utils/showSuggestionHelpers.ts
-var vscode4 = __toESM(require("vscode"));
-
-// src/utils/logging.ts
-var vscode2 = __toESM(require("vscode"));
-var fs = __toESM(require("fs"));
-var path = __toESM(require("path"));
-var logDirName = ".ai_feedback_log";
-var feedbackLogFileName = "feedback_log.json";
-function ensureLogDirectoryExists(workspaceRoot) {
-  const logDirPath = path.join(workspaceRoot, logDirName);
-  try {
-    if (!fs.existsSync(logDirPath)) {
-      fs.mkdirSync(logDirPath, { recursive: true });
-    }
-    return logDirPath;
-  } catch (error) {
-    vscode2.window.showErrorMessage(`Failed to create AI feedback log directory: ${error}`);
-    return null;
-  }
-}
-function logFeedback(action, fileName, originalCode, aiSuggestedCode, aiFullResponse, selectionDetails) {
-  const workspaceFolders = vscode2.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode2.window.showWarningMessage("Cannot log rejection: No workspace folder open.");
-    return;
-  }
-  const workspaceRoot = workspaceFolders[0].uri.fsPath;
-  const logDirPath = ensureLogDirectoryExists(workspaceRoot);
-  if (!logDirPath) {
-    console.error("[logFeedback] Log directory path is null. Aborting logRejection.");
-    return;
-  }
-  const logFilePath = path.join(logDirPath, feedbackLogFileName);
-  const newEntry = {
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    action,
-    fileName,
-    originalCode,
-    aiSuggestedCode,
-    aiFullResponse,
-    selection: selectionDetails ? {
-      startLine: selectionDetails.start.line,
-      startChar: selectionDetails.start.character,
-      endLine: selectionDetails.end.line,
-      endChar: selectionDetails.end.character
-    } : void 0
-  };
-  console.log(`[FeedbackLogged] Action: ${action}, File: ${fileName}`);
-  try {
-    let logs = [];
-    if (fs.existsSync(logFilePath)) {
-      const fileContent = fs.readFileSync(logFilePath, "utf-8");
-      if (fileContent.trim() === "") {
-        logs = [];
-      } else {
-        logs = JSON.parse(fileContent);
-      }
-    }
-    logs.push(newEntry);
-    const jsonString = JSON.stringify(logs, null, 2);
-    fs.writeFileSync(logFilePath, jsonString, "utf-8");
-    if (action === "accepted") {
-      console.log("Suggestion accepted and logged for learning.");
-    } else {
-      vscode2.window.showInformationMessage("Suggestion rejected and logged.");
-    }
-  } catch (error) {
-    vscode2.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
-  }
-}
-
-// src/utils/applySuggestion.ts
-var vscode3 = __toESM(require("vscode"));
-async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
-  if (!documentUri) {
-    vscode3.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
-    return;
-  }
-  const doc = await vscode3.workspace.openTextDocument(documentUri);
-  const editor = await vscode3.window.showTextDocument(doc, {
-    preserveFocus: false,
-    viewColumn: vscode3.window.activeTextEditor?.viewColumn || vscode3.ViewColumn.One
-  });
-  if (editor.document.uri.toString() !== documentUri.toString()) {
-    vscode3.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
-    return;
-  }
-  const firstLine = doc.lineAt(0);
-  const lastLine = doc.lineAt(doc.lineCount - 1);
-  const entireDocumentRange = new vscode3.Range(firstLine.range.start, lastLine.range.end);
-  const success = await editor.edit((editBuilder) => {
-    editBuilder.replace(entireDocumentRange, aiProvidedFullFileContent);
-  });
-  if (!success) {
-    vscode3.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
-    return;
-  }
-  editor.selection = originalSelectionForContext;
-  editor.revealRange(originalSelectionForContext, vscode3.TextEditorRevealType.InCenterIfOutsideViewport);
-  vscode3.window.showInformationMessage("AI suggestion applied (entire file updated).");
-}
-
-// src/utils/showSuggestionHelpers.ts
+// src/utils/ui/outputChannel.ts
+var vscode6 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode4.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
 ${response}`);
   outputChannel.show(true);
 }
-var panel = void 0;
-var webviewLibraryDir = "webview-lib";
-function showWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
-  const column = vscode4.window.activeTextEditor ? vscode4.window.activeTextEditor.viewColumn : vscode4.ViewColumn.Beside;
-  if (panel) {
-    console.log("[ShowWebviewDebug] Revealing existing panel.");
-    panel.reveal(column);
-    panel.webview.html = getWebviewContent(
-      panel.webview,
-      context.extensionUri,
-      fileName,
-      selectedCodeSnippet,
-      entireFileContent,
-      selection,
-      documentUri
-    );
-  } else {
-    console.log("[ShowWebviewDebug] Creating new panel.");
-    panel = vscode4.window.createWebviewPanel(
-      "aiSuggestionPanel",
-      "AI Code Review Suggestion for WebSharper",
-      vscode4.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [vscode4.Uri.joinPath(context.extensionUri, webviewLibraryDir)]
-      }
-    );
-    panel.onDidDispose(
-      () => {
-        console.log("[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.");
-        panel = void 0;
-      },
-      null,
-      context.subscriptions
-    );
-    handleWebviewMessage(panel);
-  }
-  panel.webview.html = getWebviewContent(
-    panel.webview,
-    context.extensionUri,
-    fileName,
-    selectedCodeSnippet,
-    entireFileContent,
-    selection,
-    documentUri
-  );
-  return panel;
+
+// src/utils/ui/panelManager.ts
+var panelInstance;
+function getPanel() {
+  return panelInstance;
 }
-function handleWebviewMessage(panelInstance) {
-  panelInstance.webview.onDidReceiveMessage(
-    async (message) => {
-      const originalSelection = new vscode4.Selection(
-        new vscode4.Position(message.selection.start.line, message.selection.start.character),
-        new vscode4.Position(message.selection.end.line, message.selection.end.character)
-      );
-      if (message.command === "accept") {
-        try {
-          if (message.aiSuggestedCode === null || message.aiSuggestedCode === void 0) {
-            vscode4.window.showErrorMessage("AI did not provide improved code to apply.");
-            return;
-          }
-          if (!message.selection || !message.documentUri) {
-            vscode4.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
-            return;
-          }
-          const docUri = vscode4.Uri.parse(message.documentUri);
-          await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-          logFeedback(
-            "accepted",
-            message.fileName,
-            message.originalCode,
-            message.aiSuggestedCode,
-            message.aiFullResponse,
-            message.selection ? originalSelection : void 0
-          );
-          if (panelInstance && !panelInstance.visible) {
-            panelInstance.dispose();
-          } else if (panel) {
-            panel.dispose();
-          }
-        } catch (err) {
-          console.error(`Error with accepting: ${err}`);
-          vscode4.window.showErrorMessage("Error applying suggestion");
-        }
-      } else if (message.command === "reject") {
-        try {
-          logFeedback(
-            "rejected",
-            message.fileName,
-            message.originalCode,
-            message.aiSuggestedCode,
-            message.aiFullResponse,
-            message.selection ? originalSelection : void 0
-          );
-          if (panelInstance && !panelInstance.visible) {
-            panelInstance.dispose();
-          } else if (panel) {
-            panel.dispose();
-          }
-        } catch (err) {
-          console.error(`Error with rejecting: ${err}`);
-          vscode4.window.showErrorMessage("Error logging rejection");
-        }
-      }
-    },
-    void 0
-  );
+function setPanel(panel) {
+  panelInstance = panel;
 }
+
+// src/utils/ui/suggestionWebview.ts
+var vscode9 = __toESM(require("vscode"));
+
+// src/utils/webview/webviewContent.ts
+var vscode7 = __toESM(require("vscode"));
 function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
   const cssContent = webviewCss();
   const htmlBodyContent = webviewHtml(fileName);
   const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const diffJsSrcOnDisk = vscode4.Uri.joinPath(extensionUri, webviewLibraryDir, "diff.min.js");
+  const diffJsSrcOnDisk = vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
   const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
   return `
 	<!DOCTYPE html>
@@ -6223,36 +6191,145 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 	`;
 }
 
+// src/utils/webview/webviewMessageHandler.ts
+var vscode8 = __toESM(require("vscode"));
+function handleWebviewMessage(panelInstance2) {
+  panelInstance2.webview.onDidReceiveMessage(
+    async (message) => {
+      try {
+        const originalSelection = new vscode8.Selection(
+          new vscode8.Position(message.selection.start.line, message.selection.start.character),
+          new vscode8.Position(message.selection.end.line, message.selection.end.character)
+        );
+        switch (message.command) {
+          case "accept":
+            await handleAccept(message, originalSelection, panelInstance2);
+            break;
+          case "reject":
+            await handleReject(message, originalSelection, panelInstance2);
+            break;
+          default:
+            console.warn(`Unhandled command received in webview: ${message.command}`);
+            break;
+        }
+      } catch (err) {
+        console.error(`Error handling message from webview: ${err}`);
+        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
+      }
+    },
+    void 0
+  );
+}
+async function handleAccept(message, originalSelection, panelInstance2) {
+  if (!message.aiSuggestedCode) {
+    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
+    return;
+  }
+  if (!message.selection || !message.documentUri) {
+    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    return;
+  }
+  const docUri = vscode8.Uri.parse(message.documentUri);
+  await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+  logFeedback(
+    "accepted",
+    message.fileName,
+    message.originalCode,
+    message.aiSuggestedCode,
+    message.aiFullResponse,
+    originalSelection
+  );
+  panelInstance2.dispose();
+}
+async function handleReject(message, originalSelection, panelInstance2) {
+  logFeedback(
+    "rejected",
+    message.fileName,
+    message.originalCode,
+    message.aiSuggestedCode,
+    message.aiFullResponse,
+    originalSelection
+  );
+  panelInstance2.dispose();
+}
+
+// src/utils/ui/suggestionWebview.ts
+function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
+  const column = vscode9.window.activeTextEditor ? vscode9.window.activeTextEditor.viewColumn : vscode9.ViewColumn.Beside;
+  const existingPanel = getPanel();
+  if (existingPanel) {
+    console.log("[ShowWebviewDebug] Revealing existing panel.");
+    existingPanel.reveal(column);
+    existingPanel.webview.html = getWebviewContent(
+      existingPanel.webview,
+      context.extensionUri,
+      fileName,
+      selectedCodeSnippet,
+      entireFileContent,
+      selection,
+      documentUri
+    );
+    return existingPanel;
+  }
+  console.log("[ShowWebviewDebug] Creating new panel.");
+  const newPanel = vscode9.window.createWebviewPanel(
+    "aiSuggestionPanel",
+    "AI Code Review Suggestion for WebSharper",
+    vscode9.ViewColumn.Beside,
+    {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
+    }
+  );
+  setPanel(newPanel);
+  newPanel.onDidDispose(() => {
+    console.log("[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.");
+    setPanel(void 0);
+  }, null, context.subscriptions);
+  handleWebviewMessage(newPanel);
+  newPanel.webview.html = getWebviewContent(
+    newPanel.webview,
+    context.extensionUri,
+    fileName,
+    selectedCodeSnippet,
+    entireFileContent,
+    selection,
+    documentUri
+  );
+  return newPanel;
+}
+
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode5.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode5.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode5.window.activeTextEditor;
+  return vscode10.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode10.window.activeTextEditor;
     if (!editor) {
-      vscode5.window.showErrorMessage("No active F# editor found.");
-      return;
-    }
-    if (editor.document.languageId !== "fsharp") {
-      vscode5.window.showErrorMessage("This command only works on F# files.");
+      vscode10.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
+    if (document2.languageId !== "fsharp") {
+      vscode10.window.showErrorMessage("This command only works on F# files.");
+      return;
+    }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty && !selectedCode) {
-      vscode5.window.showWarningMessage("Please select some F# code to review.");
+      vscode10.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
-    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
     const documentUri = document2.uri;
+    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
     const git = getGitClient();
     if (!git) {
-      vscode5.window.showErrorMessage("Git client not available.");
+      vscode10.window.showErrorMessage("Git client not available.");
       return;
     }
-    const panel2 = showWebview(
+    const suggestionPanel = showSuggestionWebview(
       "",
       context,
       selectedCode,
@@ -6261,74 +6338,36 @@ function registerShowSuggestion(context) {
       selection,
       documentUri
     );
-    if (!panel2) {
-      vscode5.window.showErrorMessage("Failed to open suggestion panel.");
+    if (!suggestionPanel) {
+      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     let accumulatedResponse = "";
     try {
       for await (const chunk of queryAIStream(prompt)) {
         accumulatedResponse += chunk;
-        panel2.webview.postMessage({ command: "aiChunk", chunk });
+        suggestionPanel.webview.postMessage({ command: "aiChunk", chunk });
       }
       console.log("[ExtensionHost] AI Stream ended. Full response length:", accumulatedResponse.length);
-      panel2.webview.postMessage({ command: "aiStreamEnd", fullResponse: accumulatedResponse });
+      suggestionPanel.webview.postMessage({ command: "aiStreamEnd", fullResponse: accumulatedResponse });
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
       console.error("Error during AI response streaming:", error);
-      vscode5.window.showErrorMessage("Error receiving AI suggestion.");
-      if (panel2 && panel2.webview) {
-        panel2.webview.postMessage({ command: "aiError", error: "Failed to get full response from AI." });
+      vscode10.window.showErrorMessage("Error receiving AI suggestion.");
+      if (suggestionPanel && suggestionPanel.webview) {
+        suggestionPanel.webview.postMessage({
+          command: "aiError",
+          error: "Failed to get full response from AI."
+        });
       }
     }
   });
 }
 
-// src/commands/checkGitStatus.ts
-var vscode6 = __toESM(require("vscode"));
-function registerCheckGitStatus() {
-  return vscode6.commands.registerCommand("ai-code-review.checkGitStatus", () => {
-    const git = getGitClient();
-    if (!git) {
-      return;
-    }
-    checkGitStatus(git);
-    git.status().then((status) => {
-      const staged = status.staged;
-      const notStaged = status.files.filter((f) => f.index === "?" || f.working_dir !== " ");
-      vscode6.window.showInformationMessage(
-        `\u{1F4C2} Git Status:
-
-Staged: ${staged.length}
-Unstaged: ${notStaged.length}`
-      );
-    }).catch((err) => {
-      vscode6.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
-    });
-  });
-}
-async function checkGitStatus(git) {
-  try {
-    const status = await git.status();
-    const staged = status.staged || [];
-    const notStaged = status.files.filter(
-      (f) => f.index === "?" || f.working_dir !== " "
-    );
-    vscode6.window.showInformationMessage(
-      `\u{1F4C2} Git Status:
-
-Staged: ${staged.length}
-Unstaged: ${notStaged.length}`
-    );
-  } catch (err) {
-    vscode6.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
-  }
-}
-
 // src/commands/undoLastSuggestion.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode7.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  return vscode11.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -6341,7 +6380,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode7.window.showInformationMessage(
+  const choice = await vscode11.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -6351,9 +6390,9 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode7.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode11.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode7.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode11.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
 }
 

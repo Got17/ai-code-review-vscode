@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
-import { registerShowSuggestion } from './commands/showSuggestion';
-import { registerCheckGitStatus } from './commands/checkGitStatus';
-import { registerUndoLastSuggestion } from './commands/undoLastSuggestion';
+import { registerShowSuggestion, registerCheckGitStatus, registerUndoLastSuggestion } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('AI Code Review extension is active');
