@@ -43,7 +43,7 @@
 - Replace placeholder with real AI suggestions
 - Display code + explanation in output panel
 
-### Week 5.5: WebSharper Doc Scraping & Context Injection (lightweight RAG)
+### Week 5.5: WebSharper Doc Scraping & Context Injection (lightweight RAG) [Not Done]
 
 - Chunk and store docs (as .json, .md, or in-memory strings)
 
@@ -69,9 +69,9 @@
 
 ### Week 8: Mini Review & Demo
 
-- Record a 1–2 min demo of current extension
-- Write short internal dev summary
-- Refactor or catch up if needed
+- Record a 1–2 min demo of current extension [Done]
+- Write short internal dev summary [Done]
+- Refactor or catch up if needed [Done]
 
 ---
 
