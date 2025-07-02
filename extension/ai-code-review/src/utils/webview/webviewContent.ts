@@ -393,10 +393,8 @@ function webviewJs(
 			}
 			vscode.postMessage({
 				command: 'accept',
-				fileName: jsCurrentFileName,
-				originalCode: jsOriginalSelectedCode,    
-				aiSuggestedCode: extractedAISuggestedCode, 
-				aiFullResponse: finalAccumulatedResponseForLog, 
+				fileName: jsCurrentFileName,  
+				aiSuggestedCode: extractedAISuggestedCode,
 				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});
@@ -405,10 +403,8 @@ function webviewJs(
 		rejectButton.addEventListener('click', () => {
 			vscode.postMessage({
 				command: 'reject',
-				fileName: jsCurrentFileName,
-				originalCode: jsOriginalSelectedCode,    
-				aiSuggestedCode: extractedAISuggestedCode, 
-				aiFullResponse: finalAccumulatedResponseForLog, 
+				fileName: jsCurrentFileName,   
+				aiSuggestedCode: extractedAISuggestedCode,
 				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});

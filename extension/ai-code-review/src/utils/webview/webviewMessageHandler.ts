@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { applySuggestion, logFeedback } from '../ai';
+import { applySuggestion } from '../ai';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel
@@ -53,15 +53,6 @@ async function handleAccept(
 
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
 
-    logFeedback(
-        'accepted',
-        message.fileName,
-        message.originalCode,
-        message.aiSuggestedCode,
-        message.aiFullResponse,
-        originalSelection
-    );
-
     panelInstance.dispose();
 }
 
@@ -70,14 +61,6 @@ async function handleReject(
     originalSelection: vscode.Selection,
     panelInstance: vscode.WebviewPanel
 ) {
-    logFeedback(
-        'rejected',
-        message.fileName,
-        message.originalCode,
-        message.aiSuggestedCode,
-        message.aiFullResponse,
-        originalSelection
-    );
 
     panelInstance.dispose();
 }

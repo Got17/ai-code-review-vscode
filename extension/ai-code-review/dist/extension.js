@@ -827,10 +827,10 @@ var require_src2 = __commonJS({
     var fs_1 = require("fs");
     var debug_1 = __importDefault(require_src());
     var log = debug_1.default("@kwsites/file-exists");
-    function check(path2, isFile, isDirectory) {
-      log(`checking %s`, path2);
+    function check(path, isFile, isDirectory) {
+      log(`checking %s`, path);
       try {
-        const stat = fs_1.statSync(path2);
+        const stat = fs_1.statSync(path);
         if (stat.isFile() && isFile) {
           log(`[OK] path represents a file`);
           return true;
@@ -850,8 +850,8 @@ var require_src2 = __commonJS({
         throw e;
       }
     }
-    function exists2(path2, type = exports2.READABLE) {
-      return check(path2, (type & exports2.FILE) > 0, (type & exports2.FOLDER) > 0);
+    function exists2(path, type = exports2.READABLE) {
+      return check(path, (type & exports2.FILE) > 0, (type & exports2.FOLDER) > 0);
     }
     exports2.exists = exists2;
     exports2.FILE = 1;
@@ -1000,8 +1000,8 @@ function pathspec(...paths) {
   cache.set(key, paths);
   return key;
 }
-function isPathSpec(path2) {
-  return path2 instanceof String && cache.has(path2);
+function isPathSpec(path) {
+  return path instanceof String && cache.has(path);
 }
 function toPaths(pathSpec) {
   return cache.get(pathSpec) || [];
@@ -1087,8 +1087,8 @@ function toLinesWithContent(input = "", trimmed2 = true, separator = "\n") {
 function forEachLineWithContent(input, callback) {
   return toLinesWithContent(input, true).map((line) => callback(line));
 }
-function folderExists(path2) {
-  return (0, import_file_exists.exists)(path2, import_file_exists.FOLDER);
+function folderExists(path) {
+  return (0, import_file_exists.exists)(path, import_file_exists.FOLDER);
 }
 function append(target, item) {
   if (Array.isArray(target)) {
@@ -1479,8 +1479,8 @@ function checkIsRepoRootTask() {
     commands: commands4,
     format: "utf-8",
     onError,
-    parser(path2) {
-      return /^\.(git)?$/.test(path2.trim());
+    parser(path) {
+      return /^\.(git)?$/.test(path.trim());
     }
   };
 }
@@ -1914,11 +1914,11 @@ function parseGrep(grep) {
   const paths = /* @__PURE__ */ new Set();
   const results = {};
   forEachLineWithContent(grep, (input) => {
-    const [path2, line, preview] = input.split(NULL);
-    paths.add(path2);
-    (results[path2] = results[path2] || []).push({
+    const [path, line, preview] = input.split(NULL);
+    paths.add(path);
+    (results[path] = results[path] || []).push({
       line: asNumber(line),
-      path: path2,
+      path,
       preview
     });
   });
@@ -2681,14 +2681,14 @@ var init_hash_object = __esm2({
     init_task();
   }
 });
-function parseInit(bare, path2, text) {
+function parseInit(bare, path, text) {
   const response = String(text).trim();
   let result;
   if (result = initResponseRegex.exec(response)) {
-    return new InitSummary(bare, path2, false, result[1]);
+    return new InitSummary(bare, path, false, result[1]);
   }
   if (result = reInitResponseRegex.exec(response)) {
-    return new InitSummary(bare, path2, true, result[1]);
+    return new InitSummary(bare, path, true, result[1]);
   }
   let gitDir = "";
   const tokens = response.split(" ");
@@ -2699,7 +2699,7 @@ function parseInit(bare, path2, text) {
       break;
     }
   }
-  return new InitSummary(bare, path2, /^re/i.test(response), gitDir);
+  return new InitSummary(bare, path, /^re/i.test(response), gitDir);
 }
 var InitSummary;
 var initResponseRegex;
@@ -2708,9 +2708,9 @@ var init_InitSummary = __esm2({
   "src/lib/responses/InitSummary.ts"() {
     "use strict";
     InitSummary = class {
-      constructor(bare, path2, existing, gitDir) {
+      constructor(bare, path, existing, gitDir) {
         this.bare = bare;
-        this.path = path2;
+        this.path = path;
         this.existing = existing;
         this.gitDir = gitDir;
       }
@@ -2722,7 +2722,7 @@ var init_InitSummary = __esm2({
 function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
-function initTask(bare = false, path2, customArgs) {
+function initTask(bare = false, path, customArgs) {
   const commands4 = ["init", ...customArgs];
   if (bare && !hasBareCommand(commands4)) {
     commands4.splice(1, 0, bareCommand);
@@ -2731,7 +2731,7 @@ function initTask(bare = false, path2, customArgs) {
     commands: commands4,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands4.includes("--bare"), path2, text);
+      return parseInit(commands4.includes("--bare"), path, text);
     }
   };
 }
@@ -3542,12 +3542,12 @@ var init_FileStatusSummary = __esm2({
     "use strict";
     fromPathRegex = /^(.+)\0(.+)$/;
     FileStatusSummary = class {
-      constructor(path2, index, working_dir) {
-        this.path = path2;
+      constructor(path, index, working_dir) {
+        this.path = path;
         this.index = index;
         this.working_dir = working_dir;
         if (index === "R" || working_dir === "R") {
-          const detail = fromPathRegex.exec(path2) || [null, path2, path2];
+          const detail = fromPathRegex.exec(path) || [null, path, path];
           this.from = detail[2] || "";
           this.path = detail[1] || "";
         }
@@ -3578,14 +3578,14 @@ function splitLine(result, lineStr) {
     default:
       return;
   }
-  function data(index, workingDir, path2) {
+  function data(index, workingDir, path) {
     const raw = `${index}${workingDir}`;
     const handler = parsers6.get(raw);
     if (handler) {
-      handler(result, path2);
+      handler(result, path);
     }
     if (raw !== "##" && raw !== "!!") {
-      result.files.push(new FileStatusSummary(path2, index, workingDir));
+      result.files.push(new FileStatusSummary(path, index, workingDir));
     }
   }
 }
@@ -3897,9 +3897,9 @@ var init_simple_git_api = __esm2({
           next
         );
       }
-      hashObject(path2, write) {
+      hashObject(path, write) {
         return this._runTask(
-          hashObjectTask(path2, write === true),
+          hashObjectTask(path, write === true),
           trailingFunctionArgument(arguments)
         );
       }
@@ -4553,8 +4553,8 @@ __export2(sub_module_exports, {
   subModuleTask: () => subModuleTask,
   updateSubModuleTask: () => updateSubModuleTask
 });
-function addSubModuleTask(repo, path2) {
-  return subModuleTask(["add", repo, path2]);
+function addSubModuleTask(repo, path) {
+  return subModuleTask(["add", repo, path]);
 }
 function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
@@ -4884,8 +4884,8 @@ var require_git = __commonJS2({
       }
       return this._runTask(straightThroughStringTask2(command, this._trimmed), next);
     };
-    Git2.prototype.submoduleAdd = function(repo, path2, then) {
-      return this._runTask(addSubModuleTask2(repo, path2), trailingFunctionArgument2(arguments));
+    Git2.prototype.submoduleAdd = function(repo, path, then) {
+      return this._runTask(addSubModuleTask2(repo, path), trailingFunctionArgument2(arguments));
     };
     Git2.prototype.submoduleUpdate = function(args, then) {
       return this._runTask(
@@ -5534,7 +5534,7 @@ Unstaged: ${notStaged.length}`
 }
 
 // src/commands/showSuggestion.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 
 // src/utils/ai/aiClient.ts
 var vscode3 = __toESM(require("vscode"));
@@ -5543,8 +5543,6 @@ var vscode3 = __toESM(require("vscode"));
 var WEBVIEW_LIBRARY_DIR = "webview-lib";
 var AI_MODEL = "qwen2.5-coder:7b-instruct";
 var AI_API = "http://localhost:11434/api/generate";
-var LOG_DIR_NAME = ".ai_feedback_log";
-var FEEDBACK_LOG_FILE = "feedback_log.json";
 
 // src/utils/ai/aiClient.ts
 async function* queryAIStream(prompt) {
@@ -5667,68 +5665,6 @@ async function applySuggestion(aiProvidedFullFileContent, originalSelectionForCo
   vscode4.window.showInformationMessage("AI suggestion applied (entire file updated).");
 }
 
-// src/utils/ai/logging.ts
-var vscode5 = __toESM(require("vscode"));
-var fs = __toESM(require("fs"));
-var path = __toESM(require("path"));
-function ensureLogDirectoryExists(workspaceRoot) {
-  const logDirPath = path.join(workspaceRoot, LOG_DIR_NAME);
-  try {
-    if (!fs.existsSync(logDirPath)) {
-      fs.mkdirSync(logDirPath, { recursive: true });
-    }
-    return logDirPath;
-  } catch (error) {
-    vscode5.window.showErrorMessage(`Failed to create AI feedback log directory: ${error}`);
-    return null;
-  }
-}
-function logFeedback(action, fileName, originalCode, aiSuggestedCode, aiFullResponse, selectionDetails) {
-  const workspaceFolders = vscode5.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode5.window.showWarningMessage("Cannot log rejection: No workspace folder open.");
-    return;
-  }
-  const workspaceRoot = workspaceFolders[0].uri.fsPath;
-  const logDirPath = ensureLogDirectoryExists(workspaceRoot);
-  if (!logDirPath) {
-    console.error("[logFeedback] Log directory path is null. Aborting logRejection.");
-    return;
-  }
-  const logFilePath = path.join(logDirPath, FEEDBACK_LOG_FILE);
-  const newEntry = {
-    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-    action,
-    fileName,
-    originalCode,
-    aiSuggestedCode,
-    aiFullResponse,
-    selection: selectionDetails ? {
-      startLine: selectionDetails.start.line,
-      startChar: selectionDetails.start.character,
-      endLine: selectionDetails.end.line,
-      endChar: selectionDetails.end.character
-    } : void 0
-  };
-  console.log(`[FeedbackLogged] Action: ${action}, File: ${fileName}`);
-  try {
-    let logs = [];
-    if (fs.existsSync(logFilePath)) {
-      const fileContent = fs.readFileSync(logFilePath, "utf-8");
-      logs = fileContent.trim() ? JSON.parse(fileContent) : [];
-    }
-    logs.push(newEntry);
-    fs.writeFileSync(logFilePath, JSON.stringify(logs, null, 2), "utf-8");
-    if (action === "accepted") {
-      console.log("Suggestion accepted and logged for learning.");
-    } else {
-      vscode5.window.showInformationMessage("Suggestion rejected and logged.");
-    }
-  } catch (error) {
-    vscode5.window.showErrorMessage(`Failed to write rejection log: ${error.message}`);
-  }
-}
-
 // src/utils/ai/promptBuilder.ts
 function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange) {
   const fileLabel = fileName || "current file";
@@ -5771,9 +5707,9 @@ ${selectedSnippet}
 }
 
 // src/utils/ui/outputChannel.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode5 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode5.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -5791,16 +5727,16 @@ function setPanel(panel) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
   const cssContent = webviewCss();
   const htmlBodyContent = webviewHtml(fileName);
   const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const diffJsSrcOnDisk = vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
+  const diffJsSrcOnDisk = vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
   const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
   return `
 	<!DOCTYPE html>
@@ -6167,10 +6103,8 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			}
 			vscode.postMessage({
 				command: 'accept',
-				fileName: jsCurrentFileName,
-				originalCode: jsOriginalSelectedCode,    
-				aiSuggestedCode: extractedAISuggestedCode, 
-				aiFullResponse: finalAccumulatedResponseForLog, 
+				fileName: jsCurrentFileName,  
+				aiSuggestedCode: extractedAISuggestedCode,
 				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});
@@ -6179,10 +6113,8 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 		rejectButton.addEventListener('click', () => {
 			vscode.postMessage({
 				command: 'reject',
-				fileName: jsCurrentFileName,
-				originalCode: jsOriginalSelectedCode,    
-				aiSuggestedCode: extractedAISuggestedCode, 
-				aiFullResponse: finalAccumulatedResponseForLog, 
+				fileName: jsCurrentFileName,   
+				aiSuggestedCode: extractedAISuggestedCode,
 				selection: jsCurrentSelection,
 				documentUri: jsCurrentDocumentUri
 			});
@@ -6192,14 +6124,14 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 }
 
 // src/utils/webview/webviewMessageHandler.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 function handleWebviewMessage(panelInstance2) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode8.Selection(
-          new vscode8.Position(message.selection.start.line, message.selection.start.character),
-          new vscode8.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode7.Selection(
+          new vscode7.Position(message.selection.start.line, message.selection.start.character),
+          new vscode7.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
@@ -6214,7 +6146,7 @@ function handleWebviewMessage(panelInstance2) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode7.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -6222,40 +6154,24 @@ function handleWebviewMessage(panelInstance2) {
 }
 async function handleAccept(message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode7.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode7.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode8.Uri.parse(message.documentUri);
+  const docUri = vscode7.Uri.parse(message.documentUri);
   await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-  logFeedback(
-    "accepted",
-    message.fileName,
-    message.originalCode,
-    message.aiSuggestedCode,
-    message.aiFullResponse,
-    originalSelection
-  );
   panelInstance2.dispose();
 }
 async function handleReject(message, originalSelection, panelInstance2) {
-  logFeedback(
-    "rejected",
-    message.fileName,
-    message.originalCode,
-    message.aiSuggestedCode,
-    message.aiFullResponse,
-    originalSelection
-  );
   panelInstance2.dispose();
 }
 
 // src/utils/ui/suggestionWebview.ts
 function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
-  const column = vscode9.window.activeTextEditor ? vscode9.window.activeTextEditor.viewColumn : vscode9.ViewColumn.Beside;
+  const column = vscode8.window.activeTextEditor ? vscode8.window.activeTextEditor.viewColumn : vscode8.ViewColumn.Beside;
   const existingPanel = getPanel();
   if (existingPanel) {
     console.log("[ShowWebviewDebug] Revealing existing panel.");
@@ -6272,14 +6188,14 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
     return existingPanel;
   }
   console.log("[ShowWebviewDebug] Creating new panel.");
-  const newPanel = vscode9.window.createWebviewPanel(
+  const newPanel = vscode8.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode9.ViewColumn.Beside,
+    vscode8.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
+      localResourceRoots: [vscode8.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
     }
   );
   setPanel(newPanel);
@@ -6302,23 +6218,23 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode10.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode10.window.activeTextEditor;
+  return vscode9.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+    vscode9.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode9.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showErrorMessage("No active F# editor found.");
+      vscode9.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode10.window.showErrorMessage("This command only works on F# files.");
+      vscode9.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty && !selectedCode) {
-      vscode10.window.showWarningMessage("Please select some F# code to review.");
+      vscode9.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
@@ -6326,7 +6242,7 @@ function registerShowSuggestion(context) {
     const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
     const git = getGitClient();
     if (!git) {
-      vscode10.window.showErrorMessage("Git client not available.");
+      vscode9.window.showErrorMessage("Git client not available.");
       return;
     }
     const suggestionPanel = showSuggestionWebview(
@@ -6339,7 +6255,7 @@ function registerShowSuggestion(context) {
       documentUri
     );
     if (!suggestionPanel) {
-      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode9.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     let accumulatedResponse = "";
@@ -6353,7 +6269,7 @@ function registerShowSuggestion(context) {
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
       console.error("Error during AI response streaming:", error);
-      vscode10.window.showErrorMessage("Error receiving AI suggestion.");
+      vscode9.window.showErrorMessage("Error receiving AI suggestion.");
       if (suggestionPanel && suggestionPanel.webview) {
         suggestionPanel.webview.postMessage({
           command: "aiError",
@@ -6365,9 +6281,9 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode11.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  return vscode10.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -6380,7 +6296,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode11.window.showInformationMessage(
+  const choice = await vscode10.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -6390,9 +6306,9 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode11.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode10.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode11.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode10.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
 }
 
