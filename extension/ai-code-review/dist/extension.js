@@ -6346,19 +6346,19 @@ async function undoLastCommit(git) {
 var vscode12 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "extension.setAIPreferences",
+    "ai-code-review.setAIPreferences",
     () => setUserPreferences(context)
   );
 }
 function registerShowAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "extension.showAIPreferences",
+    "ai-code-review.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "extension.showAIPreferences",
+    "ai-code-review.clearAIPreferences",
     () => clearUserPreferences(context)
   );
 }

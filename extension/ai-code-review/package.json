@@ -18,6 +18,18 @@
         "title": "AI Code Review: Show suggestion"
       },
       {
+        "command": "ai-code-review.setAIPreferences",
+        "title": "AI Code Review: Set AI Preferences"
+      },
+      {
+        "command": "ai-code-review.showAIPreferences",
+        "title": "AI Code Review: Show AI Preferences"
+      },
+      {
+        "command": "ai-code-review.clearAIPreferences",
+        "title": "AI Code Review: Clear AI Preferences"
+      },
+      {
         "command": "ai-code-review.checkGitStatus",
         "title": "AI Code Review: Check Git Status"
       },
