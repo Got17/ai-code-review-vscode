@@ -362,6 +362,16 @@ function webviewJs(
 			rejectButton.disabled = false;
 		}
 
+		function buildMessagePayload(command) {
+			return {
+				command,
+				fileName: jsCurrentFileName,
+				aiSuggestedCode: extractedAISuggestedCode,
+				selection: jsCurrentSelection,
+				documentUri: jsCurrentDocumentUri
+			};
+		}
+
 		window.addEventListener('message', event => {
 			const message = event.data;
 			switch (message.command) {
@@ -386,28 +396,19 @@ function webviewJs(
 			}
 		});
 		
+		// Handle Accept Button Click
 		acceptButton.addEventListener('click', () => {
 			if (extractedAISuggestedCode === null) {
-				alert('Error: No improved code available to apply.'); 
+				alert('Error: No improved code available to apply.');
 				return;
 			}
-			vscode.postMessage({
-				command: 'accept',
-				fileName: jsCurrentFileName,  
-				aiSuggestedCode: extractedAISuggestedCode,
-				selection: jsCurrentSelection,
-				documentUri: jsCurrentDocumentUri
-			});
+
+			vscode.postMessage(buildMessagePayload('accept'));
 		});
 
+		// Handle Reject Button Click
 		rejectButton.addEventListener('click', () => {
-			vscode.postMessage({
-				command: 'reject',
-				fileName: jsCurrentFileName,   
-				aiSuggestedCode: extractedAISuggestedCode,
-				selection: jsCurrentSelection,
-				documentUri: jsCurrentDocumentUri
-			});
+			vscode.postMessage(buildMessagePayload('reject'));
 		});
 	
 	`;

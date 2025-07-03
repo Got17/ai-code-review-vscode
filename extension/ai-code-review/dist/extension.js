@@ -1320,9 +1320,9 @@ var init_simple_git_options = __esm2({
     };
   }
 });
-function appendTaskOptions(options, commands4 = []) {
+function appendTaskOptions(options, commands5 = []) {
   if (!filterPlainObject(options)) {
-    return commands4;
+    return commands5;
   }
   return Object.keys(options).reduce((commands22, key) => {
     const value = options[key];
@@ -1334,7 +1334,7 @@ function appendTaskOptions(options, commands4 = []) {
       commands22.push(key);
     }
     return commands22;
-  }, commands4);
+  }, commands5);
 }
 function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
   const command = [];
@@ -1465,18 +1465,18 @@ function checkIsRepoTask(action) {
     case "root":
       return checkIsRepoRootTask();
   }
-  const commands4 = ["rev-parse", "--is-inside-work-tree"];
+  const commands5 = ["rev-parse", "--is-inside-work-tree"];
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     onError,
     parser
   };
 }
 function checkIsRepoRootTask() {
-  const commands4 = ["rev-parse", "--git-dir"];
+  const commands5 = ["rev-parse", "--git-dir"];
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     onError,
     parser(path) {
@@ -1485,9 +1485,9 @@ function checkIsRepoRootTask() {
   };
 }
 function checkIsBareRepoTask() {
-  const commands4 = ["rev-parse", "--is-bare-repository"];
+  const commands5 = ["rev-parse", "--is-bare-repository"];
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     onError,
     parser
@@ -1577,18 +1577,18 @@ function configurationErrorTask(error) {
     }
   };
 }
-function straightThroughStringTask(commands4, trimmed2 = false) {
+function straightThroughStringTask(commands5, trimmed2 = false) {
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
       return trimmed2 ? String(text).trim() : text;
     }
   };
 }
-function straightThroughBufferTask(commands4) {
+function straightThroughBufferTask(commands5) {
   return {
-    commands: commands4,
+    commands: commands5,
     format: "buffer",
     parser(buffer) {
       return buffer;
@@ -1634,9 +1634,9 @@ function cleanWithOptionsTask(mode, customArgs) {
   return cleanTask(cleanMode, options);
 }
 function cleanTask(mode, customArgs) {
-  const commands4 = ["clean", `-${mode}`, ...customArgs];
+  const commands5 = ["clean", `-${mode}`, ...customArgs];
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
       return cleanSummaryParser(mode === "n", text);
@@ -1799,13 +1799,13 @@ function asConfigScope(scope, fallback) {
   return fallback;
 }
 function addConfigTask(key, value, append2, scope) {
-  const commands4 = ["config", `--${scope}`];
+  const commands5 = ["config", `--${scope}`];
   if (append2) {
-    commands4.push("--add");
+    commands5.push("--add");
   }
-  commands4.push(key, value);
+  commands5.push(key, value);
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
       return text;
@@ -1813,12 +1813,12 @@ function addConfigTask(key, value, append2, scope) {
   };
 }
 function getConfigTask(key, scope) {
-  const commands4 = ["config", "--null", "--show-origin", "--get-all", key];
+  const commands5 = ["config", "--null", "--show-origin", "--get-all", key];
   if (scope) {
-    commands4.splice(1, 0, `--${scope}`);
+    commands5.splice(1, 0, `--${scope}`);
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
       return configGetParser(text, key);
@@ -1826,12 +1826,12 @@ function getConfigTask(key, scope) {
   };
 }
 function listConfigTask(scope) {
-  const commands4 = ["config", "--list", "--show-origin", "--null"];
+  const commands5 = ["config", "--list", "--show-origin", "--null"];
   if (scope) {
-    commands4.push(`--${scope}`);
+    commands5.push(`--${scope}`);
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
       return configListParser(text);
@@ -1943,10 +1943,10 @@ function grep_default() {
       if (typeof searchTerm === "string") {
         searchTerm = grepQueryBuilder().param(searchTerm);
       }
-      const commands4 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
+      const commands5 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
       return this._runTask(
         {
-          commands: commands4,
+          commands: commands5,
           format: "utf-8",
           parser(stdOut) {
             return parseGrep(stdOut);
@@ -1995,12 +1995,12 @@ __export2(reset_exports, {
   resetTask: () => resetTask
 });
 function resetTask(mode, customArgs) {
-  const commands4 = ["reset"];
+  const commands5 = ["reset"];
   if (isValidResetMode(mode)) {
-    commands4.push(`--${mode}`);
+    commands5.push(`--${mode}`);
   }
-  commands4.push(...customArgs);
-  return straightThroughStringTask(commands4);
+  commands5.push(...customArgs);
+  return straightThroughStringTask(commands5);
 }
 function getResetMode(mode) {
   if (isValidResetMode(mode)) {
@@ -2168,10 +2168,10 @@ var init_tasks_pending_queue = __esm2({
     TasksPendingQueue.counter = 0;
   }
 });
-function pluginContext(task, commands4) {
+function pluginContext(task, commands5) {
   return {
     method: first(task.commands) || "",
-    commands: commands4
+    commands: commands5
   };
 }
 function onErrorReceived(target, logger) {
@@ -2475,11 +2475,11 @@ var init_change_working_directory = __esm2({
   }
 });
 function checkoutTask(args) {
-  const commands4 = ["checkout", ...args];
-  if (commands4[1] === "-b" && commands4.includes("-B")) {
-    commands4[1] = remove(commands4, "-B");
+  const commands5 = ["checkout", ...args];
+  if (commands5[1] === "-b" && commands5.includes("-B")) {
+    commands5[1] = remove(commands5, "-B");
   }
-  return straightThroughStringTask(commands4);
+  return straightThroughStringTask(commands5);
 }
 function checkout_default() {
   return {
@@ -2611,7 +2611,7 @@ var init_parse_commit = __esm2({
   }
 });
 function commitTask(message, files, customArgs) {
-  const commands4 = [
+  const commands5 = [
     "-c",
     "core.abbrev=40",
     "commit",
@@ -2620,7 +2620,7 @@ function commitTask(message, files, customArgs) {
     ...customArgs
   ];
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser: parseCommitResult
   };
@@ -2669,11 +2669,11 @@ var init_first_commit = __esm2({
   }
 });
 function hashObjectTask(filePath, write) {
-  const commands4 = ["hash-object", filePath];
+  const commands5 = ["hash-object", filePath];
   if (write) {
-    commands4.push("-w");
+    commands5.push("-w");
   }
-  return straightThroughStringTask(commands4, true);
+  return straightThroughStringTask(commands5, true);
 }
 var init_hash_object = __esm2({
   "src/lib/tasks/hash-object.ts"() {
@@ -2723,15 +2723,15 @@ function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
 function initTask(bare = false, path, customArgs) {
-  const commands4 = ["init", ...customArgs];
-  if (bare && !hasBareCommand(commands4)) {
-    commands4.splice(1, 0, bareCommand);
+  const commands5 = ["init", ...customArgs];
+  if (bare && !hasBareCommand(commands5)) {
+    commands5.splice(1, 0, bareCommand);
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands4.includes("--bare"), path, text);
+      return parseInit(commands5.includes("--bare"), path, text);
     }
   };
 }
@@ -2963,14 +2963,14 @@ __export2(diff_exports, {
 });
 function diffSummaryTask(customArgs) {
   let logFormat = logFormatFromCommand(customArgs);
-  const commands4 = ["diff"];
+  const commands5 = ["diff"];
   if (logFormat === "") {
     logFormat = "--stat";
-    commands4.push("--stat=4096");
+    commands5.push("--stat=4096");
   }
-  commands4.push(...customArgs);
-  return validateLogFormatConfig(commands4) || {
-    commands: commands4,
+  commands5.push(...customArgs);
+  return validateLogFormatConfig(commands5) || {
+    commands: commands5,
     format: "utf-8",
     parser: getDiffParser(logFormat)
   };
@@ -3484,18 +3484,18 @@ function pushTagsTask(ref = {}, customArgs) {
   return pushTask(ref, customArgs);
 }
 function pushTask(ref = {}, customArgs) {
-  const commands4 = ["push", ...customArgs];
+  const commands5 = ["push", ...customArgs];
   if (ref.branch) {
-    commands4.splice(1, 0, ref.branch);
+    commands5.splice(1, 0, ref.branch);
   }
   if (ref.remote) {
-    commands4.splice(1, 0, ref.remote);
+    commands5.splice(1, 0, ref.remote);
   }
-  remove(commands4, "-v");
-  append(commands4, "--verbose");
-  append(commands4, "--porcelain");
+  remove(commands5, "-v");
+  append(commands5, "--verbose");
+  append(commands5, "--porcelain");
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser: parsePushResult
   };
@@ -3510,19 +3510,19 @@ var init_push = __esm2({
 function show_default() {
   return {
     showBuffer() {
-      const commands4 = ["show", ...getTrailingOptions(arguments, 1)];
-      if (!commands4.includes("--binary")) {
-        commands4.splice(1, 0, "--binary");
+      const commands5 = ["show", ...getTrailingOptions(arguments, 1)];
+      if (!commands5.includes("--binary")) {
+        commands5.splice(1, 0, "--binary");
       }
       return this._runTask(
-        straightThroughBufferTask(commands4),
+        straightThroughBufferTask(commands5),
         trailingFunctionArgument(arguments)
       );
     },
     show() {
-      const commands4 = ["show", ...getTrailingOptions(arguments, 1)];
+      const commands5 = ["show", ...getTrailingOptions(arguments, 1)];
       return this._runTask(
-        straightThroughStringTask(commands4),
+        straightThroughStringTask(commands5),
         trailingFunctionArgument(arguments)
       );
     }
@@ -3735,7 +3735,7 @@ var init_StatusSummary = __esm2({
   }
 });
 function statusTask(customArgs) {
-  const commands4 = [
+  const commands5 = [
     "status",
     "--porcelain",
     "-b",
@@ -3745,7 +3745,7 @@ function statusTask(customArgs) {
   ];
   return {
     format: "utf-8",
-    commands: commands4,
+    commands: commands5,
     parser(text) {
       return parseStatusSummary(text);
     }
@@ -4166,22 +4166,22 @@ __export2(branch_exports, {
   deleteBranchTask: () => deleteBranchTask,
   deleteBranchesTask: () => deleteBranchesTask
 });
-function containsDeleteBranchCommand(commands4) {
+function containsDeleteBranchCommand(commands5) {
   const deleteCommands = ["-d", "-D", "--delete"];
-  return commands4.some((command) => deleteCommands.includes(command));
+  return commands5.some((command) => deleteCommands.includes(command));
 }
 function branchTask(customArgs) {
   const isDelete = containsDeleteBranchCommand(customArgs);
-  const commands4 = ["branch", ...customArgs];
-  if (commands4.length === 1) {
-    commands4.push("-a");
+  const commands5 = ["branch", ...customArgs];
+  if (commands5.length === 1) {
+    commands5.push("-a");
   }
-  if (!commands4.includes("-v")) {
-    commands4.splice(1, 0, "-v");
+  if (!commands5.includes("-v")) {
+    commands5.splice(1, 0, "-v");
   }
   return {
     format: "utf-8",
-    commands: commands4,
+    commands: commands5,
     parser(stdOut, stdErr) {
       if (isDelete) {
         return parseBranchDeletions(stdOut, stdErr).all[0];
@@ -4276,14 +4276,14 @@ function disallowedCommand(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function cloneTask(repo, directory, customArgs) {
-  const commands4 = ["clone", ...customArgs];
-  filterString(repo) && commands4.push(repo);
-  filterString(directory) && commands4.push(directory);
-  const banned = commands4.find(disallowedCommand);
+  const commands5 = ["clone", ...customArgs];
+  filterString(repo) && commands5.push(repo);
+  filterString(directory) && commands5.push(directory);
+  const banned = commands5.find(disallowedCommand);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
-  return straightThroughStringTask(commands4);
+  return straightThroughStringTask(commands5);
 }
 function cloneMirrorTask(repo, directory, customArgs) {
   append(customArgs, "--mirror");
@@ -4355,16 +4355,16 @@ function disallowedCommand2(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function fetchTask(remote, branch, customArgs) {
-  const commands4 = ["fetch", ...customArgs];
+  const commands5 = ["fetch", ...customArgs];
   if (remote && branch) {
-    commands4.push(remote, branch);
+    commands5.push(remote, branch);
   }
-  const banned = commands4.find(disallowedCommand2);
+  const banned = commands5.find(disallowedCommand2);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser: parseFetchResult
   };
@@ -4414,12 +4414,12 @@ __export2(pull_exports, {
   pullTask: () => pullTask
 });
 function pullTask(remote, branch, customArgs) {
-  const commands4 = ["pull", ...customArgs];
+  const commands5 = ["pull", ...customArgs];
   if (remote && branch) {
-    commands4.splice(1, 0, remote, branch);
+    commands5.splice(1, 0, remote, branch);
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser(stdOut, stdErr) {
       return parsePullResult(stdOut, stdErr);
@@ -4485,29 +4485,29 @@ function addRemoteTask(remoteName, remoteRepo, customArgs) {
   return straightThroughStringTask(["remote", "add", ...customArgs, remoteName, remoteRepo]);
 }
 function getRemotesTask(verbose) {
-  const commands4 = ["remote"];
+  const commands5 = ["remote"];
   if (verbose) {
-    commands4.push("-v");
+    commands5.push("-v");
   }
   return {
-    commands: commands4,
+    commands: commands5,
     format: "utf-8",
     parser: verbose ? parseGetRemotesVerbose : parseGetRemotes
   };
 }
 function listRemotesTask(customArgs) {
-  const commands4 = [...customArgs];
-  if (commands4[0] !== "ls-remote") {
-    commands4.unshift("ls-remote");
+  const commands5 = [...customArgs];
+  if (commands5[0] !== "ls-remote") {
+    commands5.unshift("ls-remote");
   }
-  return straightThroughStringTask(commands4);
+  return straightThroughStringTask(commands5);
 }
 function remoteTask(customArgs) {
-  const commands4 = [...customArgs];
-  if (commands4[0] !== "remote") {
-    commands4.unshift("remote");
+  const commands5 = [...customArgs];
+  if (commands5[0] !== "remote") {
+    commands5.unshift("remote");
   }
-  return straightThroughStringTask(commands4);
+  return straightThroughStringTask(commands5);
 }
 function removeRemoteTask(remoteName) {
   return straightThroughStringTask(["remote", "remove", remoteName]);
@@ -4525,14 +4525,14 @@ __export2(stash_list_exports, {
 });
 function stashListTask(opt = {}, customArgs) {
   const options = parseLogOptions(opt);
-  const commands4 = ["stash", "list", ...options.commands, ...customArgs];
+  const commands5 = ["stash", "list", ...options.commands, ...customArgs];
   const parser4 = createListLogSummaryParser(
     options.splitter,
     options.fields,
-    logFormatFromCommand(commands4)
+    logFormatFromCommand(commands5)
   );
-  return validateLogFormatConfig(commands4) || {
-    commands: commands4,
+  return validateLogFormatConfig(commands5) || {
+    commands: commands5,
     format: "utf-8",
     parser: parser4
   };
@@ -4560,11 +4560,11 @@ function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
 }
 function subModuleTask(customArgs) {
-  const commands4 = [...customArgs];
-  if (commands4[0] !== "submodule") {
-    commands4.unshift("submodule");
+  const commands5 = [...customArgs];
+  if (commands5[0] !== "submodule") {
+    commands5.unshift("submodule");
   }
-  return straightThroughStringTask(commands4);
+  return straightThroughStringTask(commands5);
 }
 function updateSubModuleTask(customArgs) {
   return subModuleTask(["update", ...customArgs]);
@@ -4865,9 +4865,9 @@ var require_git = __commonJS2({
     Git2.prototype.branchLocal = function(then) {
       return this._runTask(branchLocalTask2(), trailingFunctionArgument2(arguments));
     };
-    Git2.prototype.raw = function(commands4) {
-      const createRestCommands = !Array.isArray(commands4);
-      const command = [].slice.call(createRestCommands ? arguments : commands4, 0);
+    Git2.prototype.raw = function(commands5) {
+      const createRestCommands = !Array.isArray(commands5);
+      const command = [].slice.call(createRestCommands ? arguments : commands5, 0);
       for (let i = 0; i < command.length && createRestCommands; i++) {
         if (!filterPrimitives2(command[i])) {
           command.splice(i, command.length - i);
@@ -5002,9 +5002,9 @@ var require_git = __commonJS2({
       return this._runTask(task, trailingFunctionArgument2(arguments));
     };
     Git2.prototype.revparse = function() {
-      const commands4 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
+      const commands5 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
       return this._runTask(
-        straightThroughStringTask2(commands4, true),
+        straightThroughStringTask2(commands5, true),
         trailingFunctionArgument2(arguments)
       );
     };
@@ -5534,7 +5534,7 @@ Unstaged: ${notStaged.length}`
 }
 
 // src/commands/showSuggestion.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/utils/ai/aiClient.ts
 var vscode3 = __toESM(require("vscode"));
@@ -5706,10 +5706,39 @@ ${selectedSnippet}
     `.trim();
 }
 
-// src/utils/ui/outputChannel.ts
+// src/utils/ai/preferencesManager.ts
 var vscode5 = __toESM(require("vscode"));
+var PREFERENCES_KEY = "aiPreferences";
+async function setUserPreferences(context) {
+  const existing = await getUserpreferences(context);
+  const input = await vscode5.window.showInputBox({
+    prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
+    value: existing || ""
+  });
+  if (input !== void 0) {
+    await context.globalState.update(PREFERENCES_KEY, input.trim());
+    vscode5.window.showInformationMessage("Preferences saved! Run 'Show Suggestion' again to use updated style.");
+  }
+}
+async function getUserpreferences(context) {
+  return await context.globalState.get(PREFERENCES_KEY) || "";
+}
+async function showUserPreferences(context) {
+  const preferences = await getUserpreferences(context);
+  vscode5.window.showInformationMessage(
+    preferences ? `Current AI Preferences:
+${preferences}` : "No AI preferences set yet."
+  );
+}
+async function clearUserPreferences(context) {
+  await context.globalState.update(PREFERENCES_KEY, "");
+  vscode5.window.showInformationMessage("AI preferences cleared.");
+}
+
+// src/utils/ui/outputChannel.ts
+var vscode6 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode5.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -5727,16 +5756,16 @@ function setPanel(panel) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
   const cssContent = webviewCss();
   const htmlBodyContent = webviewHtml(fileName);
   const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const diffJsSrcOnDisk = vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
+  const diffJsSrcOnDisk = vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
   const diffJsSrcForWebview = webview.asWebviewUri(diffJsSrcOnDisk);
   return `
 	<!DOCTYPE html>
@@ -6072,6 +6101,16 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			rejectButton.disabled = false;
 		}
 
+		function buildMessagePayload(command) {
+			return {
+				command,
+				fileName: jsCurrentFileName,
+				aiSuggestedCode: extractedAISuggestedCode,
+				selection: jsCurrentSelection,
+				documentUri: jsCurrentDocumentUri
+			};
+		}
+
 		window.addEventListener('message', event => {
 			const message = event.data;
 			switch (message.command) {
@@ -6096,42 +6135,33 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 			}
 		});
 		
+		// Handle Accept Button Click
 		acceptButton.addEventListener('click', () => {
 			if (extractedAISuggestedCode === null) {
-				alert('Error: No improved code available to apply.'); 
+				alert('Error: No improved code available to apply.');
 				return;
 			}
-			vscode.postMessage({
-				command: 'accept',
-				fileName: jsCurrentFileName,  
-				aiSuggestedCode: extractedAISuggestedCode,
-				selection: jsCurrentSelection,
-				documentUri: jsCurrentDocumentUri
-			});
+
+			vscode.postMessage(buildMessagePayload('accept'));
 		});
 
+		// Handle Reject Button Click
 		rejectButton.addEventListener('click', () => {
-			vscode.postMessage({
-				command: 'reject',
-				fileName: jsCurrentFileName,   
-				aiSuggestedCode: extractedAISuggestedCode,
-				selection: jsCurrentSelection,
-				documentUri: jsCurrentDocumentUri
-			});
+			vscode.postMessage(buildMessagePayload('reject'));
 		});
 	
 	`;
 }
 
 // src/utils/webview/webviewMessageHandler.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 function handleWebviewMessage(panelInstance2) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode7.Selection(
-          new vscode7.Position(message.selection.start.line, message.selection.start.character),
-          new vscode7.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode8.Selection(
+          new vscode8.Position(message.selection.start.line, message.selection.start.character),
+          new vscode8.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
@@ -6146,7 +6176,7 @@ function handleWebviewMessage(panelInstance2) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode7.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -6154,14 +6184,14 @@ function handleWebviewMessage(panelInstance2) {
 }
 async function handleAccept(message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode7.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode7.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode7.Uri.parse(message.documentUri);
+  const docUri = vscode8.Uri.parse(message.documentUri);
   await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
   panelInstance2.dispose();
 }
@@ -6171,7 +6201,7 @@ async function handleReject(message, originalSelection, panelInstance2) {
 
 // src/utils/ui/suggestionWebview.ts
 function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
-  const column = vscode8.window.activeTextEditor ? vscode8.window.activeTextEditor.viewColumn : vscode8.ViewColumn.Beside;
+  const column = vscode9.window.activeTextEditor ? vscode9.window.activeTextEditor.viewColumn : vscode9.ViewColumn.Beside;
   const existingPanel = getPanel();
   if (existingPanel) {
     console.log("[ShowWebviewDebug] Revealing existing panel.");
@@ -6188,14 +6218,14 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
     return existingPanel;
   }
   console.log("[ShowWebviewDebug] Creating new panel.");
-  const newPanel = vscode8.window.createWebviewPanel(
+  const newPanel = vscode9.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode8.ViewColumn.Beside,
+    vscode9.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
-      localResourceRoots: [vscode8.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
+      localResourceRoots: [vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
     }
   );
   setPanel(newPanel);
@@ -6218,23 +6248,23 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode9.commands.registerCommand("ai-code-review.showSuggestion", async () => {
-    vscode9.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode9.window.activeTextEditor;
+  return vscode10.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode10.window.activeTextEditor;
     if (!editor) {
-      vscode9.window.showErrorMessage("No active F# editor found.");
+      vscode10.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode9.window.showErrorMessage("This command only works on F# files.");
+      vscode10.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty && !selectedCode) {
-      vscode9.window.showWarningMessage("Please select some F# code to review.");
+      vscode10.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
@@ -6242,7 +6272,7 @@ function registerShowSuggestion(context) {
     const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
     const git = getGitClient();
     if (!git) {
-      vscode9.window.showErrorMessage("Git client not available.");
+      vscode10.window.showErrorMessage("Git client not available.");
       return;
     }
     const suggestionPanel = showSuggestionWebview(
@@ -6255,7 +6285,7 @@ function registerShowSuggestion(context) {
       documentUri
     );
     if (!suggestionPanel) {
-      vscode9.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     let accumulatedResponse = "";
@@ -6269,7 +6299,7 @@ function registerShowSuggestion(context) {
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
       console.error("Error during AI response streaming:", error);
-      vscode9.window.showErrorMessage("Error receiving AI suggestion.");
+      vscode10.window.showErrorMessage("Error receiving AI suggestion.");
       if (suggestionPanel && suggestionPanel.webview) {
         suggestionPanel.webview.postMessage({
           command: "aiError",
@@ -6281,9 +6311,9 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode10.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  return vscode11.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -6296,7 +6326,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode10.window.showInformationMessage(
+  const choice = await vscode11.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -6306,10 +6336,31 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode10.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode11.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode10.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode11.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
+}
+
+// src/commands/aiPreferences.ts
+var vscode12 = __toESM(require("vscode"));
+function registerSetAIPreferences(context) {
+  return vscode12.commands.registerCommand(
+    "extension.setAIPreferences",
+    () => setUserPreferences(context)
+  );
+}
+function registerShowAIPreferences(context) {
+  return vscode12.commands.registerCommand(
+    "extension.showAIPreferences",
+    () => showUserPreferences(context)
+  );
+}
+function registerClearAIPreferences(context) {
+  return vscode12.commands.registerCommand(
+    "extension.showAIPreferences",
+    () => clearUserPreferences(context)
+  );
 }
 
 // src/extension.ts
@@ -6317,6 +6368,9 @@ function activate(context) {
   console.log("AI Code Review extension is active");
   context.subscriptions.push(
     registerShowSuggestion(context),
+    registerSetAIPreferences(context),
+    registerShowAIPreferences(context),
+    registerClearAIPreferences(context),
     registerCheckGitStatus(),
     registerUndoLastSuggestion()
   );
