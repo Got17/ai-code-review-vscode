@@ -11,15 +11,11 @@ export function showSuggestionWebview(
     fileName: string | undefined,
     selection: vscode.Selection,
     documentUri: vscode.Uri
-): vscode.WebviewPanel | undefined {
-	const column = vscode.window.activeTextEditor
-        ? vscode.window.activeTextEditor.viewColumn
-        : vscode.ViewColumn.Beside;
-	
+): vscode.WebviewPanel | undefined {	
 	const existingPanel = getPanel();
 
 	if (existingPanel) {
-        existingPanel.reveal(column);
+        existingPanel.reveal(vscode.ViewColumn.Beside);
 		existingPanel.webview.html = getWebviewContent(
             existingPanel.webview, 
             context.extensionUri, 

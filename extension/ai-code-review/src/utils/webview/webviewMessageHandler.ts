@@ -18,9 +18,11 @@ export function handleWebviewMessage(
                         break;
 
                     case 'reject':
-                        await handleReject(message, originalSelection, panelInstance);
+                        panelInstance.dispose();
                         break;
-
+                    case 'editPreferences':
+                        vscode.commands.executeCommand('ai-code-review.setAIPreferences');
+                        break;
                     default:
                         console.warn(`Unhandled command received in webview: ${message.command}`);
                         break;
@@ -52,15 +54,6 @@ async function handleAccept(
     const docUri = vscode.Uri.parse(message.documentUri);
 
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-
-    panelInstance.dispose();
-}
-
-async function handleReject(
-    message: any,
-    originalSelection: vscode.Selection,
-    panelInstance: vscode.WebviewPanel
-) {
 
     panelInstance.dispose();
 }

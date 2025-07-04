@@ -208,6 +208,7 @@ function webviewHtml(fileName: string | undefined): string {
 		<div class="buttons">
             <button id="accept-button" disabled>✅ Accept & Replace File</button>
             <button id="reject-button" disabled>❌ Reject Suggestion</button>
+			<button id="edit-preference-button" disabled>✏️ Edit AI Preferences</button>
         </div>
 	`;
 }
@@ -233,6 +234,7 @@ function webviewJs(
 
 		const acceptButton = document.getElementById('accept-button');
 		const rejectButton = document.getElementById('reject-button');
+		const editPrefsButton =  document.getElementById('edit-preference-button');
 
 		let extractedAISuggestedCode = null; 
 		let finalAccumulatedResponseForLog = '';
@@ -360,6 +362,7 @@ function webviewJs(
 				acceptButton.disabled = false;
 			}
 			rejectButton.disabled = false;
+			editPrefsButton.disabled = false;
 		}
 
 		function buildMessagePayload(command) {
@@ -411,5 +414,9 @@ function webviewJs(
 			vscode.postMessage(buildMessagePayload('reject'));
 		});
 	
+		// Handle Preference Button Click
+		editPrefsButton.addEventListener('click', () => {
+			vscode.postMessage(buildMessagePayload('editPreferences'));
+		});
 	`;
 }
