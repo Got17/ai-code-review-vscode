@@ -5665,14 +5665,51 @@ async function applySuggestion(aiProvidedFullFileContent, originalSelectionForCo
   vscode4.window.showInformationMessage("AI suggestion applied (entire file updated).");
 }
 
+// src/utils/ai/preferencesManager.ts
+var vscode5 = __toESM(require("vscode"));
+var PREFERENCES_KEY = "aiPreferences";
+async function setUserPreferences(context) {
+  const existing = await getUserPreferences(context);
+  const input = await vscode5.window.showInputBox({
+    prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
+    value: existing || ""
+  });
+  if (input !== void 0) {
+    await context.globalState.update(PREFERENCES_KEY, input.trim());
+    vscode5.window.showInformationMessage("Preferences saved! Run 'Show Suggestion' again to use updated style.");
+  }
+}
+async function getUserPreferences(context) {
+  return await context.globalState.get(PREFERENCES_KEY) || "";
+}
+async function showUserPreferences(context) {
+  const preferences = await getUserPreferences(context);
+  vscode5.window.showInformationMessage(
+    preferences ? `Current AI Preferences:
+${preferences}` : "No AI preferences set yet."
+  );
+}
+async function clearUserPreferences(context) {
+  await context.globalState.update(PREFERENCES_KEY, "");
+  vscode5.window.showInformationMessage("AI preferences cleared.");
+}
+
 // src/utils/ai/promptBuilder.ts
-function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange) {
+async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
   const fileLabel = fileName || "current file";
   const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
-  return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo);
+  const userPreferences = await getUserPreferences(context);
+  const preferencesBlock = `
+---
+USER PREFERENCES:
+${userPreferences || "No preferences set."}
+---
+`;
+  return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
 }
-function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo) {
+function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
   return `
+${preferencesBlock}
 You are an expert F# and WebSharper refactoring tool.
 Your task is to review and improve a specific SELECTION of F# code within the context of an entire FILE.
 The user wants to optimize the SELECTED CODE. To do this, you may need to modify other parts of the FILE (e.g., related functions, types, or module structure) IF AND ONLY IF those changes are ABSOLUTELY NECESSARY to best improve the selected code.
@@ -5704,35 +5741,6 @@ ${selectionContextInfo}
 ${selectedSnippet}
 \`\`\`
     `.trim();
-}
-
-// src/utils/ai/preferencesManager.ts
-var vscode5 = __toESM(require("vscode"));
-var PREFERENCES_KEY = "aiPreferences";
-async function setUserPreferences(context) {
-  const existing = await getUserpreferences(context);
-  const input = await vscode5.window.showInputBox({
-    prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
-    value: existing || ""
-  });
-  if (input !== void 0) {
-    await context.globalState.update(PREFERENCES_KEY, input.trim());
-    vscode5.window.showInformationMessage("Preferences saved! Run 'Show Suggestion' again to use updated style.");
-  }
-}
-async function getUserpreferences(context) {
-  return await context.globalState.get(PREFERENCES_KEY) || "";
-}
-async function showUserPreferences(context) {
-  const preferences = await getUserpreferences(context);
-  vscode5.window.showInformationMessage(
-    preferences ? `Current AI Preferences:
-${preferences}` : "No AI preferences set yet."
-  );
-}
-async function clearUserPreferences(context) {
-  await context.globalState.update(PREFERENCES_KEY, "");
-  vscode5.window.showInformationMessage("AI preferences cleared.");
 }
 
 // src/utils/ui/outputChannel.ts
@@ -6204,7 +6212,6 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
   const column = vscode9.window.activeTextEditor ? vscode9.window.activeTextEditor.viewColumn : vscode9.ViewColumn.Beside;
   const existingPanel = getPanel();
   if (existingPanel) {
-    console.log("[ShowWebviewDebug] Revealing existing panel.");
     existingPanel.reveal(column);
     existingPanel.webview.html = getWebviewContent(
       existingPanel.webview,
@@ -6217,7 +6224,6 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
     );
     return existingPanel;
   }
-  console.log("[ShowWebviewDebug] Creating new panel.");
   const newPanel = vscode9.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
@@ -6230,7 +6236,6 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
   );
   setPanel(newPanel);
   newPanel.onDidDispose(() => {
-    console.log("[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.");
     setPanel(void 0);
   }, null, context.subscriptions);
   handleWebviewMessage(newPanel);
@@ -6269,7 +6274,7 @@ function registerShowSuggestion(context) {
     }
     const wholeFileContent = document2.getText();
     const documentUri = document2.uri;
-    const prompt = buildPrompt(selectedCode, wholeFileContent, fileName, selection);
+    const prompt = await buildPrompt(selectedCode, wholeFileContent, fileName, selection, context);
     const git = getGitClient();
     if (!git) {
       vscode10.window.showErrorMessage("Git client not available.");
@@ -6294,7 +6299,6 @@ function registerShowSuggestion(context) {
         accumulatedResponse += chunk;
         suggestionPanel.webview.postMessage({ command: "aiChunk", chunk });
       }
-      console.log("[ExtensionHost] AI Stream ended. Full response length:", accumulatedResponse.length);
       suggestionPanel.webview.postMessage({ command: "aiStreamEnd", fullResponse: accumulatedResponse });
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
@@ -6365,7 +6369,6 @@ function registerClearAIPreferences(context) {
 
 // src/extension.ts
 function activate(context) {
-  console.log("AI Code Review extension is active");
   context.subscriptions.push(
     registerShowSuggestion(context),
     registerSetAIPreferences(context),

@@ -19,7 +19,6 @@ export function showSuggestionWebview(
 	const existingPanel = getPanel();
 
 	if (existingPanel) {
-        console.log('[ShowWebviewDebug] Revealing existing panel.');
         existingPanel.reveal(column);
 		existingPanel.webview.html = getWebviewContent(
             existingPanel.webview, 
@@ -33,7 +32,6 @@ export function showSuggestionWebview(
 		return existingPanel;
     }
 
-	console.log('[ShowWebviewDebug] Creating new panel.');
 	const newPanel = vscode.window.createWebviewPanel(
 		'aiSuggestionPanel',
 		'AI Code Review Suggestion for WebSharper',
@@ -48,7 +46,6 @@ export function showSuggestionWebview(
 	setPanel(newPanel);
 
 	newPanel.onDidDispose(() => {
-		console.log('[ShowWebviewDebug] Panel disposed. Setting panel variable to undefined.');
 		setPanel(undefined);
 	}, null, context.subscriptions);
 

@@ -1,26 +1,38 @@
 import * as vscode from 'vscode';
+import { getUserPreferences } from './preferencesManager';
 
-export function buildPrompt(
+export async function buildPrompt(
 	selectedCode: string,
 	wholeFileContent: string,
-	fileName?: string,
-	selectionRange?: vscode.Selection
-): string {
+	fileName: string,
+	selectionRange: vscode.Selection,
+  	context: vscode.ExtensionContext
+) {
 	const fileLabel = fileName || 'current file';
 	const selectionInfo = selectionRange
 		? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.`
 		: '';
+	const userPreferences = await getUserPreferences(context);
 
-	return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo);
+	const preferencesBlock = `
+---
+USER PREFERENCES:
+${userPreferences || 'No preferences set.'}
+---
+`;
+
+	return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
 }
 
 function generatePromptTemplate(
 	fileLabel: string,
 	fullContent: string,
 	selectedSnippet: string,
-	selectionContextInfo: string
+	selectionContextInfo: string,
+	preferencesBlock: string
 ): string {
 	return `
+${preferencesBlock}
 You are an expert F# and WebSharper refactoring tool.
 Your task is to review and improve a specific SELECTION of F# code within the context of an entire FILE.
 The user wants to optimize the SELECTED CODE. To do this, you may need to modify other parts of the FILE (e.g., related functions, types, or module structure) IF AND ONLY IF those changes are ABSOLUTELY NECESSARY to best improve the selected code.

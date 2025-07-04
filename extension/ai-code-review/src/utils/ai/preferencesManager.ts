@@ -4,7 +4,7 @@ const PREFERENCES_KEY = 'aiPreferences';
 
 // SET
 export async function setUserPreferences(context: vscode.ExtensionContext) {
-    const existing = await getUserpreferences(context);
+    const existing = await getUserPreferences(context);
 
     const input = await vscode.window.showInputBox({
         prompt: 'Enter your AI coding preferences (e.g., no renames, functional style)',
@@ -19,13 +19,13 @@ export async function setUserPreferences(context: vscode.ExtensionContext) {
 }
 
 // GET
-export async function getUserpreferences(context: vscode.ExtensionContext) {
+export async function getUserPreferences(context: vscode.ExtensionContext) {
     return (await context.globalState.get(PREFERENCES_KEY) as string || '');
 }
 
 // SHOW
 export async function showUserPreferences(context: vscode.ExtensionContext) {
-    const preferences = await getUserpreferences(context);
+    const preferences = await getUserPreferences(context);
     vscode.window.showInformationMessage(
         preferences ? `Current AI Preferences:\n${preferences}` : 'No AI preferences set yet.'
     );
