@@ -343,8 +343,8 @@ function webviewJs(
 				improvedCodeDisplaySection.style.display = 'block';
 			}
 
-			const summaryRegex = /^.*?\\bSummary of Issues\\b.*(?:\\r?\\n)([\\s\\S]*?)(?=\\n.*?\\bImproved Code\\b|$)/im;
-			const explanationRegex = /^.*\\bExplanation\\b.*(?:\\r?\\n)([\\s\\S]*)$/im;
+			const summaryRegex = /(?:^|\\n)#*\\**\\s*Summary of Issues\\b.*?(?:\\r?\\n)+([\\s\\S]*?)(?=\\n#*\\**\\s*(Improved Code|Explanation)|$)/i;
+			const explanationRegex = /(?:^|\\n)#*\\**\\s*Explanation\\b.*?(?:\\r?\\n)+([\\s\\S]*?)(?=\\n#*\\**\\s*\\w+|$)/i;
 
 			const summaryMatch = fullResponse.match(summaryRegex);
 			const explanationMatch = fullResponse.match(explanationRegex); 
