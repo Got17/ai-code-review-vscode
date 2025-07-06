@@ -3,7 +3,7 @@ import { getGitClient } from '../utils/git';
 import { SimpleGit } from 'simple-git';
 
 export function registerUndoLastSuggestion() {
-	return vscode.commands.registerCommand('ai-code-review.undoLastSuggestion', async () => {
+	return vscode.commands.registerCommand('extension.undoLastSuggestion', async () => {
 		const git = getGitClient();
 		if (!git) {
             return;

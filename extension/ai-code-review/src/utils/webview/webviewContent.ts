@@ -8,10 +8,11 @@ export function getWebviewContent(
     selectedCodeSnippet: string | null,
     entireFileContent: string, 
     selection: vscode.Selection | undefined,
-    documentUri: vscode.Uri | undefined
+    documentUri: vscode.Uri | undefined,
+	userPreferences: string
 ): string {
 	const cssContent = webviewCss();
-	const htmlBodyContent = webviewHtml(fileName);
+	const htmlBodyContent = webviewHtml(fileName, userPreferences);
 	const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
 
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
@@ -178,8 +179,8 @@ function webviewCss(): string {
     }
 	`;
 }
-
-function webviewHtml(fileName: string | undefined): string {
+// TODO: enhance UI and UX (e.g. buttons colors)
+function webviewHtml(fileName: string | undefined, userPreferences: string): string {
 	return `
 		<div class="file-info">📄 File: ${fileName || 'N/A'}</div>
         <hr>
@@ -203,12 +204,16 @@ function webviewHtml(fileName: string | undefined): string {
                 <h2>3. Explanation:</h2>
                 <div id="explanation-content" class="markdown-content"></div>
             </div>
+			<div id="preferences-display" class="final-content-section" style="margin-top: 1.5em;">
+                <h2>4. Active AI Preferences:</h2>
+                <pre>${userPreferences || 'None set. Using default style.'}</pre>
+                <button id="edit-preference-button">✏️ Edit AI Preferences</button>
+            </div>
         </div>
 
 		<div class="buttons">
             <button id="accept-button" disabled>✅ Accept & Replace File</button>
             <button id="reject-button" disabled>❌ Reject Suggestion</button>
-			<button id="edit-preference-button" disabled>✏️ Edit AI Preferences</button>
         </div>
 	`;
 }
@@ -362,7 +367,6 @@ function webviewJs(
 				acceptButton.disabled = false;
 			}
 			rejectButton.disabled = false;
-			editPrefsButton.disabled = false;
 		}
 
 		function buildMessagePayload(command) {

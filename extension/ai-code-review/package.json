@@ -14,27 +14,27 @@
   "contributes": {
     "commands": [
       {
-        "command": "ai-code-review.showSuggestion",
+        "command": "extension.showSuggestion",
         "title": "AI Code Review: Show suggestion"
       },
       {
-        "command": "ai-code-review.setAIPreferences",
+        "command": "extension.setAIPreferences",
         "title": "AI Code Review: Set AI Preferences"
       },
       {
-        "command": "ai-code-review.showAIPreferences",
+        "command": "extension.showAIPreferences",
         "title": "AI Code Review: Show AI Preferences"
       },
       {
-        "command": "ai-code-review.clearAIPreferences",
+        "command": "extension.clearAIPreferences",
         "title": "AI Code Review: Clear AI Preferences"
       },
       {
-        "command": "ai-code-review.checkGitStatus",
+        "command": "extension.checkGitStatus",
         "title": "AI Code Review: Check Git Status"
       },
       {
-        "command": "ai-code-review.undoLastSuggestion",
+        "command": "extension.undoLastSuggestion",
         "title": "AI Code Review: Undo Last Suggestion"
       }
     ]

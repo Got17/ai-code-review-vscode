@@ -14,7 +14,15 @@ export async function setUserPreferences(context: vscode.ExtensionContext) {
     if (input !== undefined) {
         await context.globalState.update(PREFERENCES_KEY, input.trim());
 
-        vscode.window.showInformationMessage("Preferences saved! Run 'Show Suggestion' again to use updated style.");
+        const action = await vscode.window.showInformationMessage(
+            "Preferences saved! Do you want to run 'Show Suggestion' now?",
+            'Yes',
+            'No'
+        );
+
+        if (action === 'Yes') {
+            vscode.commands.executeCommand('extension.showSuggestion');
+        }
     }
 }
 

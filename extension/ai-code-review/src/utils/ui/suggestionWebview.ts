@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import { handleWebviewMessage, getWebviewContent } from '../webview';
 import { WEBVIEW_LIBRARY_DIR } from '../constants';
 import { getPanel, setPanel } from './panelManager';
+import { getUserPreferences } from '../ai';
 
-export function showSuggestionWebview(
+export async function showSuggestionWebview(
 	_initialResponsePlaceholder: string,
     context: vscode.ExtensionContext,
     selectedCodeSnippet: string | null,
@@ -11,8 +12,9 @@ export function showSuggestionWebview(
     fileName: string | undefined,
     selection: vscode.Selection,
     documentUri: vscode.Uri
-): vscode.WebviewPanel | undefined {	
+) {	
 	const existingPanel = getPanel();
+	const userPreferences = await getUserPreferences(context);
 
 	if (existingPanel) {
         existingPanel.reveal(vscode.ViewColumn.Beside);
@@ -23,7 +25,8 @@ export function showSuggestionWebview(
             selectedCodeSnippet,
             entireFileContent,
             selection,
-            documentUri
+            documentUri,
+			userPreferences
         );
 		return existingPanel;
     }
@@ -54,7 +57,8 @@ export function showSuggestionWebview(
 		selectedCodeSnippet,
 		entireFileContent,
 		selection,
-		documentUri
+		documentUri,
+		userPreferences
 	);
 	
 	return newPanel;

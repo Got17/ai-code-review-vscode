@@ -1320,9 +1320,9 @@ var init_simple_git_options = __esm2({
     };
   }
 });
-function appendTaskOptions(options, commands6 = []) {
+function appendTaskOptions(options, commands7 = []) {
   if (!filterPlainObject(options)) {
-    return commands6;
+    return commands7;
   }
   return Object.keys(options).reduce((commands22, key) => {
     const value = options[key];
@@ -1334,7 +1334,7 @@ function appendTaskOptions(options, commands6 = []) {
       commands22.push(key);
     }
     return commands22;
-  }, commands6);
+  }, commands7);
 }
 function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
   const command = [];
@@ -1465,18 +1465,18 @@ function checkIsRepoTask(action) {
     case "root":
       return checkIsRepoRootTask();
   }
-  const commands6 = ["rev-parse", "--is-inside-work-tree"];
+  const commands7 = ["rev-parse", "--is-inside-work-tree"];
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
   };
 }
 function checkIsRepoRootTask() {
-  const commands6 = ["rev-parse", "--git-dir"];
+  const commands7 = ["rev-parse", "--git-dir"];
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser(path) {
@@ -1485,9 +1485,9 @@ function checkIsRepoRootTask() {
   };
 }
 function checkIsBareRepoTask() {
-  const commands6 = ["rev-parse", "--is-bare-repository"];
+  const commands7 = ["rev-parse", "--is-bare-repository"];
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
@@ -1577,18 +1577,18 @@ function configurationErrorTask(error) {
     }
   };
 }
-function straightThroughStringTask(commands6, trimmed2 = false) {
+function straightThroughStringTask(commands7, trimmed2 = false) {
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return trimmed2 ? String(text).trim() : text;
     }
   };
 }
-function straightThroughBufferTask(commands6) {
+function straightThroughBufferTask(commands7) {
   return {
-    commands: commands6,
+    commands: commands7,
     format: "buffer",
     parser(buffer) {
       return buffer;
@@ -1634,9 +1634,9 @@ function cleanWithOptionsTask(mode, customArgs) {
   return cleanTask(cleanMode, options);
 }
 function cleanTask(mode, customArgs) {
-  const commands6 = ["clean", `-${mode}`, ...customArgs];
+  const commands7 = ["clean", `-${mode}`, ...customArgs];
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return cleanSummaryParser(mode === "n", text);
@@ -1799,13 +1799,13 @@ function asConfigScope(scope, fallback) {
   return fallback;
 }
 function addConfigTask(key, value, append2, scope) {
-  const commands6 = ["config", `--${scope}`];
+  const commands7 = ["config", `--${scope}`];
   if (append2) {
-    commands6.push("--add");
+    commands7.push("--add");
   }
-  commands6.push(key, value);
+  commands7.push(key, value);
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return text;
@@ -1813,12 +1813,12 @@ function addConfigTask(key, value, append2, scope) {
   };
 }
 function getConfigTask(key, scope) {
-  const commands6 = ["config", "--null", "--show-origin", "--get-all", key];
+  const commands7 = ["config", "--null", "--show-origin", "--get-all", key];
   if (scope) {
-    commands6.splice(1, 0, `--${scope}`);
+    commands7.splice(1, 0, `--${scope}`);
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configGetParser(text, key);
@@ -1826,12 +1826,12 @@ function getConfigTask(key, scope) {
   };
 }
 function listConfigTask(scope) {
-  const commands6 = ["config", "--list", "--show-origin", "--null"];
+  const commands7 = ["config", "--list", "--show-origin", "--null"];
   if (scope) {
-    commands6.push(`--${scope}`);
+    commands7.push(`--${scope}`);
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configListParser(text);
@@ -1943,10 +1943,10 @@ function grep_default() {
       if (typeof searchTerm === "string") {
         searchTerm = grepQueryBuilder().param(searchTerm);
       }
-      const commands6 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
+      const commands7 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
       return this._runTask(
         {
-          commands: commands6,
+          commands: commands7,
           format: "utf-8",
           parser(stdOut) {
             return parseGrep(stdOut);
@@ -1995,12 +1995,12 @@ __export2(reset_exports, {
   resetTask: () => resetTask
 });
 function resetTask(mode, customArgs) {
-  const commands6 = ["reset"];
+  const commands7 = ["reset"];
   if (isValidResetMode(mode)) {
-    commands6.push(`--${mode}`);
+    commands7.push(`--${mode}`);
   }
-  commands6.push(...customArgs);
-  return straightThroughStringTask(commands6);
+  commands7.push(...customArgs);
+  return straightThroughStringTask(commands7);
 }
 function getResetMode(mode) {
   if (isValidResetMode(mode)) {
@@ -2168,10 +2168,10 @@ var init_tasks_pending_queue = __esm2({
     TasksPendingQueue.counter = 0;
   }
 });
-function pluginContext(task, commands6) {
+function pluginContext(task, commands7) {
   return {
     method: first(task.commands) || "",
-    commands: commands6
+    commands: commands7
   };
 }
 function onErrorReceived(target, logger) {
@@ -2475,11 +2475,11 @@ var init_change_working_directory = __esm2({
   }
 });
 function checkoutTask(args) {
-  const commands6 = ["checkout", ...args];
-  if (commands6[1] === "-b" && commands6.includes("-B")) {
-    commands6[1] = remove(commands6, "-B");
+  const commands7 = ["checkout", ...args];
+  if (commands7[1] === "-b" && commands7.includes("-B")) {
+    commands7[1] = remove(commands7, "-B");
   }
-  return straightThroughStringTask(commands6);
+  return straightThroughStringTask(commands7);
 }
 function checkout_default() {
   return {
@@ -2611,7 +2611,7 @@ var init_parse_commit = __esm2({
   }
 });
 function commitTask(message, files, customArgs) {
-  const commands6 = [
+  const commands7 = [
     "-c",
     "core.abbrev=40",
     "commit",
@@ -2620,7 +2620,7 @@ function commitTask(message, files, customArgs) {
     ...customArgs
   ];
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser: parseCommitResult
   };
@@ -2669,11 +2669,11 @@ var init_first_commit = __esm2({
   }
 });
 function hashObjectTask(filePath, write) {
-  const commands6 = ["hash-object", filePath];
+  const commands7 = ["hash-object", filePath];
   if (write) {
-    commands6.push("-w");
+    commands7.push("-w");
   }
-  return straightThroughStringTask(commands6, true);
+  return straightThroughStringTask(commands7, true);
 }
 var init_hash_object = __esm2({
   "src/lib/tasks/hash-object.ts"() {
@@ -2723,15 +2723,15 @@ function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
 function initTask(bare = false, path, customArgs) {
-  const commands6 = ["init", ...customArgs];
-  if (bare && !hasBareCommand(commands6)) {
-    commands6.splice(1, 0, bareCommand);
+  const commands7 = ["init", ...customArgs];
+  if (bare && !hasBareCommand(commands7)) {
+    commands7.splice(1, 0, bareCommand);
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands6.includes("--bare"), path, text);
+      return parseInit(commands7.includes("--bare"), path, text);
     }
   };
 }
@@ -2963,14 +2963,14 @@ __export2(diff_exports, {
 });
 function diffSummaryTask(customArgs) {
   let logFormat = logFormatFromCommand(customArgs);
-  const commands6 = ["diff"];
+  const commands7 = ["diff"];
   if (logFormat === "") {
     logFormat = "--stat";
-    commands6.push("--stat=4096");
+    commands7.push("--stat=4096");
   }
-  commands6.push(...customArgs);
-  return validateLogFormatConfig(commands6) || {
-    commands: commands6,
+  commands7.push(...customArgs);
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: getDiffParser(logFormat)
   };
@@ -3484,18 +3484,18 @@ function pushTagsTask(ref = {}, customArgs) {
   return pushTask(ref, customArgs);
 }
 function pushTask(ref = {}, customArgs) {
-  const commands6 = ["push", ...customArgs];
+  const commands7 = ["push", ...customArgs];
   if (ref.branch) {
-    commands6.splice(1, 0, ref.branch);
+    commands7.splice(1, 0, ref.branch);
   }
   if (ref.remote) {
-    commands6.splice(1, 0, ref.remote);
+    commands7.splice(1, 0, ref.remote);
   }
-  remove(commands6, "-v");
-  append(commands6, "--verbose");
-  append(commands6, "--porcelain");
+  remove(commands7, "-v");
+  append(commands7, "--verbose");
+  append(commands7, "--porcelain");
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser: parsePushResult
   };
@@ -3510,19 +3510,19 @@ var init_push = __esm2({
 function show_default() {
   return {
     showBuffer() {
-      const commands6 = ["show", ...getTrailingOptions(arguments, 1)];
-      if (!commands6.includes("--binary")) {
-        commands6.splice(1, 0, "--binary");
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
+      if (!commands7.includes("--binary")) {
+        commands7.splice(1, 0, "--binary");
       }
       return this._runTask(
-        straightThroughBufferTask(commands6),
+        straightThroughBufferTask(commands7),
         trailingFunctionArgument(arguments)
       );
     },
     show() {
-      const commands6 = ["show", ...getTrailingOptions(arguments, 1)];
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
       return this._runTask(
-        straightThroughStringTask(commands6),
+        straightThroughStringTask(commands7),
         trailingFunctionArgument(arguments)
       );
     }
@@ -3735,7 +3735,7 @@ var init_StatusSummary = __esm2({
   }
 });
 function statusTask(customArgs) {
-  const commands6 = [
+  const commands7 = [
     "status",
     "--porcelain",
     "-b",
@@ -3745,7 +3745,7 @@ function statusTask(customArgs) {
   ];
   return {
     format: "utf-8",
-    commands: commands6,
+    commands: commands7,
     parser(text) {
       return parseStatusSummary(text);
     }
@@ -4166,22 +4166,22 @@ __export2(branch_exports, {
   deleteBranchTask: () => deleteBranchTask,
   deleteBranchesTask: () => deleteBranchesTask
 });
-function containsDeleteBranchCommand(commands6) {
+function containsDeleteBranchCommand(commands7) {
   const deleteCommands = ["-d", "-D", "--delete"];
-  return commands6.some((command) => deleteCommands.includes(command));
+  return commands7.some((command) => deleteCommands.includes(command));
 }
 function branchTask(customArgs) {
   const isDelete = containsDeleteBranchCommand(customArgs);
-  const commands6 = ["branch", ...customArgs];
-  if (commands6.length === 1) {
-    commands6.push("-a");
+  const commands7 = ["branch", ...customArgs];
+  if (commands7.length === 1) {
+    commands7.push("-a");
   }
-  if (!commands6.includes("-v")) {
-    commands6.splice(1, 0, "-v");
+  if (!commands7.includes("-v")) {
+    commands7.splice(1, 0, "-v");
   }
   return {
     format: "utf-8",
-    commands: commands6,
+    commands: commands7,
     parser(stdOut, stdErr) {
       if (isDelete) {
         return parseBranchDeletions(stdOut, stdErr).all[0];
@@ -4276,14 +4276,14 @@ function disallowedCommand(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function cloneTask(repo, directory, customArgs) {
-  const commands6 = ["clone", ...customArgs];
-  filterString(repo) && commands6.push(repo);
-  filterString(directory) && commands6.push(directory);
-  const banned = commands6.find(disallowedCommand);
+  const commands7 = ["clone", ...customArgs];
+  filterString(repo) && commands7.push(repo);
+  filterString(directory) && commands7.push(directory);
+  const banned = commands7.find(disallowedCommand);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
-  return straightThroughStringTask(commands6);
+  return straightThroughStringTask(commands7);
 }
 function cloneMirrorTask(repo, directory, customArgs) {
   append(customArgs, "--mirror");
@@ -4355,16 +4355,16 @@ function disallowedCommand2(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function fetchTask(remote, branch, customArgs) {
-  const commands6 = ["fetch", ...customArgs];
+  const commands7 = ["fetch", ...customArgs];
   if (remote && branch) {
-    commands6.push(remote, branch);
+    commands7.push(remote, branch);
   }
-  const banned = commands6.find(disallowedCommand2);
+  const banned = commands7.find(disallowedCommand2);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser: parseFetchResult
   };
@@ -4414,12 +4414,12 @@ __export2(pull_exports, {
   pullTask: () => pullTask
 });
 function pullTask(remote, branch, customArgs) {
-  const commands6 = ["pull", ...customArgs];
+  const commands7 = ["pull", ...customArgs];
   if (remote && branch) {
-    commands6.splice(1, 0, remote, branch);
+    commands7.splice(1, 0, remote, branch);
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser(stdOut, stdErr) {
       return parsePullResult(stdOut, stdErr);
@@ -4485,29 +4485,29 @@ function addRemoteTask(remoteName, remoteRepo, customArgs) {
   return straightThroughStringTask(["remote", "add", ...customArgs, remoteName, remoteRepo]);
 }
 function getRemotesTask(verbose) {
-  const commands6 = ["remote"];
+  const commands7 = ["remote"];
   if (verbose) {
-    commands6.push("-v");
+    commands7.push("-v");
   }
   return {
-    commands: commands6,
+    commands: commands7,
     format: "utf-8",
     parser: verbose ? parseGetRemotesVerbose : parseGetRemotes
   };
 }
 function listRemotesTask(customArgs) {
-  const commands6 = [...customArgs];
-  if (commands6[0] !== "ls-remote") {
-    commands6.unshift("ls-remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "ls-remote") {
+    commands7.unshift("ls-remote");
   }
-  return straightThroughStringTask(commands6);
+  return straightThroughStringTask(commands7);
 }
 function remoteTask(customArgs) {
-  const commands6 = [...customArgs];
-  if (commands6[0] !== "remote") {
-    commands6.unshift("remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "remote") {
+    commands7.unshift("remote");
   }
-  return straightThroughStringTask(commands6);
+  return straightThroughStringTask(commands7);
 }
 function removeRemoteTask(remoteName) {
   return straightThroughStringTask(["remote", "remove", remoteName]);
@@ -4525,14 +4525,14 @@ __export2(stash_list_exports, {
 });
 function stashListTask(opt = {}, customArgs) {
   const options = parseLogOptions(opt);
-  const commands6 = ["stash", "list", ...options.commands, ...customArgs];
+  const commands7 = ["stash", "list", ...options.commands, ...customArgs];
   const parser4 = createListLogSummaryParser(
     options.splitter,
     options.fields,
-    logFormatFromCommand(commands6)
+    logFormatFromCommand(commands7)
   );
-  return validateLogFormatConfig(commands6) || {
-    commands: commands6,
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: parser4
   };
@@ -4560,11 +4560,11 @@ function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
 }
 function subModuleTask(customArgs) {
-  const commands6 = [...customArgs];
-  if (commands6[0] !== "submodule") {
-    commands6.unshift("submodule");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "submodule") {
+    commands7.unshift("submodule");
   }
-  return straightThroughStringTask(commands6);
+  return straightThroughStringTask(commands7);
 }
 function updateSubModuleTask(customArgs) {
   return subModuleTask(["update", ...customArgs]);
@@ -4865,9 +4865,9 @@ var require_git = __commonJS2({
     Git2.prototype.branchLocal = function(then) {
       return this._runTask(branchLocalTask2(), trailingFunctionArgument2(arguments));
     };
-    Git2.prototype.raw = function(commands6) {
-      const createRestCommands = !Array.isArray(commands6);
-      const command = [].slice.call(createRestCommands ? arguments : commands6, 0);
+    Git2.prototype.raw = function(commands7) {
+      const createRestCommands = !Array.isArray(commands7);
+      const command = [].slice.call(createRestCommands ? arguments : commands7, 0);
       for (let i = 0; i < command.length && createRestCommands; i++) {
         if (!filterPrimitives2(command[i])) {
           command.splice(i, command.length - i);
@@ -5002,9 +5002,9 @@ var require_git = __commonJS2({
       return this._runTask(task, trailingFunctionArgument2(arguments));
     };
     Git2.prototype.revparse = function() {
-      const commands6 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
+      const commands7 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
       return this._runTask(
-        straightThroughStringTask2(commands6, true),
+        straightThroughStringTask2(commands7, true),
         trailingFunctionArgument2(arguments)
       );
     };
@@ -5495,7 +5495,7 @@ function getGitClient() {
 
 // src/commands/checkGitStatus.ts
 function registerCheckGitStatus() {
-  return vscode2.commands.registerCommand("ai-code-review.checkGitStatus", () => {
+  return vscode2.commands.registerCommand("extension.checkGitStatus", () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5676,7 +5676,14 @@ async function setUserPreferences(context) {
   });
   if (input !== void 0) {
     await context.globalState.update(PREFERENCES_KEY, input.trim());
-    vscode5.window.showInformationMessage("Preferences saved! Run 'Show Suggestion' again to use updated style.");
+    const action = await vscode5.window.showInformationMessage(
+      "Preferences saved! Do you want to run 'Show Suggestion' now?",
+      "Yes",
+      "No"
+    );
+    if (action === "Yes") {
+      vscode5.commands.executeCommand("extension.showSuggestion");
+    }
   }
 }
 async function getUserPreferences(context) {
@@ -5765,9 +5772,9 @@ var vscode9 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
 var vscode7 = __toESM(require("vscode"));
-function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri) {
+function getWebviewContent(webview, extensionUri, fileName, selectedCodeSnippet, entireFileContent, selection, documentUri, userPreferences) {
   const cssContent = webviewCss();
-  const htmlBodyContent = webviewHtml(fileName);
+  const htmlBodyContent = webviewHtml(fileName, userPreferences);
   const jsContent = webviewJs(fileName, selectedCodeSnippet, entireFileContent, selection, documentUri);
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
   const diffJsSrcOnDisk = vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js");
@@ -5930,7 +5937,7 @@ function webviewCss() {
     }
 	`;
 }
-function webviewHtml(fileName) {
+function webviewHtml(fileName, userPreferences) {
   return `
 		<div class="file-info">\u{1F4C4} File: ${fileName || "N/A"}</div>
         <hr>
@@ -5954,12 +5961,16 @@ function webviewHtml(fileName) {
                 <h2>3. Explanation:</h2>
                 <div id="explanation-content" class="markdown-content"></div>
             </div>
+			<div id="preferences-display" class="final-content-section" style="margin-top: 1.5em;">
+                <h2>4. Active AI Preferences:</h2>
+                <pre>${userPreferences || "None set. Using default style."}</pre>
+                <button id="edit-preference-button">\u270F\uFE0F Edit AI Preferences</button>
+            </div>
         </div>
 
 		<div class="buttons">
             <button id="accept-button" disabled>\u2705 Accept & Replace File</button>
             <button id="reject-button" disabled>\u274C Reject Suggestion</button>
-			<button id="edit-preference-button" disabled>\u270F\uFE0F Edit AI Preferences</button>
         </div>
 	`;
 }
@@ -6106,7 +6117,6 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 				acceptButton.disabled = false;
 			}
 			rejectButton.disabled = false;
-			editPrefsButton.disabled = false;
 		}
 
 		function buildMessagePayload(command) {
@@ -6183,7 +6193,7 @@ function handleWebviewMessage(panelInstance2) {
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode8.commands.executeCommand("ai-code-review.setAIPreferences");
+            vscode8.commands.executeCommand("extension.setAIPreferences");
             break;
           default:
             console.warn(`Unhandled command received in webview: ${message.command}`);
@@ -6212,8 +6222,9 @@ async function handleAccept(message, originalSelection, panelInstance2) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
+async function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCodeSnippet, entireFileContent, fileName, selection, documentUri) {
   const existingPanel = getPanel();
+  const userPreferences = await getUserPreferences(context);
   if (existingPanel) {
     existingPanel.reveal(vscode9.ViewColumn.Beside);
     existingPanel.webview.html = getWebviewContent(
@@ -6223,7 +6234,8 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
       selectedCodeSnippet,
       entireFileContent,
       selection,
-      documentUri
+      documentUri,
+      userPreferences
     );
     return existingPanel;
   }
@@ -6249,14 +6261,15 @@ function showSuggestionWebview(_initialResponsePlaceholder, context, selectedCod
     selectedCodeSnippet,
     entireFileContent,
     selection,
-    documentUri
+    documentUri,
+    userPreferences
   );
   return newPanel;
 }
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode10.commands.registerCommand("ai-code-review.showSuggestion", async () => {
+  return vscode10.commands.registerCommand("extension.showSuggestion", async () => {
     vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
     const editor = vscode10.window.activeTextEditor;
     if (!editor) {
@@ -6289,7 +6302,7 @@ function registerShowSuggestion(context) {
       vscode10.window.showErrorMessage("Git client not available.");
       return;
     }
-    const suggestionPanel = showSuggestionWebview(
+    const suggestionPanel = await showSuggestionWebview(
       "",
       context,
       selectedCode,
@@ -6330,7 +6343,7 @@ function registerShowSuggestion(context) {
 // src/commands/undoLastSuggestion.ts
 var vscode11 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode11.commands.registerCommand("ai-code-review.undoLastSuggestion", async () => {
+  return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -6363,19 +6376,19 @@ async function undoLastCommit(git) {
 var vscode12 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "ai-code-review.setAIPreferences",
+    "extension.setAIPreferences",
     () => setUserPreferences(context)
   );
 }
 function registerShowAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "ai-code-review.showAIPreferences",
+    "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
   return vscode12.commands.registerCommand(
-    "ai-code-review.clearAIPreferences",
+    "extension.clearAIPreferences",
     () => clearUserPreferences(context)
   );
 }

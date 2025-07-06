@@ -4,7 +4,7 @@ import { getGitClient } from '../utils/git';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 
 export function registerShowSuggestion(context: vscode.ExtensionContext) {
-    return vscode.commands.registerCommand('ai-code-review.showSuggestion', async () => {
+    return vscode.commands.registerCommand('extension.showSuggestion', async () => {
         
         // Show status message
         vscode.window.setStatusBarMessage('🤖 Analyzing F# code...', 5000);
@@ -53,7 +53,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         }
 
         // Open the suggestion webview panel
-        const suggestionPanel = showSuggestionWebview(
+        const suggestionPanel = await showSuggestionWebview(
             '',
             context,
             selectedCode,
