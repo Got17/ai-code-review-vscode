@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 const PREFERENCES_KEY = 'aiPreferences';
 
 // SET
-export async function setUserPreferences(context: vscode.ExtensionContext) {
+export async function setUserPreferences(context: vscode.ExtensionContext, documentUri: string) {
     const existing = await getUserPreferences(context);
 
     const input = await vscode.window.showInputBox({
@@ -21,7 +21,16 @@ export async function setUserPreferences(context: vscode.ExtensionContext) {
         );
 
         if (action === 'Yes') {
-            vscode.commands.executeCommand('extension.showSuggestion');
+            if (documentUri) {
+                const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(documentUri));
+                await vscode.window.showTextDocument(doc, {
+                    preserveFocus: false,
+                    viewColumn: vscode.ViewColumn.One
+                });
+                vscode.commands.executeCommand('extension.showSuggestion');
+            } else {
+                vscode.window.showWarningMessage('No document URI found to reopen.');
+            }
         }
     }
 }

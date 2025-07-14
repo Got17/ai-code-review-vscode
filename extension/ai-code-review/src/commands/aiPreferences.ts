@@ -2,8 +2,8 @@ import * as vscode from 'vscode';
 import {clearUserPreferences, setUserPreferences, showUserPreferences} from '../utils/ai';
 
 export function registerSetAIPreferences(context: vscode.ExtensionContext) {
-    return vscode.commands.registerCommand('extension.setAIPreferences', () =>
-        setUserPreferences(context)
+    return vscode.commands.registerCommand('extension.setAIPreferences', (documentUri) =>
+        setUserPreferences(context, documentUri)
     );
 }
 

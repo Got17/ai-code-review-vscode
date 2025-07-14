@@ -21,7 +21,7 @@ export function handleWebviewMessage(
                         panelInstance.dispose();
                         break;
                     case 'editPreferences':
-                        vscode.commands.executeCommand('extension.setAIPreferences');
+                        vscode.commands.executeCommand('extension.setAIPreferences', message.documentUri);
                         break;
                     default:
                         console.warn(`Unhandled command received in webview: ${message.command}`);

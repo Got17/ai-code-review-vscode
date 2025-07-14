@@ -5668,7 +5668,7 @@ async function applySuggestion(aiProvidedFullFileContent, originalSelectionForCo
 // src/utils/ai/preferencesManager.ts
 var vscode5 = __toESM(require("vscode"));
 var PREFERENCES_KEY = "aiPreferences";
-async function setUserPreferences(context) {
+async function setUserPreferences(context, documentUri) {
   const existing = await getUserPreferences(context);
   const input = await vscode5.window.showInputBox({
     prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
@@ -5682,7 +5682,16 @@ async function setUserPreferences(context) {
       "No"
     );
     if (action === "Yes") {
-      vscode5.commands.executeCommand("extension.showSuggestion");
+      if (documentUri) {
+        const doc = await vscode5.workspace.openTextDocument(vscode5.Uri.parse(documentUri));
+        await vscode5.window.showTextDocument(doc, {
+          preserveFocus: false,
+          viewColumn: vscode5.ViewColumn.One
+        });
+        vscode5.commands.executeCommand("extension.showSuggestion");
+      } else {
+        vscode5.window.showWarningMessage("No document URI found to reopen.");
+      }
     }
   }
 }
@@ -5719,9 +5728,6 @@ function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selecti
 ${preferencesBlock}
 You are a code review assistant specialized in F# and WebSharper.
 Improve ONLY the SELECTED CODE within the full file context.
-
-DO NOT repeat past mistakes described in the rejection list \u2014 those were rejected by the user even when justified.
-Follow accepted patterns where possible.
 
 ---
 
@@ -6193,7 +6199,7 @@ function handleWebviewMessage(panelInstance2) {
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode8.commands.executeCommand("extension.setAIPreferences");
+            vscode8.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
           default:
             console.warn(`Unhandled command received in webview: ${message.command}`);
@@ -6269,7 +6275,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, selec
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode10.commands.registerCommand("extension.showSuggestion", async () => {
+  return vscode10.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
     vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
     const editor = vscode10.window.activeTextEditor;
     if (!editor) {
@@ -6297,6 +6303,7 @@ function registerShowSuggestion(context) {
       selection,
       context
     );
+    console.log(prompt);
     const git = getGitClient();
     if (!git) {
       vscode10.window.showErrorMessage("Git client not available.");
@@ -6377,7 +6384,7 @@ var vscode12 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
   return vscode12.commands.registerCommand(
     "extension.setAIPreferences",
-    () => setUserPreferences(context)
+    (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {

@@ -4,12 +4,13 @@ import { getGitClient } from '../utils/git';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 
 export function registerShowSuggestion(context: vscode.ExtensionContext) {
-    return vscode.commands.registerCommand('extension.showSuggestion', async () => {
+    return vscode.commands.registerCommand('extension.showSuggestion', async (fallbackUri) => {
         
         // Show status message
         vscode.window.setStatusBarMessage('🤖 Analyzing F# code...', 5000);
 
         const editor = vscode.window.activeTextEditor;
+        
         if (!editor) {
             vscode.window.showErrorMessage('No active F# editor found.');
             return;
@@ -44,6 +45,8 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             selection,
             context
         );
+
+        console.log(prompt);
 
         // Ensure Git is available
         const git = getGitClient();

@@ -36,9 +36,6 @@ ${preferencesBlock}
 You are a code review assistant specialized in F# and WebSharper.
 Improve ONLY the SELECTED CODE within the full file context.
 
-DO NOT repeat past mistakes described in the rejection list — those were rejected by the user even when justified.
-Follow accepted patterns where possible.
-
 ---
 
 **INSTRUCTIONS:**
