@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getPanel } from '../ui';
 
 const PREFERENCES_KEY = 'aiPreferences';
 
@@ -11,11 +12,35 @@ export async function setUserPreferences(context: vscode.ExtensionContext, docum
         value: existing || ''
     });
 
+    await rerunWebvew('saved', input, context, documentUri);
+}
+
+// GET
+export async function getUserPreferences(context: vscode.ExtensionContext) {
+    return (await context.globalState.get(PREFERENCES_KEY) as string || '');
+}
+
+// SHOW
+export async function showUserPreferences(context: vscode.ExtensionContext) {
+    const preferences = await getUserPreferences(context);
+    vscode.window.showInformationMessage(
+        preferences ? `Current AI Preferences:\n${preferences}` : 'No AI preferences set yet.'
+    );
+}
+
+// CLEAR
+export async function clearUserPreferences(context: vscode.ExtensionContext, documentUri: string) {
+    await context.globalState.update(PREFERENCES_KEY, '');
+
+    await rerunWebvew('cleared', 'None set.', context, documentUri);
+}
+
+async function rerunWebvew(actionMessage: string, input: string | undefined, context: vscode.ExtensionContext, documentUri: string) {
     if (input !== undefined) {
         await context.globalState.update(PREFERENCES_KEY, input.trim());
 
         const action = await vscode.window.showInformationMessage(
-            "Preferences saved! Do you want to run 'Show Suggestion' now?",
+            `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`,
             'Yes',
             'No'
         );
@@ -33,23 +58,4 @@ export async function setUserPreferences(context: vscode.ExtensionContext, docum
             }
         }
     }
-}
-
-// GET
-export async function getUserPreferences(context: vscode.ExtensionContext) {
-    return (await context.globalState.get(PREFERENCES_KEY) as string || '');
-}
-
-// SHOW
-export async function showUserPreferences(context: vscode.ExtensionContext) {
-    const preferences = await getUserPreferences(context);
-    vscode.window.showInformationMessage(
-        preferences ? `Current AI Preferences:\n${preferences}` : 'No AI preferences set yet.'
-    );
-}
-
-// CLEAR
-export async function clearUserPreferences(context: vscode.ExtensionContext) {
-  await context.globalState.update(PREFERENCES_KEY, '');
-  vscode.window.showInformationMessage('AI preferences cleared.');
 }

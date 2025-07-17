@@ -206,14 +206,15 @@ function webviewHtml(fileName: string | undefined, userPreferences: string): str
             </div>
 			<div id="preferences-display" class="final-content-section" style="margin-top: 1.5em;">
                 <h2>4. Active AI Preferences:</h2>
-                <pre>${userPreferences || 'None set. Using default style.'}</pre>
-                <button id="edit-preference-button">✏️ Edit AI Preferences</button>
+                <pre id="user-preference">${userPreferences || 'None set.'}</pre>
+                <button title="Edit AI Preferences" id="edit-preference-button">✏️ Edit Preferences</button>
+				<button title="Clear AI Preferences" id="clear-preference-button">🧹 Clear Preferences</button>
             </div>
         </div>
 
 		<div class="buttons">
-            <button id="accept-button" disabled>✅ Accept & Replace File</button>
-            <button id="reject-button" disabled>❌ Reject Suggestion</button>
+            <button title="Accept AI Suggestion" id="accept-button" disabled>✅ Accept Suggestion</button>
+            <button title="Reject AI Suggestion" id="reject-button" disabled>❌ Reject Suggestion</button>
         </div>
 	`;
 }
@@ -240,6 +241,7 @@ function webviewJs(
 		const acceptButton = document.getElementById('accept-button');
 		const rejectButton = document.getElementById('reject-button');
 		const editPrefsButton =  document.getElementById('edit-preference-button');
+		const clearPrefsButton = document.getElementById('clear-preference-button');
 
 		let extractedAISuggestedCode = null; 
 		let finalAccumulatedResponseForLog = '';
@@ -400,6 +402,12 @@ function webviewJs(
 					streamingResponseArea.style.color = 'red';
 					rejectButton.disabled = false;
 					break;
+				case 'preferencesUpdated':
+					document.getElementBbyId('user-preference').textContent = message.updatedPreferences || 'None set.';
+					break;
+				default:
+					console.warn(\`Unhandled command received in webview: \${message.command}\`);
+					break;
 			}
 		});
 		
@@ -421,6 +429,11 @@ function webviewJs(
 		// Handle Preference Button Click
 		editPrefsButton.addEventListener('click', () => {
 			vscode.postMessage(buildMessagePayload('editPreferences'));
+		});
+
+		// Handle Clear Preference Button Click
+		clearPrefsButton.addEventListener('click', () => {
+			vscode.postMessage(buildMessagePayload('clearPreferences'));
 		});
 	`;
 }

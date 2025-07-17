@@ -5674,10 +5674,27 @@ async function setUserPreferences(context, documentUri) {
     prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
     value: existing || ""
   });
+  await rerunWebvew("saved", input, context, documentUri);
+}
+async function getUserPreferences(context) {
+  return await context.globalState.get(PREFERENCES_KEY) || "";
+}
+async function showUserPreferences(context) {
+  const preferences = await getUserPreferences(context);
+  vscode5.window.showInformationMessage(
+    preferences ? `Current AI Preferences:
+${preferences}` : "No AI preferences set yet."
+  );
+}
+async function clearUserPreferences(context, documentUri) {
+  await context.globalState.update(PREFERENCES_KEY, "");
+  await rerunWebvew("cleared", "None set.", context, documentUri);
+}
+async function rerunWebvew(actionMessage, input, context, documentUri) {
   if (input !== void 0) {
     await context.globalState.update(PREFERENCES_KEY, input.trim());
     const action = await vscode5.window.showInformationMessage(
-      "Preferences saved! Do you want to run 'Show Suggestion' now?",
+      `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`,
       "Yes",
       "No"
     );
@@ -5694,20 +5711,6 @@ async function setUserPreferences(context, documentUri) {
       }
     }
   }
-}
-async function getUserPreferences(context) {
-  return await context.globalState.get(PREFERENCES_KEY) || "";
-}
-async function showUserPreferences(context) {
-  const preferences = await getUserPreferences(context);
-  vscode5.window.showInformationMessage(
-    preferences ? `Current AI Preferences:
-${preferences}` : "No AI preferences set yet."
-  );
-}
-async function clearUserPreferences(context) {
-  await context.globalState.update(PREFERENCES_KEY, "");
-  vscode5.window.showInformationMessage("AI preferences cleared.");
 }
 
 // src/utils/ai/promptBuilder.ts
@@ -5730,12 +5733,13 @@ You are a code review assistant specialized in F# and WebSharper.
 Improve ONLY the SELECTED CODE within the full file context.
 
 ---
-
-**INSTRUCTIONS:**
-1. Improve the SELECTED CODE (clarity, performance, maintainability).
-2. Only touch surrounding code if necessary.
-3. Preserve formatting outside the selection.
-4. Response must follow this format:
+INSTRUCTIONS:
+1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
+2. Preserve all other code in the file unless absolutely necessary for correctness.
+3. Do NOT reorder or reformat the rest of the file.
+4. Avoid unnecessary renames unless the user's preferences ask for it.
+5. If removing code, be sure it's entirely unused.
+6. Format your response as:
    - Summary of Issues (bullet list)
    - Improved Code (entire file inside \`\`\`fsharp)
    - Explanation (bullet list)
@@ -5969,14 +5973,15 @@ function webviewHtml(fileName, userPreferences) {
             </div>
 			<div id="preferences-display" class="final-content-section" style="margin-top: 1.5em;">
                 <h2>4. Active AI Preferences:</h2>
-                <pre>${userPreferences || "None set. Using default style."}</pre>
-                <button id="edit-preference-button">\u270F\uFE0F Edit AI Preferences</button>
+                <pre id="user-preference">${userPreferences || "None set."}</pre>
+                <button title="Edit AI Preferences" id="edit-preference-button">\u270F\uFE0F Edit Preferences</button>
+				<button title="Clear AI Preferences" id="clear-preference-button">\u{1F9F9} Clear Preferences</button>
             </div>
         </div>
 
 		<div class="buttons">
-            <button id="accept-button" disabled>\u2705 Accept & Replace File</button>
-            <button id="reject-button" disabled>\u274C Reject Suggestion</button>
+            <button title="Accept AI Suggestion" id="accept-button" disabled>\u2705 Accept Suggestion</button>
+            <button title="Reject AI Suggestion" id="reject-button" disabled>\u274C Reject Suggestion</button>
         </div>
 	`;
 }
@@ -5996,6 +6001,7 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 		const acceptButton = document.getElementById('accept-button');
 		const rejectButton = document.getElementById('reject-button');
 		const editPrefsButton =  document.getElementById('edit-preference-button');
+		const clearPrefsButton = document.getElementById('clear-preference-button');
 
 		let extractedAISuggestedCode = null; 
 		let finalAccumulatedResponseForLog = '';
@@ -6156,6 +6162,12 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 					streamingResponseArea.style.color = 'red';
 					rejectButton.disabled = false;
 					break;
+				case 'preferencesUpdated':
+					document.getElementBbyId('user-preference').textContent = message.updatedPreferences || 'None set.';
+					break;
+				default:
+					console.warn(\`Unhandled command received in webview: \${message.command}\`);
+					break;
 			}
 		});
 		
@@ -6177,6 +6189,11 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 		// Handle Preference Button Click
 		editPrefsButton.addEventListener('click', () => {
 			vscode.postMessage(buildMessagePayload('editPreferences'));
+		});
+
+		// Handle Clear Preference Button Click
+		clearPrefsButton.addEventListener('click', () => {
+			vscode.postMessage(buildMessagePayload('clearPreferences'));
 		});
 	`;
 }
@@ -6201,8 +6218,11 @@ function handleWebviewMessage(panelInstance2) {
           case "editPreferences":
             vscode8.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
+          case "clearPreferences":
+            vscode8.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
+            break;
           default:
-            console.warn(`Unhandled command received in webview: ${message.command}`);
+            console.warn(`Unhandled command received from webview: ${message.command}`);
             break;
         }
       } catch (err) {
@@ -6396,7 +6416,7 @@ function registerShowAIPreferences(context) {
 function registerClearAIPreferences(context) {
   return vscode12.commands.registerCommand(
     "extension.clearAIPreferences",
-    () => clearUserPreferences(context)
+    (documentUri) => clearUserPreferences(context, documentUri)
   );
 }
 

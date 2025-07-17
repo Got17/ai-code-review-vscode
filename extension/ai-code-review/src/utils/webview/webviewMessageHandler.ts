@@ -23,8 +23,11 @@ export function handleWebviewMessage(
                     case 'editPreferences':
                         vscode.commands.executeCommand('extension.setAIPreferences', message.documentUri);
                         break;
+                    case 'clearPreferences':
+                        vscode.commands.executeCommand('extension.clearAIPreferences', message.documentUri);
+                        break;
                     default:
-                        console.warn(`Unhandled command received in webview: ${message.command}`);
+                        console.warn(`Unhandled command received from webview: ${message.command}`);
                         break;
                 }
             } catch (err) {

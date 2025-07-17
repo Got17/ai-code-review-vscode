@@ -14,7 +14,7 @@ export function registerShowAIPreferences(context: vscode.ExtensionContext) {
 }
 
 export function registerClearAIPreferences(context: vscode.ExtensionContext) {
-    return vscode.commands.registerCommand('extension.clearAIPreferences', () =>
-        clearUserPreferences(context)
+    return vscode.commands.registerCommand('extension.clearAIPreferences', (documentUri) =>
+        clearUserPreferences(context, documentUri)
     );
 }
