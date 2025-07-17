@@ -43,7 +43,7 @@ INSTRUCTIONS:
 3. Do NOT reorder or reformat the rest of the file.
 4. Avoid unnecessary renames unless the user's preferences ask for it.
 5. If removing code, be sure it's entirely unused.
-6. Format your response as:
+6. You MUST format your response as:
    - Summary of Issues (bullet list)
    - Improved Code (entire file inside \`\`\`fsharp)
    - Explanation (bullet list)
@@ -58,5 +58,7 @@ ${selectionContextInfo}
 \`\`\`fsharp
 ${selectedSnippet}
 \`\`\`
+
+REMINDER: You must output the entire file content with ONLY the selected region changed.
     `.trim();
 }

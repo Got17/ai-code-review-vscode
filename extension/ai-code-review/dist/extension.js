@@ -5674,7 +5674,7 @@ async function setUserPreferences(context, documentUri) {
     prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
     value: existing || ""
   });
-  await rerunWebvew("saved", input, context, documentUri);
+  await handlePreferenceUpdateFlow("saved", input, context, documentUri);
 }
 async function getUserPreferences(context) {
   return await context.globalState.get(PREFERENCES_KEY) || "";
@@ -5688,9 +5688,9 @@ ${preferences}` : "No AI preferences set yet."
 }
 async function clearUserPreferences(context, documentUri) {
   await context.globalState.update(PREFERENCES_KEY, "");
-  await rerunWebvew("cleared", "None set.", context, documentUri);
+  await handlePreferenceUpdateFlow("cleared", "None set.", context, documentUri);
 }
-async function rerunWebvew(actionMessage, input, context, documentUri) {
+async function handlePreferenceUpdateFlow(actionMessage, input, context, documentUri) {
   if (input !== void 0) {
     await context.globalState.update(PREFERENCES_KEY, input.trim());
     const action = await vscode5.window.showInformationMessage(
@@ -5739,7 +5739,7 @@ INSTRUCTIONS:
 3. Do NOT reorder or reformat the rest of the file.
 4. Avoid unnecessary renames unless the user's preferences ask for it.
 5. If removing code, be sure it's entirely unused.
-6. Format your response as:
+6. You MUST format your response as:
    - Summary of Issues (bullet list)
    - Improved Code (entire file inside \`\`\`fsharp)
    - Explanation (bullet list)
@@ -5754,6 +5754,8 @@ ${selectionContextInfo}
 \`\`\`fsharp
 ${selectedSnippet}
 \`\`\`
+
+REMINDER: You must output the entire file content with ONLY the selected region changed.
     `.trim();
 }
 

@@ -12,7 +12,7 @@ export async function setUserPreferences(context: vscode.ExtensionContext, docum
         value: existing || ''
     });
 
-    await rerunWebvew('saved', input, context, documentUri);
+    await handlePreferenceUpdateFlow('saved', input, context, documentUri);
 }
 
 // GET
@@ -32,10 +32,10 @@ export async function showUserPreferences(context: vscode.ExtensionContext) {
 export async function clearUserPreferences(context: vscode.ExtensionContext, documentUri: string) {
     await context.globalState.update(PREFERENCES_KEY, '');
 
-    await rerunWebvew('cleared', 'None set.', context, documentUri);
+    await handlePreferenceUpdateFlow('cleared', 'None set.', context, documentUri);
 }
 
-async function rerunWebvew(actionMessage: string, input: string | undefined, context: vscode.ExtensionContext, documentUri: string) {
+async function handlePreferenceUpdateFlow(actionMessage: string, input: string | undefined, context: vscode.ExtensionContext, documentUri: string) {
     if (input !== undefined) {
         await context.globalState.update(PREFERENCES_KEY, input.trim());
 
