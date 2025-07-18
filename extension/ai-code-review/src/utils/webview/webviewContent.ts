@@ -390,7 +390,10 @@ function webviewJs(
 						streamingResponseArea.classList.remove('loading-text');
 					}
 					accumulatedRawResponse += message.chunk;
-					streamingResponseArea.textContent = accumulatedRawResponse; 
+					streamingResponseArea.textContent = accumulatedRawResponse;
+					setTimeout(() => {
+						window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+					}, 0);
 					break;
 				case 'aiStreamEnd':
 					console.log('JS Webview: aiStreamEnd received. Full response length:', (message.fullResponse || accumulatedRawResponse).length);

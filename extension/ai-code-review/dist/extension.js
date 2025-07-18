@@ -5582,6 +5582,9 @@ function handleStreamError(error) {
   if (error.name === "AbortError") {
     console.error("AI request timed out.");
     vscode3.window.showErrorMessage("AI request timed out.");
+  } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
+    console.error("Failed to connect to the AI server. Is the Ollama server running?");
+    vscode3.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
   } else {
     console.error("Failed to query AI:", error);
     vscode3.window.showErrorMessage("Failed to query AI");
@@ -6152,7 +6155,10 @@ function webviewJs(fileName, originalSelectedCodeString, originalWholeFileConten
 						streamingResponseArea.classList.remove('loading-text');
 					}
 					accumulatedRawResponse += message.chunk;
-					streamingResponseArea.textContent = accumulatedRawResponse; 
+					streamingResponseArea.textContent = accumulatedRawResponse;
+					setTimeout(() => {
+						window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+					}, 0);
 					break;
 				case 'aiStreamEnd':
 					console.log('JS Webview: aiStreamEnd received. Full response length:', (message.fullResponse || accumulatedRawResponse).length);

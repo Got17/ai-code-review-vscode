@@ -46,7 +46,20 @@ function handleStreamError(error: any) {
 	if (error.name === 'AbortError') {
 		console.error('AI request timed out.');
 		vscode.window.showErrorMessage('AI request timed out.');
-	} else {
+	} else if (error instanceof TypeError && error.message.includes('fetch failed')) {
+		console.error('Failed to connect to the AI server. Is the Ollama server running?');
+		vscode.window.showErrorMessage('Failed to connect to AI. Make sure Ollama is running.', {modal: true});
+		// vscode.window.showErrorMessage(
+		// 	'Failed to connect to AI. Make sure Ollama is running.',
+		// 	{ modal: true },
+		// 	'View Setup Instructions'
+		// ).then(selection => {
+		// 	if (selection === 'View Setup Instructions') {
+		// 		vscode.env.openExternal(vscode.Uri.parse('https://ollama.com/docs')); 
+		// 	}
+		// });
+	}
+	else {
 		console.error('Failed to query AI:', error);
 		vscode.window.showErrorMessage('Failed to query AI');
 	}
