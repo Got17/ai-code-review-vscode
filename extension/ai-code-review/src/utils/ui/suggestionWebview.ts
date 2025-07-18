@@ -7,11 +7,7 @@ import { getUserPreferences } from '../ai';
 export async function showSuggestionWebview(
 	_initialResponsePlaceholder: string,
     context: vscode.ExtensionContext,
-    selectedCodeSnippet: string | null,
-    entireFileContent: string,
     fileName: string | undefined,
-    selection: vscode.Selection,
-    documentUri: vscode.Uri
 ) {	
 	const existingPanel = getPanel();
 	const userPreferences = await getUserPreferences(context);
@@ -22,10 +18,6 @@ export async function showSuggestionWebview(
             existingPanel.webview, 
             context.extensionUri, 
             fileName,
-            selectedCodeSnippet,
-            entireFileContent,
-            selection,
-            documentUri,
 			userPreferences
         );
 		return existingPanel;
@@ -38,7 +30,10 @@ export async function showSuggestionWebview(
 		{
 			enableScripts: true,
 			retainContextWhenHidden: true,
-			localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR)]
+			localResourceRoots: [
+				vscode.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+				vscode.Uri.joinPath(context.extensionUri, 'src', 'utils', 'webview')
+			]
 		}
 	);
 
@@ -54,10 +49,6 @@ export async function showSuggestionWebview(
 		newPanel.webview, 
 		context.extensionUri, 
 		fileName,
-		selectedCodeSnippet,
-		entireFileContent,
-		selection,
-		documentUri,
 		userPreferences
 	);
 	

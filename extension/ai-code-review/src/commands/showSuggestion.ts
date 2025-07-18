@@ -59,17 +59,24 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         const suggestionPanel = await showSuggestionWebview(
             '',
             context,
-            selectedCode,
-            wholeFileContent,
             fileName,
-            selection,
-            documentUri
         );
 
         if (!suggestionPanel) {
             vscode.window.showErrorMessage('Failed to open suggestion panel.');
             return;
         }
+
+        // Initialize value from extension to webview
+        suggestionPanel.webview.postMessage({
+            command: 'init',
+            wholeFileContent,
+            selection: selection ? {
+                start: { line: selection.start.line, character: selection.start.character },
+                end: { line: selection.end.line, character: selection.end.character }
+            } : null,
+            documentUri: documentUri?.toString() || null
+        });
 
         let accumulatedResponse = '';
 
