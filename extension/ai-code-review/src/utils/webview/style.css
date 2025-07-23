@@ -5,10 +5,6 @@ body {
     color: var(--vscode-editor-foreground, #d4d4d4); 
     background-color: var(--vscode-editor-background, #1e1e1e); 
 }
-
-h1, h2, h3 { 
-    color: var(--vscode-textLink-foreground, #79c0ff);
-}
 hr { 
     border: 1px solid var(--vscode-editorWidget-border, #444); 
     margin-top: 1em; 
@@ -45,16 +41,16 @@ button:disabled {
 #streaming-response-area {
     margin-bottom: 1rem; 
     padding: 0px 10px; 
-    background-color: var(--vscode-textBlockQuote-background, #252526); 
-    border-radius: 4px; 
+    /* background-color: var(--vscode-textBlockQuote-background, #252526);  */
     min-height: 50px;
-    border: 1px solid var(--vscode-editorWidget-border, #333)
+    /* border: 1px solid var(--vscode-editorWidget-border, #333) */
 }
 #streaming-response-area pre {
     background: var(--vscode-textBlockQuote-background, #2d2d2d); 
     padding: 1rem; 
     overflow-x: auto; 
     white-space: pre-wrap; 
+    border-radius: 0.5rem; 
 }
 #streaming-response-area code { 
     background-color: var(--vscode-textBlockQuote-background, #2d2d2d);

@@ -147,6 +147,15 @@ function buildMessagePayload(command) {
     };
 }
 
+console.log('hljs loaded:', typeof hljs !== 'undefined');
+
+marked.setOptions({
+    highlight: function (code, lang) {
+        const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return hljs.highlight(code, { language: validLang }).value;
+    }
+});
+
 window.addEventListener('message', event => {
     const message = event.data;
     switch (message.command) {
@@ -164,13 +173,21 @@ window.addEventListener('message', event => {
             const html = marked.parse(accumulatedRawResponse);
             streamingResponseArea.innerHTML = html;
 
+            hljs.highlightAll();
+
             setTimeout(() => {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            }, 0);
+            }, 0);            
 
             break;
         case 'aiStreamEnd':
             // processAndDisplayFinalResponse(message.fullResponse || accumulatedRawResponse);
+            extractedAISuggestedCode = extractImprovedCodeJS(message.fullResponse || accumulatedRawResponse);
+
+            if (extractedAISuggestedCode) { 
+                acceptButton.disabled = false;
+            }
+            rejectButton.disabled = false;
             break;
         case 'aiError':
             streamingResponseArea.textContent = 'Error: ' + message.error;
