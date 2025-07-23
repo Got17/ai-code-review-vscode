@@ -11,8 +11,11 @@
 				 style-src {{cspSource}} 'unsafe-inline'; 
 				 script-src 'nonce-{{nonce}}' {{cspSource}};">
 
-	<!-- External JS libraries -->
+	<!-- DiffJs library -->
 	<script src="{{diffJsSrc}}" nonce="{{nonce}}"></script>
+
+	<!-- MarkedJs library -->
+	<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" nonce="{{nonce}}"></script>
 
 	<!-- Local stylesheet -->
 	<link href="{{styleUri}}" rel="stylesheet" />
@@ -23,7 +26,9 @@
 		<div class="file-info">📄 File: {{fileName}}</div>
 		<hr>
 		
-		<div id="streaming-response-area" class="loading-text">🤖 AI is generating suggestion, please wait... (response will stream here)</div>
+		<div id="streaming-response-area">
+			<div class="loading-text">🤖 AI is generating suggestion, please wait... (response will stream here)</div>
+		</div>
 
 		<div id="final-response-display" style="display: none;">
 			<div id="summary-section" class="final-content-section">

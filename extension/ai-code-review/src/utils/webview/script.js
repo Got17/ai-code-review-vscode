@@ -161,13 +161,16 @@ window.addEventListener('message', event => {
                 streamingResponseArea.classList.remove('loading-text');
             }
             accumulatedRawResponse += message.chunk;
-            streamingResponseArea.textContent = accumulatedRawResponse;
+            const html = marked.parse(accumulatedRawResponse);
+            streamingResponseArea.innerHTML = html;
+
             setTimeout(() => {
                 window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             }, 0);
+
             break;
         case 'aiStreamEnd':
-            processAndDisplayFinalResponse(message.fullResponse || accumulatedRawResponse);
+            // processAndDisplayFinalResponse(message.fullResponse || accumulatedRawResponse);
             break;
         case 'aiError':
             streamingResponseArea.textContent = 'Error: ' + message.error;
