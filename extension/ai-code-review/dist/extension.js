@@ -5694,26 +5694,33 @@ async function clearUserPreferences(context, documentUri) {
   await handlePreferenceUpdateFlow("cleared", "None set.", context, documentUri);
 }
 async function handlePreferenceUpdateFlow(actionMessage, input, context, documentUri) {
-  if (input !== void 0) {
-    await context.globalState.update(PREFERENCES_KEY, input.trim());
-    const action = await vscode5.window.showInformationMessage(
-      `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`,
-      "Yes",
-      "No"
-    );
-    if (action === "Yes") {
-      if (documentUri) {
-        const doc = await vscode5.workspace.openTextDocument(vscode5.Uri.parse(documentUri));
-        await vscode5.window.showTextDocument(doc, {
-          preserveFocus: false,
-          viewColumn: vscode5.ViewColumn.One
-        });
-        vscode5.commands.executeCommand("extension.showSuggestion");
-      } else {
-        vscode5.window.showWarningMessage("No document URI found to reopen.");
-      }
-    }
+  if (input === void 0) {
+    return;
   }
+  await context.globalState.update(PREFERENCES_KEY, input.trim());
+  await promptAndRunShowSuggestionCommand(actionMessage, documentUri);
+}
+async function promptAndRunShowSuggestionCommand(actionMessage, documentUri) {
+  const userConfirmed = await showConfirmationPrompt(
+    `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`
+  );
+  if (!userConfirmed) {
+    return;
+  }
+  if (!documentUri) {
+    vscode5.window.showWarningMessage("No document URI found to reopen.");
+    return;
+  }
+  const doc = await vscode5.workspace.openTextDocument(vscode5.Uri.parse(documentUri));
+  await vscode5.window.showTextDocument(doc, {
+    preserveFocus: false,
+    viewColumn: vscode5.ViewColumn.One
+  });
+  await vscode5.commands.executeCommand("extension.showSuggestion");
+}
+async function showConfirmationPrompt(message, yesLabel = "Yes", noLabel = "No") {
+  const choice = await vscode5.window.showInformationMessage(message, yesLabel, noLabel);
+  return choice === yesLabel;
 }
 
 // src/utils/ai/promptBuilder.ts
@@ -5744,7 +5751,7 @@ INSTRUCTIONS:
 5. If removing code, be sure it's entirely unused.
 6. You MUST format your response as:
    - Summary of Issues (bullet list)
-   - Improved Code (entire file inside \`\`\`fsharp)
+   - Improved Code (entire file)
    - Explanation (bullet list)
 
 **Full File \`${fileLabel}\`:**
@@ -5817,6 +5824,7 @@ function handleWebviewMessage(panelInstance2) {
             await handleAccept(message, originalSelection, panelInstance2);
             break;
           case "reject":
+            vscode8.window.showInformationMessage("AI suggestion rejected.");
             panelInstance2.dispose();
             break;
           case "editPreferences":

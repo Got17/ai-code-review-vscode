@@ -4,49 +4,27 @@ This document captures daily or weekly development activities, decisions, and re
 
 ---
 
-## Template for Each Entry
-
-### [YYYY-MM-DD]
-**Tasks Completed:**
--
-
-**Design Decisions:**
--
-
-**Challenges:**
--
-
-**Solutions / Fixes:**
--
-
-**Next Steps / TODO:**
--
-
-**Reflections:**
--
-
----
-
-## Example
-
 ### [2025-07-24]
 **Tasks Completed:**
-- Created `rough-notes.md` from full commit history.
-- Set up daily log tracking format.
+- Refactored `handlePreferenceUpdateFlow` in `preferencesManager.ts` to separate confirmation logic.
+- Created a reusable `promptAndRunShowSuggestionCommand` and `showConfirmationPrompt` for cleaner preference handling.
+- Updated `promptBuilder.ts` to simplify AI instructions (removed redundant "entire file inside ```fsharp").
+- Improved rejection feedback UX by adding a confirmation message in `webviewMessageHandler.ts`.
 
 **Design Decisions:**
-- Using Markdown for all logs to keep versioned in Git.
+- Modularized confirmation and prompt execution to improve reusability and clarity.
+- Adjusted prompt wording for cleaner Markdown rendering and clearer AI behavior.
 
 **Challenges:**
-- None today, setup phase.
+- Wanted to make changes without breaking how things worked before.
 
 **Solutions / Fixes:**
-- N/A
+- Double-checked fallback logic and tested reject button message.
 
 **Next Steps / TODO:**
-- Start logging real implementation activity starting tomorrow.
-- Review recent `webviewContent.ts` changes for streaming compatibility.
+- Reuse the confirm message helper in other parts of the code.
+- Maybe move prompt text headers into constants.
 
 **Reflections:**
-- Writing summaries now helps make final thesis easier later.
-
+- Splitting big functions into smaller ones makes the code cleaner.
+- Small UI messages like "AI suggestion rejected." make the tool feel more responsive.

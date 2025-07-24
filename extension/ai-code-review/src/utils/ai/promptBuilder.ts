@@ -45,7 +45,7 @@ INSTRUCTIONS:
 5. If removing code, be sure it's entirely unused.
 6. You MUST format your response as:
    - Summary of Issues (bullet list)
-   - Improved Code (entire file inside \`\`\`fsharp)
+   - Improved Code (entire file)
    - Explanation (bullet list)
 
 **Full File \`${fileLabel}\`:**

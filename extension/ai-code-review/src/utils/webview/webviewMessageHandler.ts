@@ -16,8 +16,8 @@ export function handleWebviewMessage(
                     case 'accept':
                         await handleAccept(message, originalSelection, panelInstance);
                         break;
-
                     case 'reject':
+                        vscode.window.showInformationMessage('AI suggestion rejected.');
                         panelInstance.dispose();
                         break;
                     case 'editPreferences':

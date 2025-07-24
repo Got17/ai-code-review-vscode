@@ -35,27 +35,44 @@ export async function clearUserPreferences(context: vscode.ExtensionContext, doc
     await handlePreferenceUpdateFlow('cleared', 'None set.', context, documentUri);
 }
 
-async function handlePreferenceUpdateFlow(actionMessage: string, input: string | undefined, context: vscode.ExtensionContext, documentUri: string) {
-    if (input !== undefined) {
-        await context.globalState.update(PREFERENCES_KEY, input.trim());
-
-        const action = await vscode.window.showInformationMessage(
-            `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`,
-            'Yes',
-            'No'
-        );
-
-        if (action === 'Yes') {
-            if (documentUri) {
-                const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(documentUri));
-                await vscode.window.showTextDocument(doc, {
-                    preserveFocus: false,
-                    viewColumn: vscode.ViewColumn.One
-                });
-                vscode.commands.executeCommand('extension.showSuggestion');
-            } else {
-                vscode.window.showWarningMessage('No document URI found to reopen.');
-            }
-        }
+async function handlePreferenceUpdateFlow(
+    actionMessage: string, 
+    input: string | undefined, 
+    context: vscode.ExtensionContext, 
+    documentUri: string
+) {
+    if (input === undefined) {
+        return;
     }
+
+    await context.globalState.update(PREFERENCES_KEY, input.trim());
+    await promptAndRunShowSuggestionCommand(actionMessage, documentUri);
+}
+
+async function promptAndRunShowSuggestionCommand(actionMessage: string, documentUri: string) {
+    const userConfirmed = await showConfirmationPrompt(
+        `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`
+    );
+
+    if (!userConfirmed) {
+        return;
+    }
+
+    if (!documentUri) {
+        vscode.window.showWarningMessage('No document URI found to reopen.');
+        return;
+    }
+
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(documentUri));
+    await vscode.window.showTextDocument(doc, {
+        preserveFocus: false,
+        viewColumn: vscode.ViewColumn.One
+    });
+
+    await vscode.commands.executeCommand('extension.showSuggestion');
+}
+
+async function showConfirmationPrompt(message: string, yesLabel = 'Yes', noLabel = 'No'): Promise<boolean> {
+    const choice = await vscode.window.showInformationMessage(message, yesLabel, noLabel);
+    return choice === yesLabel;
 }
