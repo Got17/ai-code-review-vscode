@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { AI_API, AI_MODEL } from "../constants";
 
-export async function* queryAIStream(prompt: string) {
+export async function* queryAIStream(suggestionPanel: vscode.WebviewPanel, prompt: string) {
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 120_000); //120s
@@ -32,7 +32,7 @@ export async function* queryAIStream(prompt: string) {
 		yield* streamResponseChunks(response.body);
 
 	} catch (error: any) {
-        handleStreamError(error);
+        handleStreamError(suggestionPanel, error);
     }
 }
 
@@ -42,26 +42,24 @@ async function handleAPIError(response: Response) {
 	vscode.window.showErrorMessage('AI Server Error');
 }
 
-function handleStreamError(error: any) {
+function handleStreamError(suggestionPanel: vscode.WebviewPanel, error: any) {
 	if (error.name === 'AbortError') {
 		console.error('AI request timed out.');
 		vscode.window.showErrorMessage('AI request timed out.');
 	} else if (error instanceof TypeError && error.message.includes('fetch failed')) {
 		console.error('Failed to connect to the AI server. Is the Ollama server running?');
 		vscode.window.showErrorMessage('Failed to connect to AI. Make sure Ollama is running.', {modal: true});
-		// vscode.window.showErrorMessage(
-		// 	'Failed to connect to AI. Make sure Ollama is running.',
-		// 	{ modal: true },
-		// 	'View Setup Instructions'
-		// ).then(selection => {
-		// 	if (selection === 'View Setup Instructions') {
-		// 		vscode.env.openExternal(vscode.Uri.parse('https://ollama.com/docs')); 
-		// 	}
-		// });
+		suggestionPanel.webview.postMessage({
+			command: 'aiError',
+			error: 'Failed to connect to AI',
+		});
 	}
 	else {
 		console.error('Failed to query AI:', error);
-		vscode.window.showErrorMessage('Failed to query AI');
+		suggestionPanel.webview.postMessage({
+			command: 'aiError',
+			error: 'Failed to query AI',
+		});
 	}
 }
 

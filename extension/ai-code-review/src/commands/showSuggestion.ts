@@ -82,7 +82,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
 
         // Stream AI suggestions
         try {
-            for await (const chunk of queryAIStream(prompt)) {
+            for await (const chunk of queryAIStream(suggestionPanel, prompt)) {
                 accumulatedResponse += chunk;
                 suggestionPanel.webview.postMessage({
                     command: 'aiChunk',

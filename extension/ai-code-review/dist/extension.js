@@ -5545,7 +5545,7 @@ var AI_MODEL = "qwen2.5-coder:7b-instruct";
 var AI_API = "http://localhost:11434/api/generate";
 
 // src/utils/ai/aiClient.ts
-async function* queryAIStream(prompt) {
+async function* queryAIStream(suggestionPanel, prompt) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12e4);
@@ -5570,7 +5570,7 @@ async function* queryAIStream(prompt) {
     }
     yield* streamResponseChunks(response.body);
   } catch (error) {
-    handleStreamError(error);
+    handleStreamError(suggestionPanel, error);
   }
 }
 async function handleAPIError(response) {
@@ -5578,16 +5578,23 @@ async function handleAPIError(response) {
   console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
   vscode3.window.showErrorMessage("AI Server Error");
 }
-function handleStreamError(error) {
+function handleStreamError(suggestionPanel, error) {
   if (error.name === "AbortError") {
     console.error("AI request timed out.");
     vscode3.window.showErrorMessage("AI request timed out.");
   } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
     console.error("Failed to connect to the AI server. Is the Ollama server running?");
     vscode3.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to connect to AI"
+    });
   } else {
     console.error("Failed to query AI:", error);
-    vscode3.window.showErrorMessage("Failed to query AI");
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to query AI"
+    });
   }
 }
 async function* streamResponseChunks(body) {
@@ -5953,7 +5960,7 @@ function registerShowSuggestion(context) {
     });
     let accumulatedResponse = "";
     try {
-      for await (const chunk of queryAIStream(prompt)) {
+      for await (const chunk of queryAIStream(suggestionPanel, prompt)) {
         accumulatedResponse += chunk;
         suggestionPanel.webview.postMessage({
           command: "aiChunk",

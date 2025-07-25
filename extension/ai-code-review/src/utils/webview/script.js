@@ -14,8 +14,7 @@ const rejectButton = document.getElementById('reject-button');
 const editPrefsButton =  document.getElementById('edit-preference-button');
 const clearPrefsButton = document.getElementById('clear-preference-button');
 
-let extractedAISuggestedCode = null; 
-let finalAccumulatedResponseForLog = '';
+let extractedAISuggestedCode = null;
 
 let jsOriginalWholeFileContent = null;
 let jsCurrentSelection = null;
@@ -40,102 +39,68 @@ function extractImprovedCodeJS(aiFullResponse) {
     return null;
 }
 
-function basicMarkdownToHtml(text) {
-    if (text === null || text === undefined) {return '';}
-    let html = text;
+function highlightDiffFSharp(diffText) {
+    const hasHljs = typeof hljs !== 'undefined';
+    return diffText.split('\n').map(line => {
+        const prefix = line[0] || ' ';
+        const content = line.slice(1);
+        let className = '';
+        // eslint-disable-next-line curly
+        if (prefix === '+') className = 'hljs-addition';
+        // eslint-disable-next-line curly
+        else if (prefix === '-') className = 'hljs-deletion';
 
-    // 1. Escape basic HTML entities
-    html = html.replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
+        let innerHtml;
+        if (hasHljs && hljs.getLanguage('fsharp')) {
+            innerHtml = hljs.highlight(content, { language: 'fsharp' }).value;
+        } else {
+            innerHtml = content.replace(/&/g, '&amp;')
+                               .replace(/</g, '&lt;')
+                               .replace(/>/g, '&gt;');
+        }
 
-    // 2. Bold: **text** -> <strong>text</strong>
-    html = html.replace(/\*\*?(.*?)\*\*?/g, '<strong>$1</strong>');
-
-    // 3. Inline code: \`code\` -> <code>code</code>
-    html = html.replace(/\`([^\`]+?)\`/g, '<code>$1</code>');
-    
-    // 4. Newlines to <br> for paragraph-like breaks
-    html = html.replace(/\n/g, '<br>');
-
-    return html;
+        return `<span class="${className}">${prefix}${innerHtml}</span>`;
+    }).join('\n');
 }
 
-function processAndDisplayFinalResponse(fullResponse) {
-    streamingResponseArea.style.display = 'none'; 
-    finalResponseDisplay.style.display = 'block'; 
+function generateDiffHtml(originalCode, improvedCode) {
+    const normalizedOriginal = (originalCode || '').replace(/\r\n/g, '\n');
+    const normalizedAISuggestion = (improvedCode || '').replace(/\r\n/g, '\n');
 
-    finalAccumulatedResponseForLog = fullResponse; 
-    extractedAISuggestedCode = extractImprovedCodeJS(fullResponse);
+    const canShowDiff = typeof Diff !== 'undefined' && Diff.diffLines;
 
-    const canShowDiff = typeof Diff !== 'undefined' && Diff.diffLines && extractedAISuggestedCode !== null && jsOriginalWholeFileContent !== null;
-
-    if (canShowDiff) {
-        const normalizedOriginal = jsOriginalWholeFileContent.replace(/\r\n/g, '\n');
-        const normalizedAISuggestion = extractedAISuggestedCode.replace(/\r\n/g, '\n');
-    
-        const changes = Diff.diffLines(normalizedOriginal, normalizedAISuggestion);
-
-        const fragment = document.createDocumentFragment();
-
-        changes.forEach((part) => {
-            const partPre = document.createElement('pre');
-            let prefix = '';
-            if (part.added) {
-                partPre.className = 'diff-added';
-                prefix = '+ ';
-            } else if (part.removed) {
-                partPre.className = 'diff-removed';
-                prefix = '- ';
-            } else {
-                partPre.className = 'diff-common';
-                prefix = '  '; 
-            }
-
-            const lines = String(part.value).split('\n');
-            if (lines.length > 0 && lines[lines.length - 1] === '') {
-                lines.pop();
-            }
-            if (lines.length === 0 && part.value === '\n') { 
-                lines.push(''); 
-            }
-            if (lines.length === 0 && !part.value) { 
-                return;
-            }
-            lines.forEach(line => {
-                const lineTextNode = document.createTextNode(prefix + line + '\n'); 
-                partPre.appendChild(lineTextNode);
-            });
-            fragment.appendChild(partPre);
-        });
-        diffViewArea.innerHTML = ''; 
-        diffViewArea.appendChild(fragment);
-        improvedCodeDisplaySection.style.display = 'none';
-    } else {
-        console.warn("Diff library (jsdiff) not found, or original/AI code missing. Showing raw improved code.");
-        improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
-        improvedCodeDisplaySection.style.display = 'block';
-    }
-
-    const summaryRegex = /(?:^|\n)#*\**\s*Summary of Issues\b.*?(?:\r?\n)+([\s\S]*?)(?=\n#*\**\s*(Improved Code|Explanation)|$)/i;
-    const explanationRegex = /(?:^|\n)#*\**\s*Explanation\b.*?(?:\r?\n)+([\s\S]*?)(?=\n#*\**\s*\w+|$)/i;
-
-    const summaryMatch = fullResponse.match(summaryRegex);
-    const explanationMatch = fullResponse.match(explanationRegex); 
-
-    const rawSummaryText = (summaryMatch && summaryMatch[1]) ? summaryMatch[1].trim() : 'Summary not found.';
-    const rawExplanationText = (explanationMatch && explanationMatch[1]) ? explanationMatch[1].trim() : 'Explanation not found.';
-
-    summaryContentRenderedEl.innerHTML = basicMarkdownToHtml(rawSummaryText);
-    explanationContentRenderedEl.innerHTML = basicMarkdownToHtml(rawExplanationText);
-    
     if (!canShowDiff) {
-        improvedCodeContentEl.textContent = extractedAISuggestedCode || 'Improved code not found.';
+        return;
     }
-    if (extractedAISuggestedCode) { 
-        acceptButton.disabled = false;
-    }
-    rejectButton.disabled = false;
+
+    const diff = Diff.diffLines(normalizedOriginal, normalizedAISuggestion);
+    console.log('generateDiffHtml diff:', diff);
+    const diffText = diff.map(part => {
+        const prefix = part.added ? '+ ' : part.removed ? '- ' : '  ';
+
+        const lines = String(part.value).split('\n');
+        if (lines.length > 0 && lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+        if (lines.length === 0 && part.value === '\n') { 
+            lines.push(''); 
+        }
+        if (lines.length === 0 && !part.value) { 
+            return;
+        }
+
+        return lines.map(line => prefix + line).join('\n');
+    }).join('\n');
+
+    console.log('generateDiffHtml diffText:', diffText);
+
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.className = 'language-diff-fsharp hljs';
+    code.dataset.highlighted = 'yes';
+    code.innerHTML = highlightDiffFSharp(diffText);
+    pre.appendChild(code);
+    return pre;
 }
 
 function buildMessagePayload(command) {
@@ -151,7 +116,11 @@ console.log('hljs loaded:', typeof hljs !== 'undefined');
 
 marked.setOptions({
     highlight: function (code, lang) {
-        const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
+        console.log('highlight lang:', lang);
+        if (lang && lang.toLowerCase() === 'diff:fsharp') {
+            return highlightDiffFSharp(code);
+        }
+        const validLang = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
         return hljs.highlight(code, { language: validLang }).value;
     }
 });
@@ -170,6 +139,7 @@ window.addEventListener('message', event => {
                 streamingResponseArea.classList.remove('loading-text');
             }
             accumulatedRawResponse += message.chunk;
+            
             const html = marked.parse(accumulatedRawResponse);
             streamingResponseArea.innerHTML = html;
 
@@ -181,13 +151,22 @@ window.addEventListener('message', event => {
 
             break;
         case 'aiStreamEnd':
-            // processAndDisplayFinalResponse(message.fullResponse || accumulatedRawResponse);
             extractedAISuggestedCode = extractImprovedCodeJS(message.fullResponse || accumulatedRawResponse);
 
-            if (extractedAISuggestedCode) { 
-                acceptButton.disabled = false;
+            const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
+            const improvedCode = extractedAISuggestedCode || '';
+
+            // Build and insert our diff:fsharp block
+            const diffBlock = generateDiffHtml(jsOriginalWholeFileContent || '', improvedCode);
+            if (improvedCodeElement && improvedCodeElement.parentElement) {
+                improvedCodeElement.parentElement.insertAdjacentElement('afterend', diffBlock);
+                improvedCodeElement.parentElement.remove();
             }
+
+            // eslint-disable-next-line curly
+            if (extractedAISuggestedCode) acceptButton.disabled = false;
             rejectButton.disabled = false;
+            renderPreferenceSection();
             break;
         case 'aiError':
             streamingResponseArea.textContent = 'Error: ' + message.error;
