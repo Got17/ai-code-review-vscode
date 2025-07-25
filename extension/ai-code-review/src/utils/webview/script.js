@@ -1,106 +1,25 @@
 const vscode = acquireVsCodeApi();
-let accumulatedRawResponse = '';
-const streamingResponseArea = document.getElementById('streaming-response-area');
-const finalResponseDisplay = document.getElementById('final-response-display');
 
-const summaryContentRenderedEl = document.getElementById('summary-content');
-const improvedCodeContentEl = document.getElementById('improved-code-content');
-const explanationContentRenderedEl = document.getElementById('explanation-content');
-const diffViewArea = document.getElementById('diff-view-area');
-const improvedCodeDisplaySection = document.getElementById('improved-code-section');
+// === DOM ELEMENTS ===
+const streamingResponseArea = document.getElementById('streaming-response-area');
 
 const acceptButton = document.getElementById('accept-button');
 const rejectButton = document.getElementById('reject-button');
-const editPrefsButton =  document.getElementById('edit-preference-button');
-const clearPrefsButton = document.getElementById('clear-preference-button');
 
+// === STATE ===
+let accumulatedRawResponse = '';
 let extractedAISuggestedCode = null;
 
 let jsOriginalWholeFileContent = null;
 let jsCurrentSelection = null;
 let jsCurrentDocumentUri = null;
+let jsUserPreferences = null;
 
-function extractImprovedCodeJS(aiFullResponse) {
-    if (!aiFullResponse) {return null;}
-    const improvedCodeRegex = /(?:[\s\S].*?)?```fsharp\n([\s\S]*?)\n(?:[\s\S].*?)?```/im;
-
-    const match = aiFullResponse.match(improvedCodeRegex);
-    if (match && match[1]) {
-        return match[1].trim();
-    }
-    
-    console.warn("Main regex failed in JS. Trying simpler fallback for Improved Code block.");
-    const simplerCodeBlockRegex = /```fsharp\n([\s\S]*?)\n```/i;
-    const simplerMatch = aiFullResponse.match(simplerCodeBlockRegex);
-    if (simplerMatch && simplerMatch[1]) {
-        return simplerMatch[1].trim();
-    }
-    console.error("JS: Could not find the 'Improved Code' F# block even with fallback.");
-    return null;
-}
-
-function highlightDiffFSharp(diffText) {
-    const hasHljs = typeof hljs !== 'undefined';
-    return diffText.split('\n').map(line => {
-        const prefix = line[0] || ' ';
-        const content = line.slice(1);
-        let className = '';
-        // eslint-disable-next-line curly
-        if (prefix === '+') className = 'hljs-addition';
-        // eslint-disable-next-line curly
-        else if (prefix === '-') className = 'hljs-deletion';
-
-        let innerHtml;
-        if (hasHljs && hljs.getLanguage('fsharp')) {
-            innerHtml = hljs.highlight(content, { language: 'fsharp' }).value;
-        } else {
-            innerHtml = content.replace(/&/g, '&amp;')
-                               .replace(/</g, '&lt;')
-                               .replace(/>/g, '&gt;');
-        }
-
-        return `<span class="${className}">${prefix}${innerHtml}</span>`;
-    }).join('\n');
-}
-
-function generateDiffHtml(originalCode, improvedCode) {
-    const normalizedOriginal = (originalCode || '').replace(/\r\n/g, '\n');
-    const normalizedAISuggestion = (improvedCode || '').replace(/\r\n/g, '\n');
-
-    const canShowDiff = typeof Diff !== 'undefined' && Diff.diffLines;
-
-    if (!canShowDiff) {
-        return;
-    }
-
-    const diff = Diff.diffLines(normalizedOriginal, normalizedAISuggestion);
-    console.log('generateDiffHtml diff:', diff);
-    const diffText = diff.map(part => {
-        const prefix = part.added ? '+ ' : part.removed ? '- ' : '  ';
-
-        const lines = String(part.value).split('\n');
-        if (lines.length > 0 && lines[lines.length - 1] === '') {
-            lines.pop();
-        }
-        if (lines.length === 0 && part.value === '\n') { 
-            lines.push(''); 
-        }
-        if (lines.length === 0 && !part.value) { 
-            return;
-        }
-
-        return lines.map(line => prefix + line).join('\n');
-    }).join('\n');
-
-    console.log('generateDiffHtml diffText:', diffText);
-
-    const pre = document.createElement('pre');
-    const code = document.createElement('code');
-    code.className = 'language-diff-fsharp hljs';
-    code.dataset.highlighted = 'yes';
-    code.innerHTML = highlightDiffFSharp(diffText);
-    pre.appendChild(code);
-    return pre;
+// === UTILS ===
+function escapeHtml(content) {
+    return content.replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;');
 }
 
 function buildMessagePayload(command) {
@@ -112,53 +31,139 @@ function buildMessagePayload(command) {
     };
 }
 
+function scrollToBottom() {
+    setTimeout(() => {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 0);
+}
+
+function createButton({ id, text, title, onClick }) {
+    const btn = document.createElement("button");
+    btn.id = id;
+    btn.textContent = text;
+    btn.title = title;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
+// === CODE EXTRACTION & DIFF ===
+function extractImprovedCode(aiResponse) {
+    // eslint-disable-next-line curly
+    if (!aiResponse) return null;
+
+    const regex = /(?:[\s\S].*?)?```fsharp\n([\s\S]*?)\n(?:[\s\S].*?)?```/im;
+    const fallback = /```fsharp\n([\s\S]*?)\n```/i;
+
+    const match = aiResponse.match(regex) || aiResponse.match(fallback);
+    return match?.[1]?.trim() ?? null;
+}
+
+function highlightDiffFSharp(diffText) {
+    const hasHljs = typeof hljs !== 'undefined';
+
+    return diffText.split('\n').map(line => {
+        const prefix = line[0] || ' ';
+        const content = line.slice(1);
+        const className = prefix === '+' ? 'hljs-addition' : prefix === '-' ? 'hljs-deletion' : '';
+        const innerHtml = hasHljs && hljs.getLanguage('fsharp')
+            ? hljs.highlight(content, { language: 'fsharp' }).value
+            : escapeHtml(content);
+
+        return `<span class="${className}">${prefix}${innerHtml}</span>`;
+    }).join('\n');
+}
+
+function generateDiffHtml(originalCode, improvedCode) {
+    const o = (originalCode || '').replace(/\r\n/g, '\n');
+    const i = (improvedCode || '').replace(/\r\n/g, '\n');
+
+    // eslint-disable-next-line curly
+    if (typeof Diff === 'undefined' || !Diff.diffLines) return;
+
+    const diff = Diff.diffLines(o, i);
+    const diffText = diff.map(part => {
+        const prefix = part.added ? '+ ' : part.removed ? '- ' : '  ';
+        const lines = part.value.split('\n').filter((l, i, arr) => i !== arr.length - 1 || l !== '');
+        return lines.map(line => prefix + line).join('\n');
+    }).join('\n');
+
+    const pre = document.createElement('pre');
+    const code = document.createElement('code');
+    code.className = 'language-diff-fsharp hljs';
+    code.dataset.highlighted = 'yes';
+    code.innerHTML = highlightDiffFSharp(diffText);
+    pre.appendChild(code);
+    return pre;
+}
+
+// === RENDERING ===
+function renderPreferenceSection() {
+    const header = document.createElement("h3");
+    header.textContent = "Active AI Preferences:";
+
+    const detail = document.createElement("pre");
+    detail.id = "user-preference";
+    detail.textContent = `${jsUserPreferences}`;
+
+    const editButton = createButton({
+        id: "edit-preference-button",
+        text: "✏️ Edit Preferences",
+        title: "Edit AI Preferences",
+        onClick: () => vscode.postMessage(buildMessagePayload('editPreferences'))
+    });
+
+    const clearButton = createButton({
+        id: "clear-preference-button",
+        text: "🧹 Clear Preferences",
+        title: "Clear AI Preferences",
+        onClick: () => vscode.postMessage(buildMessagePayload('clearPreferences'))
+    });
+
+    streamingResponseArea.append(header, detail, editButton, clearButton);
+}
+
+function renderMarkdownChunk(chunk) {
+    streamingResponseArea.innerHTML = marked.parse(chunk);
+    hljs.highlightAll();
+    scrollToBottom();
+}
+
+// === MARKDOWN OPTIONS ===
 console.log('hljs loaded:', typeof hljs !== 'undefined');
 
 marked.setOptions({
     highlight: function (code, lang) {
-        console.log('highlight lang:', lang);
-        if (lang && lang.toLowerCase() === 'diff:fsharp') {
-            return highlightDiffFSharp(code);
-        }
-        const validLang = (lang && hljs.getLanguage(lang)) ? lang : 'plaintext';
-        return hljs.highlight(code, { language: validLang }).value;
+        const isDiffFSharp = lang && lang.toLowerCase() === 'diff:fsharp';
+        const validLang = hljs.getLanguage(lang) ? lang : 'plaintext';
+        return isDiffFSharp ? highlightDiffFSharp(code) : hljs.highlight(code, { language: validLang }).value;
     }
 });
 
+// === EVENT LISTENER ===
 window.addEventListener('message', event => {
     const message = event.data;
+
     switch (message.command) {
         case 'init':
-			jsOriginalWholeFileContent = message.wholeFileContent;
-			jsCurrentSelection = message.selection;
-			jsCurrentDocumentUri = message.documentUri;
-			break;
-        case 'aiChunk':
-            if (streamingResponseArea.classList.contains('loading-text')) {
-                streamingResponseArea.textContent = ''; 
-                streamingResponseArea.classList.remove('loading-text');
-            }
-            accumulatedRawResponse += message.chunk;
-            
-            const html = marked.parse(accumulatedRawResponse);
-            streamingResponseArea.innerHTML = html;
-
-            hljs.highlightAll();
-
-            setTimeout(() => {
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-            }, 0);            
-
+            jsOriginalWholeFileContent = message.wholeFileContent;
+            jsCurrentSelection = message.selection;
+            jsCurrentDocumentUri = message.documentUri;
+            jsUserPreferences = message.userPreferences;
             break;
+
+        case 'aiChunk':
+            accumulatedRawResponse += message.chunk;
+            renderMarkdownChunk(accumulatedRawResponse);
+            break;
+
         case 'aiStreamEnd':
-            extractedAISuggestedCode = extractImprovedCodeJS(message.fullResponse || accumulatedRawResponse);
+            extractedAISuggestedCode = extractImprovedCode(message.fullResponse || accumulatedRawResponse);
 
-            const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
             const improvedCode = extractedAISuggestedCode || '';
+            const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
 
-            // Build and insert our diff:fsharp block
-            const diffBlock = generateDiffHtml(jsOriginalWholeFileContent || '', improvedCode);
-            if (improvedCodeElement && improvedCodeElement.parentElement) {
+            const diffBlock = generateDiffHtml(jsOriginalWholeFileContent, improvedCode);
+            if (improvedCodeElement?.parentElement && diffBlock) {
                 improvedCodeElement.parentElement.insertAdjacentElement('afterend', diffBlock);
                 improvedCodeElement.parentElement.remove();
             }
@@ -168,39 +173,28 @@ window.addEventListener('message', event => {
             rejectButton.disabled = false;
             renderPreferenceSection();
             break;
+
         case 'aiError':
             streamingResponseArea.textContent = 'Error: ' + message.error;
             streamingResponseArea.classList.remove('loading-text');
             streamingResponseArea.style.color = 'red';
             rejectButton.disabled = false;
             break;
+
         default:
             console.warn(`Unhandled command received in webview: ${message.command}`);
-            break;
     }
 });
 
-// Handle Accept Button Click
+// === BUTTONS ===
 acceptButton.addEventListener('click', () => {
-    if (extractedAISuggestedCode === null) {
+    if (!extractedAISuggestedCode) {
         alert('Error: No improved code available to apply.');
         return;
     }
-
     vscode.postMessage(buildMessagePayload('accept'));
 });
 
-// Handle Reject Button Click
 rejectButton.addEventListener('click', () => {
     vscode.postMessage(buildMessagePayload('reject'));
-});
-
-// Handle Preference Button Click
-editPrefsButton.addEventListener('click', () => {
-    vscode.postMessage(buildMessagePayload('editPreferences'));
-});
-
-// Handle Clear Preference Button Click
-clearPrefsButton.addEventListener('click', () => {
-    vscode.postMessage(buildMessagePayload('clearPreferences'));
 });

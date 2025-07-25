@@ -5949,6 +5949,7 @@ function registerShowSuggestion(context) {
       vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
+    const userPreferences = await getUserPreferences(context);
     suggestionPanel.webview.postMessage({
       command: "init",
       wholeFileContent,
@@ -5956,7 +5957,8 @@ function registerShowSuggestion(context) {
         start: { line: selection.start.line, character: selection.start.character },
         end: { line: selection.end.line, character: selection.end.character }
       } : null,
-      documentUri: documentUri?.toString() || null
+      documentUri: documentUri?.toString() || null,
+      userPreferences
     });
     let accumulatedResponse = "";
     try {
