@@ -13,7 +13,17 @@ export function getWebviewContent(
 	const htmlPath = vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'index.html');
 	let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
 
+	// DiffJs Library URI
 	const diffJsSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'diff.min.js'));
+
+	// MarkedJs Library URI
+	const markedJsSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'marked.min.js'));
+
+	// HighlightJs Library URI
+	const githubDarkStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs', 'github-dark.min.css'));
+	const highlightJsSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs', 'highlight.min.js'));
+	const fSharpSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs', 'fsharp.min.js'));
+
 	const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'style.css'));
 	const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'script.js'));
 
@@ -23,6 +33,10 @@ export function getWebviewContent(
 		.replace('{{styleUri}}', cssUri.toString())
 		.replace('{{scriptUri}}', jsUri.toString())
 		.replace('{{diffJsSrc}}', diffJsSrcUri.toString())
+		.replace('{{markedJsSrc}}', markedJsSrcUri.toString())
+		.replace('{{githubDarkStyle}}', githubDarkStyleUri.toString())
+		.replace('{{highlightJsSrc}}', highlightJsSrcUri.toString())
+		.replace('{{fSharpSrc}}', fSharpSrcUri.toString())
 		.replace(/{{cspSource}}/g, webview.cspSource)
 		.replace(/{{nonce}}/g, nonce);
 

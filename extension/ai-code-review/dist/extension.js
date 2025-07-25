@@ -5545,7 +5545,7 @@ var AI_MODEL = "qwen2.5-coder:7b-instruct";
 var AI_API = "http://localhost:11434/api/generate";
 
 // src/utils/ai/aiClient.ts
-async function* queryAIStream(prompt) {
+async function* queryAIStream(suggestionPanel, prompt) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12e4);
@@ -5570,7 +5570,7 @@ async function* queryAIStream(prompt) {
     }
     yield* streamResponseChunks(response.body);
   } catch (error) {
-    handleStreamError(error);
+    handleStreamError(suggestionPanel, error);
   }
 }
 async function handleAPIError(response) {
@@ -5578,16 +5578,23 @@ async function handleAPIError(response) {
   console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
   vscode3.window.showErrorMessage("AI Server Error");
 }
-function handleStreamError(error) {
+function handleStreamError(suggestionPanel, error) {
   if (error.name === "AbortError") {
     console.error("AI request timed out.");
     vscode3.window.showErrorMessage("AI request timed out.");
   } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
     console.error("Failed to connect to the AI server. Is the Ollama server running?");
     vscode3.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to connect to AI"
+    });
   } else {
     console.error("Failed to query AI:", error);
-    vscode3.window.showErrorMessage("Failed to query AI");
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to query AI"
+    });
   }
 }
 async function* streamResponseChunks(body) {
@@ -5800,9 +5807,13 @@ function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
   const htmlPath = vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
   let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
   const diffJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
+  const markedJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
+  const githubDarkStyleUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
+  const highlightJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
+  const fSharpSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
   const cssUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
   const jsUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
-  htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
+  htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
   return htmlContent;
 }
 function escapeHtml(raw) {
@@ -5882,6 +5893,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
       retainContextWhenHidden: true,
       localResourceRoots: [
         vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
         vscode9.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
       ]
     }
@@ -5945,6 +5957,7 @@ function registerShowSuggestion(context) {
       vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
+    const userPreferences = await getUserPreferences(context);
     suggestionPanel.webview.postMessage({
       command: "init",
       wholeFileContent,
@@ -5952,11 +5965,12 @@ function registerShowSuggestion(context) {
         start: { line: selection.start.line, character: selection.start.character },
         end: { line: selection.end.line, character: selection.end.character }
       } : null,
-      documentUri: documentUri?.toString() || null
+      documentUri: documentUri?.toString() || null,
+      userPreferences
     });
     let accumulatedResponse = "";
     try {
-      for await (const chunk of queryAIStream(prompt)) {
+      for await (const chunk of queryAIStream(suggestionPanel, prompt)) {
         accumulatedResponse += chunk;
         suggestionPanel.webview.postMessage({
           command: "aiChunk",

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { queryAIStream, buildPrompt } from '../utils/ai';
+import { queryAIStream, buildPrompt, getUserPreferences } from '../utils/ai';
 import { getGitClient } from '../utils/git';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 
@@ -67,6 +67,8 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             return;
         }
 
+        const userPreferences = await getUserPreferences(context);
+
         // Initialize value from extension to webview
         suggestionPanel.webview.postMessage({
             command: 'init',
@@ -75,14 +77,15 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
                 start: { line: selection.start.line, character: selection.start.character },
                 end: { line: selection.end.line, character: selection.end.character }
             } : null,
-            documentUri: documentUri?.toString() || null
+            documentUri: documentUri?.toString() || null,
+            userPreferences
         });
 
         let accumulatedResponse = '';
 
         // Stream AI suggestions
         try {
-            for await (const chunk of queryAIStream(prompt)) {
+            for await (const chunk of queryAIStream(suggestionPanel, prompt)) {
                 accumulatedResponse += chunk;
                 suggestionPanel.webview.postMessage({
                     command: 'aiChunk',

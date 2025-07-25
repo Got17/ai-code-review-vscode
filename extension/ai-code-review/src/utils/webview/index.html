@@ -11,8 +11,18 @@
 				 style-src {{cspSource}} 'unsafe-inline'; 
 				 script-src 'nonce-{{nonce}}' {{cspSource}};">
 
-	<!-- External JS libraries -->
+	<!-- DiffJs library -->
 	<script src="{{diffJsSrc}}" nonce="{{nonce}}"></script>
+
+	<!-- MarkedJs library -->
+	<script src="{{markedJsSrc}}" nonce="{{nonce}}"></script>
+
+	<!-- highlight.js core -->
+	<link rel="stylesheet" href="{{githubDarkStyle}}"/>
+	<script src="{{highlightJsSrc}}" nonce="{{nonce}}"></script>
+
+	<!-- Load F# language -->
+	<script src="{{fSharpSrc}}" nonce="{{nonce}}"></script>
 
 	<!-- Local stylesheet -->
 	<link href="{{styleUri}}" rel="stylesheet" />
@@ -23,31 +33,8 @@
 		<div class="file-info">📄 File: {{fileName}}</div>
 		<hr>
 		
-		<div id="streaming-response-area" class="loading-text">🤖 AI is generating suggestion, please wait... (response will stream here)</div>
-
-		<div id="final-response-display" style="display: none;">
-			<div id="summary-section" class="final-content-section">
-				<h2>1. Summary of Issues:</h2>
-				<div id="summary-content" class="markdown-content"></div>
-			</div>
-			<div id="improved-code-section" class="final-content-section" style="display: none;">
-				<h2>2. Improved Code (Full File):</h2>
-				<pre><code id="improved-code-content"></code></pre>
-			</div>
-			<div id="diff-view-section" class="final-content-section">
-				<h2>2. Improved Code (Full File with Diff):</h2>
-				<div id="diff-view-area" class="diff-output"></div>
-			</div>
-			<div id="explanation-section" class="final-content-section">
-				<h2>3. Explanation:</h2>
-				<div id="explanation-content" class="markdown-content"></div>
-			</div>
-			<div id="preferences-display" class="final-content-section" style="margin-top: 1.5em;">
-				<h2>4. Active AI Preferences:</h2>
-				<pre id="user-preference">{{userPreferences}}</pre>
-				<button title="Edit AI Preferences" id="edit-preference-button">✏️ Edit Preferences</button>
-				<button title="Clear AI Preferences" id="clear-preference-button">🧹 Clear Preferences</button>
-			</div>
+		<div id="streaming-response-area">
+			<div class="loading-text">🤖 AI is generating suggestion, please wait... (response will stream here)</div>
 		</div>
 
 		<div class="buttons">

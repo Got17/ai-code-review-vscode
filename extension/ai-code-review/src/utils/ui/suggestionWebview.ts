@@ -32,6 +32,7 @@ export async function showSuggestionWebview(
 			retainContextWhenHidden: true,
 			localResourceRoots: [
 				vscode.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+				vscode.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs'),
 				vscode.Uri.joinPath(context.extensionUri, 'src', 'utils', 'webview')
 			]
 		}
