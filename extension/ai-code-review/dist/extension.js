@@ -5757,9 +5757,9 @@ INSTRUCTIONS:
 4. Avoid unnecessary renames unless the user's preferences ask for it.
 5. If removing code, be sure it's entirely unused.
 6. You MUST format your response as:
-   - Summary of Issues (bullet list)
-   - Improved Code (entire file)
-   - Explanation (bullet list)
+   - ### Summary of Issues (bullet list)
+   - ### Improved Code (entire file)
+   - ### Explanation (bullet list)
 
 **Full File \`${fileLabel}\`:**
 \`\`\`fsharp
