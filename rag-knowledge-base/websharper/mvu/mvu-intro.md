@@ -1,0 +1,454 @@
+---
+title: Introduction
+---
+
+WebSharper.Mvu provides an [Elm](https://guide.elm-lang.org/architecture/)-inspired MVU (Model-View-Update) architecture for WebSharper client-side applications.
+
+It is based on [WebSharper.UI](../ui/html) for its reactivity and HTML rendering.
+
+## The MVU architecture
+
+Model-View-Update is an application architecture that aims to make the behavior and state of GUIs clear and predictable.
+
+The state of the application is stored as a single **Model**, which is an immutable value (generally a record).
+
+This is rendered by a **View**, which defines how the model is transformed into DOM elements. (Although in WebSharper.Mvu we tend to use the term **Render** instead, to avoid confusion with the WebSharper.UI `View` type.)
+
+Finally, all changes to the model are applied by a pure **Update** function (also called reducer by some frameworks like Redux), which takes messages sent by the view and applies changes accordingly.
+
+## Differences with other MVU libraries
+
+The main point that differentiates WebSharper.Mvu from other MVU libraries is the way the render function works.
+
+In most MVU libraries, the view function directly takes a Model value as argument. It is called every time the model changes, and returns a new representation of the rendered document every time. This new representation is then applied to the DOM by a diffing DOM library such as React.
+
+In contrast, in WebSharper.Mvu, the render function takes a WebSharper.UI `View<Model>` as argument. It is called only once, and it is this `View` that changes every time the model is updated. This helps make more explicit which parts of the rendered document are static and which parts are reactive.
+
+See the [WebSharper.UI reactive programming](../ui/reactive) for more information on how to use `View`.
+
+## How to create an MVU application
+
+Follow these steps to get started with a simple component/application:
+* Define a `Model` type that represents the state of your component/application. Usually, this is a record type with fields for each piece of state you want to keep track of.
+* Define a `Message` (sometimes also called Action) type that represents the actions that can be performed on the model. Usually, this is a discriminated union type with one case for each action.
+* Write an `Update` function with the signature `(msg: Message) -> (model: Model) -> option<Model>`. This function takes a message and the current model, and returns a new model if any change is made. Return `None` if no change is made, which leads to less unnecessary re-rendering.
+* Write a `Render` function with the signature `(dispatch: Message -> unit) -> (state: View<Model>) -> Doc`. You can create the UI based on the `View` and use the `dispatch` function to send messages through the updater. The return type is not fixed, you can also bind to the page directly and return `unit`.
+* Tie it together with `App.CreateSimple initModel Update Render |> App.Run`, where `initModel` is the initial state of your component/application.
+
+We will see more advanced features later.
+
+### Composability
+
+Bigger WebSharper.Mvu applications are built from smaller components, each with its own model, update function, and render function. This allows you to compose complex applications from simpler parts.
+For example, you can have a `Counter` component with its own model and update function, and then use it in a larger application.
+
+Here is an example of an application that implements a simple counter:
+
+F# code
+```fsharp
+namespace Counter
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Html
+open WebSharper.UI.Client
+open WebSharper.Mvu
+ 
+[<JavaScript>]
+module Counter =
+    
+    type Model = { Counter : int }
+    
+    type Message = Increment | Decrement
+    
+    let Update (msg: Message) (model: Model) =
+        match msg with
+        | Increment -> { model with Counter = model.Counter + 1 }
+        | Decrement -> { model with Counter = model.Counter - 1 }
+        
+    let Render (dispatch: Dispatch<Message>) (model: View<Model>) =
+        div [] [
+            button [on.click (fun _ _ -> dispatch Decrement)] [text "-"]
+            span [] [text (sprintf " %i " model.V.Counter)]
+            button [on.click (fun _ _ -> dispatch Increment)] [text "+"]
+        ]
+ 
+    [<SPAEntryPoint>]
+    let Main =
+        App.CreateSimple { Counter = 0 } Update Render
+        |> App.Run
+        |> Doc.RunById "main"
+```
+
+`index.html` code
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Counter</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="text/javascript" src="Scripts/Counter.head.js"></script>
+</head>
+<body>
+    <div id="main">
+    </div>
+    <script type="module" src="Scripts/Counter.min.js"></script>
+</body>
+</html>
+```
+
+You can iterate on this example to create a list of counters that operate independently, each with its own state:
+
+F# code
+```fsharp
+namespace CounterList
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Html
+open WebSharper.UI.Client
+open WebSharper.Mvu
+ 
+/// The same Counter module as in http://try.websharper.com/snippet/loic.denuziere/0000Kf
+/// with a single change -- an extra Id field on the model.
+[<JavaScript>]
+module Counter =
+    
+    type Model = { Id : int; Counter : int }
+    
+    let IdOf m = m.Id
+    
+    type Message = Increment | Decrement
+    
+    let Update (msg: Message) (model: Model) =
+        match msg with
+        | Increment -> { model with Counter = model.Counter + 1 }
+        | Decrement -> { model with Counter = model.Counter - 1 }
+        
+    let Render (dispatch: Dispatch<Message>) (model: View<Model>) =
+        div [] [
+            button [on.click (fun _ _ -> dispatch Decrement)] [text "-"]
+            span [] [text (sprintf " %i " model.V.Counter)]
+            button [on.click (fun _ _ -> dispatch Increment)] [text "+"]
+        ]
+ 
+[<JavaScript>]
+module CountersApp =
+    
+    type Model = { Counters : list<Counter.Model> }
+    
+    type Message =
+        | CounterMessage of int * Counter.Message
+        
+    let Update (msg: Message) (model: Model) =
+        match msg with
+        | CounterMessage (i, msg) ->
+            let updatedCounters =
+                model.Counters |> List.map (fun c ->
+                    if c.Id = i then Counter.Update msg c else c)
+            { model with Counters = updatedCounters }
+ 
+    let Render (dispatch: Dispatch<Message>) (model: View<Model>) =
+        let counters = V(model.V.Counters)
+        div [] [
+            // DocSeqCached renders a sequence of models.
+            // The first argument is a key function used to identify each item
+            // and reuse its already rendered view when the list changes.
+            counters.DocSeqCached(Counter.IdOf, fun id vCounter ->
+                let dispatch1 m = dispatch (CounterMessage (id, m))
+                p [] [
+                    text (sprintf "Counter #%i:" id)
+                    Counter.Render dispatch1 vCounter
+                ]
+            )
+        ]
+ 
+    [<SPAEntryPoint>]
+    let Main =
+        let initModel = { Counters = List.init 10 (fun i -> { Id = i+1; Counter = 0 }) }
+        App.CreateSimple initModel Update Render
+        |> App.Run
+        |> Doc.RunById "main"
+```
+
+`index.html` code
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>CounterList</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script type="text/javascript" src="Scripts/CounterList.head.js"></script>
+</head>
+<body>
+    <div id="main">
+    </div>
+    <script type="module" src="Scripts/CounterList.min.js"></script>
+</body>
+</html> 
+```
+
+### Advanced Update functions
+
+`App.Create` is more powerful than `App.CreateSimple`.
+It allows you to define a more complex update function that can decide on how to update the model with more available options by returning an `Action<'Message, 'Model>`.
+This type is a discriminated union with cases:
+* `DoNothing`:  Does nothing, it is useful to avoid unnecessary re-rendering.
+* `SetModel of 'Model`: Sets the model to a new value, replacing the current model.
+* `UpdateModel of ('Model -> 'Model)`: Updates the model by applying a function to it, this is useful when you are chaining multiple updates with `CombinedAction`.
+* `Command of (Dispatch<'Message> -> unit)`: Executes a command that can send messages to the update function. This enables recursive updates.
+* `CommandAsync of (Dispatch<'Message> -> Async<unit>)`: Executes an asynchronous command that can send messages to the update function. This is useful for handling asynchronous operations such as HTTP requests.
+* `CombinedAction of list<Action<'Message, 'Model>>`: Combines multiple actions into one. Note that a `CommandAsync` will not be awaited, only started.
+
+## Features of WebSharper.Mvu
+
+WebSharper.Mvu provides a number of features on top of this architecture.
+
+### Automatic local storage
+
+WebSharper.Mvu can automatically save the model to the local storage on every change. This allows you to keep the same application state across page refreshes, which is very useful for debugging.
+
+This is done by adding a single line to your app declaration:
+
+```fsharp
+App.Create initialModel update render
+|> App.WithLocalStorage "key"
+|> App.Run
+```
+
+If you want to use _both_ local storage and Redux DevTools integration, you must add `App.WithLocalStorage` _before_ `App.WithReduxDevTools`.
+
+### Paging
+
+The `Page` type makes it easy to write "multi-page SPAs": applications that are entirely client-side but still logically divided into different pages. It handles parameterized pages and allows using CSS transitions between pages. Pages can specify their DOM behavior, such as keeping elements around to allow for smoother transitions.
+
+Here is a small application that demonstrates this.
+
+F# code
+```fsharp
+namespace Paging
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Client
+open WebSharper.UI.Html
+open WebSharper.Mvu
+ 
+[<JavaScript>]
+module Client =
+ 
+    type EndPoint =
+        | Home
+        | EditEntry of string
+ 
+    type Model =
+        {
+            EndPoint : EndPoint
+            Entries : Map<string, string>
+            Input : string
+        }
+ 
+    type Message =
+        | Goto of EndPoint
+        | SetEntry of string * string
+        | RemoveEntry of string
+ 
+    let Update (message: Message) (model: Model) =
+        match message with
+        | SetEntry (k, v) ->
+            { model with Entries = Map.add k v model.Entries }
+        | RemoveEntry k ->
+            { model with
+                Entries = Map.remove k model.Entries
+                EndPoint =
+                    match model.EndPoint with
+                    | EditEntry k' when k = k' -> Home
+                    | ep -> ep
+            }
+        | Goto ep ->
+            { model with EndPoint = ep }
+ 
+    module Pages =
+ 
+        let Home = Page.Single(attrs = [Attr.Class "home-page"], usesTransition = true, render = fun dispatch model ->
+            let inp = Elt.input [Attr.Class "input"] []
+            Doc.Concat [
+                div [Attr.Class "section"] [
+                    div [Attr.Class "field has-addons"] [
+                        div [Attr.Class "control"] [inp]
+                        div [Attr.Class "control"] [
+                            button [
+                                Attr.Class "button"
+                                on.click (fun _ _ -> dispatch (Goto (EndPoint.EditEntry inp.Value)))
+                            ] [text "Add/edit entry"]
+                        ]
+                    ]
+                ]
+                table [Attr.Class "table is-fullwidth"] [
+                    V(model.V.Entries).DocSeqCached(fun key value ->
+                        tr [] [
+                            th [] [text key]
+                            td [] [text value.V]
+                            td [] [
+                                div [Attr.Class "buttons has-addons"] [
+                                    button [
+                                        Attr.Class "button is-small"
+                                        on.click (fun _ _ -> dispatch (Goto (EndPoint.EditEntry key)))
+                                    ] [text "Edit"]
+                                    button [
+                                        Attr.Class "button is-small"
+                                        on.click (fun _ _ -> dispatch (RemoveEntry key))
+                                    ] [text "Remove"]
+                                ]
+                            ]
+                        ])
+                ]
+            ])
+ 
+        let EditEntry = Page.Create(attrs = [Attr.Class "entry-page"], usesTransition = true, render = fun key dispatch model ->
+            let value = V(Map.tryFind key model.V.Entries |> Option.defaultValue "")
+            let var = Var.Make value (fun v -> dispatch (SetEntry (key, v)))
+            div [Attr.Class "section"] [
+                label [Attr.Class "label"] [text ("Editing value for key: " + key)]
+                div [Attr.Class "field has-addons"] [
+                    div [Attr.Class "control"] [Doc.Input [Attr.Class "input"] var]
+                    div [Attr.Class "control"] [
+                        button [
+                            Attr.Class "button"
+                            on.click (fun _ _ -> dispatch (Goto EndPoint.Home))
+                        ] [text "Ok"]
+                    ]
+                    div [Attr.Class "control"] [
+                        button [
+                            Attr.Class "button"
+                            on.click (fun _ _ -> dispatch (RemoveEntry key))
+                        ] [text "Remove"]
+                    ]
+                ]
+            ])
+ 
+    let Render mdl =
+        match mdl.EndPoint with
+        | EndPoint.Home -> Pages.Home ()
+        | EndPoint.EditEntry key -> Pages.EditEntry key
+ 
+    let InitModel =
+        {
+            EndPoint = EndPoint.Home
+            Entries = Map.empty
+            Input = ""
+        }
+ 
+    [<SPAEntryPoint>]
+    let Main =
+        App.CreateSimplePaged InitModel Update Render
+        |> App.WithLocalStorage "mvu-tests"
+        |> App.Run
+        |> Doc.RunById "main"
+```
+
+`index.html` code
+```html
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Paging</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.0/css/bulma.min.css" />
+    <link rel="stylesheet" type="text/css" href="Scripts/Paging.css" />
+    <style>
+        .hidden {
+            display: none;
+        }
+ 
+        .ws-page-container {
+            position: absolute !important;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+ 
+        .home-page {
+            transition: opacity 0.2s;
+        }
+ 
+            .home-page[aria-hidden=true] {
+                opacity: 0;
+                transition: opacity 0.2s, left 0.2s step-end;
+            }
+ 
+        .entry-page {
+            transition: left 0.2s;
+            background: white;
+        }
+ 
+            .entry-page[aria-hidden=true] {
+                left: 100% !important;
+            }
+    </style>
+    <script type="text/javascript" src="Scripts/Paging.head.js"></script>
+</head>
+<body>
+    <div id="main">
+    </div>
+    <script type="module" src="Scripts/Paging.min.js"></script>
+</body>
+</html>
+```
+
+Create a paged application by using `App.CreatePaged` or `App.CreateSimplePaged`. They are constrained in only that the `Render` function must return a `Page` value.  
+
+The pages are created as singleton values. This is important so that the MVU framework can keep track of renderings and reuse them when the page is revisited.
+Page identity is will also determine when to apply transition animations if you add css for it.
+
+The example uses css classes `home-page` and `entry-page` and to create the transition effect when switching between the two pages. Switch to the HTML tab to see the CSS code.
+
+Create pages by one of the following methods:
+* `Page.Single`: A single instance of the page is created lazily, the first time it's needed then reused.
+* `Page.Create`: An instance of the page is created for each different endpoint value, and reused when the endpoint is the same.
+* `Page.Reactive`: Takes a function that reduces an endpoint to a key value, a single instance of the page is created for each key value, and reused when the key is the same.
+
+Optional parameters:
+* `attrs`: extra attributes to apply to the page wrapping `div`.
+* `keepInDom`: if `true`, the page will not be removed from the DOM when it is not active (only hidden), allowing for smoother transitions. This is useful for pages that have expensive initializations or animations.
+* `usesTransition`: if `true`, uses a `transitionEnd` event handler instead of removing the page instantly when navigating away from it. This allows setting up CSS transitions for the page, but it's not done automatically by the `Page` helper.
+
+### Routing
+
+The page's URL can be easily bound to the application model. The URL scheme is declared using a [WebSharper router](../core/routing), and the parsed endpoint value is stored as a field in the model.
+
+Routing and paging work nicely together, but neither requires the other.
+Routing is implemented by adding a single line to your app declaration:
+
+```fsharp
+type EndPoint = // ...
+
+type Model = { EndPoint : EndPoint; (* ... *) }
+
+let app = App.Create initModel update render
+App.WithRouting (Router.Infer<EndPoint>()) (fun model -> model.EndPoint) app
+|> App.Run
+```
+
+This will automatically update the URL when the model changes, and parse the URL to update the model when the page is loaded.
+
+`App.WithRouting` uses the `getRoute` function to extract the endpoint from the model, and automatically infers the inverse to update the model from the route.
+If you want to specify both the `getRoute` and `setRoute` functions, use `App.WithCustomRouting`.
+
+### Setup actions 
+
+To start running some application logic automatically on startup, you can use `WithInitMessage` or `WithInitAction`. This will execute the given message or action when the application starts, before the first render.
+
+### Logging and debugging
+
+Use `App.WithLog` to set up a logging function that will be called with every message sent to the update function. This is useful for debugging and understanding the flow of messages in your application.
+
+Use `App.WithReduxDevTools` to integrate with the [Redux DevTools](mvu/devtools) for debugging. This allows you to inspect the state of your application, replay actions, and time travel through the history of your application.
