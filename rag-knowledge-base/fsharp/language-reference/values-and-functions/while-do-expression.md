@@ -1,0 +1,43 @@
+# Loops: while...do Expression
+The `while...do` expression is used to perform iterative execution (looping) while a specified test condition is true.
+
+## Syntax
+```fsharp
+while test-expression do
+    body-expression
+```
+
+## Remarks
+The _test-expression_ is evaluated; if it is `true`, the _body-expression_ is executed and the test expression is evaluated again. The _body-expression_ must have type `unit`. If the test expression is `false`, the iteration ends.
+
+The following example illustrates the use of the `while...do` expression.
+
+```fsharp
+open System
+
+let lookForValue value maxValue =
+  let mutable continueLooping = true
+  let randomNumberGenerator = new Random()
+  while continueLooping do
+    // Generate a random number between 1 and maxValue.
+    let rand = randomNumberGenerator.Next(maxValue)
+    printf "%d " rand
+    if rand = value then
+       printfn "\nFound a %d!" value
+       continueLooping <- false
+
+lookForValue 10 20
+```
+
+The output of the previous code is a stream of random numbers between 1 and 20, the last of which is 10.
+
+```console
+13 19 8 18 16 2 10
+Found a 10!
+```
+
+Note
+
+You can use `while...do` in sequence expressions and other computation expressions, in which case a customized version of the `while...do` expression is used. For more information, see [Sequences](sequences), [Async expressions](async-expressions), [Task expressions](task-expressions), and [Computation Expressions](computation-expressions).
+
+> Reference: https://learn.microsoft.com/en-us/dotnet/fsharp/language-reference/loops-while-do-expression
