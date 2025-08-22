@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getUserPreferences } from './preferencesManager';
+import { getRagContext } from './ragContext';
 
 export async function buildPrompt(
 	selectedCode: string,
@@ -8,6 +9,7 @@ export async function buildPrompt(
 	selectionRange: vscode.Selection,
   	context: vscode.ExtensionContext
 ) {
+	console.log('getRagContext',getRagContext);
 	const fileLabel = fileName || 'current file';
 	const selectionInfo = selectionRange
 		? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.`
