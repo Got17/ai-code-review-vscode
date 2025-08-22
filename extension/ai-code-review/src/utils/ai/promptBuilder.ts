@@ -8,8 +8,7 @@ export async function buildPrompt(
 	fileName: string,
 	selectionRange: vscode.Selection,
   	context: vscode.ExtensionContext
-) {
-	console.log('getRagContext',getRagContext);
+) {	
 	const fileLabel = fileName || 'current file';
 	const selectionInfo = selectionRange
 		? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.`
@@ -23,7 +22,31 @@ ${userPreferences || 'No preferences set.'}
 ---
 `;
 
-	return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+	const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+	let finalPrompt = originalPrompt;
+
+	try {
+		const ragCtx = await getRagContext(context, originalPrompt, 5);
+		console.log('[RAG] ctx length:', ragCtx?.length ?? 0);
+		console.log('[RAG] ctx preview:', (ragCtx || '').slice(0, 160));
+
+		if (ragCtx && ragCtx.trim().length > 0) {
+		finalPrompt =
+`You are an AI assistant for F# and WebSharper code review.
+Use ONLY the context below where applicable.
+
+RAG CONTEXT:
+${ragCtx}
+
+=== ORIGINAL TASK ===
+${originalPrompt}`;
+		}
+	} catch (e) {
+		console.warn('[RAG] disabled or failed:', e);
+	}
+
+  	return finalPrompt;
+
 }
 
 function generatePromptTemplate(

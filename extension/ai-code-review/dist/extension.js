@@ -827,10 +827,10 @@ var require_src2 = __commonJS({
     var fs_1 = require("fs");
     var debug_1 = __importDefault(require_src());
     var log = debug_1.default("@kwsites/file-exists");
-    function check(path2, isFile, isDirectory) {
-      log(`checking %s`, path2);
+    function check(path, isFile, isDirectory) {
+      log(`checking %s`, path);
       try {
-        const stat = fs_1.statSync(path2);
+        const stat = fs_1.statSync(path);
         if (stat.isFile() && isFile) {
           log(`[OK] path represents a file`);
           return true;
@@ -850,8 +850,8 @@ var require_src2 = __commonJS({
         throw e;
       }
     }
-    function exists2(path2, type = exports2.READABLE) {
-      return check(path2, (type & exports2.FILE) > 0, (type & exports2.FOLDER) > 0);
+    function exists2(path, type = exports2.READABLE) {
+      return check(path, (type & exports2.FILE) > 0, (type & exports2.FOLDER) > 0);
     }
     exports2.exists = exists2;
     exports2.FILE = 1;
@@ -2240,11 +2240,11 @@ var require_process = __commonJS({
 var require_filesystem = __commonJS({
   "node_modules/detect-libc/lib/filesystem.js"(exports2, module2) {
     "use strict";
-    var fs3 = require("fs");
+    var fs2 = require("fs");
     var LDD_PATH = "/usr/bin/ldd";
-    var readFileSync2 = (path2) => fs3.readFileSync(path2, "utf-8");
-    var readFile = (path2) => new Promise((resolve, reject) => {
-      fs3.readFile(path2, "utf-8", (err, data) => {
+    var readFileSync2 = (path) => fs2.readFileSync(path, "utf-8");
+    var readFile = (path) => new Promise((resolve, reject) => {
+      fs2.readFile(path, "utf-8", (err, data) => {
         if (err) {
           reject(err);
         } else {
@@ -4055,18 +4055,18 @@ var require_sharp = __commonJS({
       `@img/sharp-${runtimePlatform}/sharp.node`,
       "@img/sharp-wasm32/sharp.node"
     ];
-    var path2;
+    var path;
     var sharp;
     var errors = [];
-    for (path2 of paths) {
+    for (path of paths) {
       try {
-        sharp = require(path2);
+        sharp = require(path);
         break;
       } catch (err) {
         errors.push(err);
       }
     }
-    if (sharp && path2.startsWith("@img/sharp-linux-x64") && !sharp._isUsingX64V2()) {
+    if (sharp && path.startsWith("@img/sharp-linux-x64") && !sharp._isUsingX64V2()) {
       const err = new Error("Prebuilt binaries for linux-x64 require v2 microarchitecture");
       err.code = "Unsupported CPU";
       errors.push(err);
@@ -6939,15 +6939,15 @@ var require_route = __commonJS({
       };
     }
     function wrapConversion(toModel, graph) {
-      const path2 = [graph[toModel].parent, toModel];
+      const path = [graph[toModel].parent, toModel];
       let fn = conversions[graph[toModel].parent][toModel];
       let cur = graph[toModel].parent;
       while (graph[cur].parent) {
-        path2.unshift(graph[cur].parent);
+        path.unshift(graph[cur].parent);
         fn = link(conversions[graph[cur].parent][cur], fn);
         cur = graph[cur].parent;
       }
-      fn.conversion = path2;
+      fn.conversion = path;
       return fn;
     }
     module2.exports = function(fromModel) {
@@ -7571,7 +7571,7 @@ var require_channel = __commonJS({
 var require_output = __commonJS({
   "node_modules/sharp/lib/output.js"(exports2, module2) {
     "use strict";
-    var path2 = require("node:path");
+    var path = require("node:path");
     var is = require_is();
     var sharp = require_sharp();
     var formats = /* @__PURE__ */ new Map([
@@ -7602,9 +7602,9 @@ var require_output = __commonJS({
       let err;
       if (!is.string(fileOut)) {
         err = new Error("Missing output file path");
-      } else if (is.string(this.options.input.file) && path2.resolve(this.options.input.file) === path2.resolve(fileOut)) {
+      } else if (is.string(this.options.input.file) && path.resolve(this.options.input.file) === path.resolve(fileOut)) {
         err = new Error("Cannot use same file for input and output");
-      } else if (jp2Regex.test(path2.extname(fileOut)) && !this.constructor.format.jp2k.output.file) {
+      } else if (jp2Regex.test(path.extname(fileOut)) && !this.constructor.format.jp2k.output.file) {
         err = errJp2Save();
       }
       if (err) {
@@ -18273,11 +18273,11 @@ var init_transformers_node = __esm({
                 throw new Error(`The number of external data chunks (${num_chunks}) exceeds the maximum allowed value (${_utils_hub_js__WEBPACK_IMPORTED_MODULE_5__.MAX_EXTERNAL_DATA_CHUNKS}).`);
               }
               for (let i = 0; i < num_chunks; ++i) {
-                const path2 = `${baseName}_data${i === 0 ? "" : "_" + i}`;
-                const fullPath = `${options.subfolder ?? ""}/${path2}`;
+                const path = `${baseName}_data${i === 0 ? "" : "_" + i}`;
+                const fullPath = `${options.subfolder ?? ""}/${path}`;
                 externalDataPromises.push(new Promise(async (resolve, reject) => {
                   const data = await (0, _utils_hub_js__WEBPACK_IMPORTED_MODULE_5__.getModelFile)(pretrained_model_name_or_path, fullPath, true, options, return_path);
-                  resolve(data instanceof Uint8Array ? { path: path2, data } : path2);
+                  resolve(data instanceof Uint8Array ? { path, data } : path);
                 }));
               }
             } else if (session_options.externalData !== void 0) {
@@ -35544,7 +35544,7 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
              * Save the audio to a wav file.
              * @param {string} path
              */
-            async save(path2) {
+            async save(path) {
               let fn;
               if (_env_js__WEBPACK_IMPORTED_MODULE_3__.apis.IS_BROWSER_ENV) {
                 if (_env_js__WEBPACK_IMPORTED_MODULE_3__.apis.IS_WEBWORKER_ENV) {
@@ -35552,14 +35552,14 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
                 }
                 fn = _core_js__WEBPACK_IMPORTED_MODULE_2__.saveBlob;
               } else if (_env_js__WEBPACK_IMPORTED_MODULE_3__.apis.IS_FS_AVAILABLE) {
-                fn = async (path3, blob) => {
+                fn = async (path2, blob) => {
                   let buffer = await blob.arrayBuffer();
-                  node_fs__WEBPACK_IMPORTED_MODULE_5__["default"].writeFileSync(path3, Buffer.from(buffer));
+                  node_fs__WEBPACK_IMPORTED_MODULE_5__["default"].writeFileSync(path2, Buffer.from(buffer));
                 };
               } else {
                 throw new Error("Unable to save because filesystem is disabled in this environment.");
               }
-              await fn(path2, this.toBlob());
+              await fn(path, this.toBlob());
             }
           }
         })
@@ -35752,11 +35752,11 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
           function calculateReflectOffset(i, w) {
             return Math.abs((i + w) % (2 * w) - w);
           }
-          function saveBlob(path2, blob) {
+          function saveBlob(path, blob) {
             const dataURL = URL.createObjectURL(blob);
             const downloadLink = document.createElement("a");
             downloadLink.href = dataURL;
-            downloadLink.download = path2;
+            downloadLink.download = path;
             downloadLink.click();
             downloadLink.remove();
             URL.revokeObjectURL(dataURL);
@@ -36701,8 +36701,8 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
              * Instantiate a `FileCache` object.
              * @param {string} path
              */
-            constructor(path2) {
-              this.path = path2;
+            constructor(path) {
+              this.path = path;
             }
             /**
              * Checks whether the given request is in the cache.
@@ -37665,20 +37665,20 @@ ${fake_token_around_image}${global_img_token}` + image_token.repeat(image_seq_le
              * Save the image to the given path.
              * @param {string} path The path to save the image to.
              */
-            async save(path2) {
+            async save(path) {
               if (IS_BROWSER_OR_WEBWORKER) {
                 if (_env_js__WEBPACK_IMPORTED_MODULE_2__.apis.IS_WEBWORKER_ENV) {
                   throw new Error("Unable to save an image from a Web Worker.");
                 }
-                const extension = path2.split(".").pop().toLowerCase();
+                const extension = path.split(".").pop().toLowerCase();
                 const mime = CONTENT_TYPE_MAP.get(extension) ?? "image/png";
                 const blob = await this.toBlob(mime);
-                (0, _core_js__WEBPACK_IMPORTED_MODULE_0__.saveBlob)(path2, blob);
+                (0, _core_js__WEBPACK_IMPORTED_MODULE_0__.saveBlob)(path, blob);
               } else if (!_env_js__WEBPACK_IMPORTED_MODULE_2__.apis.IS_FS_AVAILABLE) {
                 throw new Error("Unable to save the image because filesystem is disabled in this environment.");
               } else {
                 const img = this.toSharp();
-                return await img.toFile(path2);
+                return await img.toFile(path);
               }
             }
             toSharp() {
@@ -45002,8 +45002,8 @@ function pathspec(...paths) {
   cache.set(key, paths);
   return key;
 }
-function isPathSpec(path2) {
-  return path2 instanceof String && cache.has(path2);
+function isPathSpec(path) {
+  return path instanceof String && cache.has(path);
 }
 function toPaths(pathSpec) {
   return cache.get(pathSpec) || [];
@@ -45092,8 +45092,8 @@ function toLinesWithContent(input = "", trimmed2 = true, separator = "\n") {
 function forEachLineWithContent(input, callback) {
   return toLinesWithContent(input, true).map((line) => callback(line));
 }
-function folderExists(path2) {
-  return (0, import_file_exists.exists)(path2, import_file_exists.FOLDER);
+function folderExists(path) {
+  return (0, import_file_exists.exists)(path, import_file_exists.FOLDER);
 }
 function append(target, item) {
   if (Array.isArray(target)) {
@@ -45491,8 +45491,8 @@ function checkIsRepoRootTask() {
     commands: commands7,
     format: "utf-8",
     onError,
-    parser(path2) {
-      return /^\.(git)?$/.test(path2.trim());
+    parser(path) {
+      return /^\.(git)?$/.test(path.trim());
     }
   };
 }
@@ -45926,11 +45926,11 @@ function parseGrep(grep) {
   const paths = /* @__PURE__ */ new Set();
   const results = {};
   forEachLineWithContent(grep, (input) => {
-    const [path2, line, preview] = input.split(NULL);
-    paths.add(path2);
-    (results[path2] = results[path2] || []).push({
+    const [path, line, preview] = input.split(NULL);
+    paths.add(path);
+    (results[path] = results[path] || []).push({
       line: asNumber(line),
-      path: path2,
+      path,
       preview
     });
   });
@@ -46691,14 +46691,14 @@ var init_hash_object = __esm2({
     init_task();
   }
 });
-function parseInit(bare, path2, text) {
+function parseInit(bare, path, text) {
   const response = String(text).trim();
   let result;
   if (result = initResponseRegex.exec(response)) {
-    return new InitSummary(bare, path2, false, result[1]);
+    return new InitSummary(bare, path, false, result[1]);
   }
   if (result = reInitResponseRegex.exec(response)) {
-    return new InitSummary(bare, path2, true, result[1]);
+    return new InitSummary(bare, path, true, result[1]);
   }
   let gitDir = "";
   const tokens = response.split(" ");
@@ -46709,7 +46709,7 @@ function parseInit(bare, path2, text) {
       break;
     }
   }
-  return new InitSummary(bare, path2, /^re/i.test(response), gitDir);
+  return new InitSummary(bare, path, /^re/i.test(response), gitDir);
 }
 var InitSummary;
 var initResponseRegex;
@@ -46718,9 +46718,9 @@ var init_InitSummary = __esm2({
   "src/lib/responses/InitSummary.ts"() {
     "use strict";
     InitSummary = class {
-      constructor(bare, path2, existing, gitDir) {
+      constructor(bare, path, existing, gitDir) {
         this.bare = bare;
-        this.path = path2;
+        this.path = path;
         this.existing = existing;
         this.gitDir = gitDir;
       }
@@ -46732,7 +46732,7 @@ var init_InitSummary = __esm2({
 function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
-function initTask(bare = false, path2, customArgs) {
+function initTask(bare = false, path, customArgs) {
   const commands7 = ["init", ...customArgs];
   if (bare && !hasBareCommand(commands7)) {
     commands7.splice(1, 0, bareCommand);
@@ -46741,7 +46741,7 @@ function initTask(bare = false, path2, customArgs) {
     commands: commands7,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands7.includes("--bare"), path2, text);
+      return parseInit(commands7.includes("--bare"), path, text);
     }
   };
 }
@@ -47557,12 +47557,12 @@ var init_FileStatusSummary = __esm2({
     "use strict";
     fromPathRegex = /^(.+)\0(.+)$/;
     FileStatusSummary = class {
-      constructor(path2, index, working_dir) {
-        this.path = path2;
+      constructor(path, index, working_dir) {
+        this.path = path;
         this.index = index;
         this.working_dir = working_dir;
         if (index === "R" || working_dir === "R") {
-          const detail = fromPathRegex.exec(path2) || [null, path2, path2];
+          const detail = fromPathRegex.exec(path) || [null, path, path];
           this.from = detail[2] || "";
           this.path = detail[1] || "";
         }
@@ -47593,14 +47593,14 @@ function splitLine(result, lineStr) {
     default:
       return;
   }
-  function data(index, workingDir, path2) {
+  function data(index, workingDir, path) {
     const raw = `${index}${workingDir}`;
     const handler = parsers6.get(raw);
     if (handler) {
-      handler(result, path2);
+      handler(result, path);
     }
     if (raw !== "##" && raw !== "!!") {
-      result.files.push(new FileStatusSummary(path2, index, workingDir));
+      result.files.push(new FileStatusSummary(path, index, workingDir));
     }
   }
 }
@@ -47912,9 +47912,9 @@ var init_simple_git_api = __esm2({
           next
         );
       }
-      hashObject(path2, write) {
+      hashObject(path, write) {
         return this._runTask(
-          hashObjectTask(path2, write === true),
+          hashObjectTask(path, write === true),
           trailingFunctionArgument(arguments)
         );
       }
@@ -48568,8 +48568,8 @@ __export2(sub_module_exports, {
   subModuleTask: () => subModuleTask,
   updateSubModuleTask: () => updateSubModuleTask
 });
-function addSubModuleTask(repo, path2) {
-  return subModuleTask(["add", repo, path2]);
+function addSubModuleTask(repo, path) {
+  return subModuleTask(["add", repo, path]);
 }
 function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
@@ -48899,8 +48899,8 @@ var require_git = __commonJS2({
       }
       return this._runTask(straightThroughStringTask2(command, this._trimmed), next);
     };
-    Git2.prototype.submoduleAdd = function(repo, path2, then) {
-      return this._runTask(addSubModuleTask2(repo, path2), trailingFunctionArgument2(arguments));
+    Git2.prototype.submoduleAdd = function(repo, path, then) {
+      return this._runTask(addSubModuleTask2(repo, path), trailingFunctionArgument2(arguments));
     };
     Git2.prototype.submoduleUpdate = function(args, then) {
       return this._runTask(
@@ -49542,7 +49542,7 @@ Unstaged: ${notStaged.length}`
 }
 
 // src/commands/showSuggestion.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/utils/ai/aiClient.ts
 var vscode3 = __toESM(require("vscode"));
@@ -49739,37 +49739,29 @@ async function showConfirmationPrompt(message, yesLabel = "Yes", noLabel = "No")
 }
 
 // src/utils/ai/ragContext.ts
-var import_promises = __toESM(require("node:fs/promises"));
-var import_node_path = __toESM(require("node:path"));
+var vscode6 = __toESM(require("vscode"));
 var import_node_module = require("node:module");
 var requireCJS = (0, import_node_module.createRequire)(__filename);
 var { IndexFlatIP } = requireCJS("faiss-node");
-var ART = "rag_artifacts";
 var MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-var TOP_K = 5;
-async function loadTransformers() {
+async function loadTransformers(ctx) {
   const mod = await Promise.resolve().then(() => (init_transformers_node(), transformers_node_exports));
-  mod.env.localModelPath = "./models/";
-  mod.env.allowRemoteModels = true;
-  return { pipeline: mod.pipeline, env: mod.env };
+  mod.env.localModelPath = vscode6.Uri.joinPath(ctx.extensionUri, "models").fsPath;
+  mod.env.allowRemoteModels = false;
+  return { pipeline: mod.pipeline };
 }
-async function loadArtifacts() {
-  const indexPath = import_node_path.default.join(ART, "kb.index");
-  const metaPath = import_node_path.default.join(ART, "metadata.json");
-  const meta = JSON.parse(await import_promises.default.readFile(metaPath, "utf8"));
-  const index = IndexFlatIP.read(indexPath);
+async function loadArtifacts(ctx) {
+  const artDir = vscode6.Uri.joinPath(ctx.extensionUri, "resources", "rag-artifacts");
+  const indexFsPath = vscode6.Uri.joinPath(artDir, "kb.index").fsPath;
+  const metaUri = vscode6.Uri.joinPath(artDir, "metadata.json");
+  const metaBytes = await vscode6.workspace.fs.readFile(metaUri);
+  const meta = JSON.parse(Buffer.from(metaBytes).toString("utf8"));
+  const index = IndexFlatIP.read(indexFsPath);
   return { index, meta };
 }
 async function embed(question, extractor) {
   const out = await extractor([question], { pooling: "mean", normalize: false });
-  let vec;
-  if (Array.isArray(out)) {
-    vec = out[0].data;
-  } else {
-    const dims = out.dims ?? [1, out.data.length];
-    const d = dims[1] ?? out.data.length;
-    vec = out.data.subarray(0, d);
-  }
+  const vec = Array.isArray(out) ? out[0].data : out.data.subarray(0, out.dims?.[1] ?? out.data.length);
   let s = 0;
   for (let i = 0; i < vec.length; i++) {
     s += vec[i] * vec[i];
@@ -49781,7 +49773,7 @@ async function embed(question, extractor) {
   }
   return normed;
 }
-function retrieve(_question, index, meta, qvec, k = TOP_K) {
+function retrieve(_question, index, meta, qvec, k = 5) {
   const dim = index.getDimension();
   const nTotal = index.ntotal();
   if (dim !== qvec.length) {
@@ -49791,28 +49783,32 @@ function retrieve(_question, index, meta, qvec, k = TOP_K) {
     throw new Error(`FAISS ntotal != meta.length: ${nTotal} != ${meta.length}`);
   }
   const { distances, labels } = index.search(Array.from(qvec), Math.min(k, meta.length));
-  const hits = labels.map((lbl, i) => ({ lbl, score: distances[i] })).filter((x) => x.lbl >= 0 && x.lbl < meta.length).map((h) => [h.score, meta[h.lbl]]);
-  return hits;
+  return labels.map((lbl, i) => ({ lbl, score: distances[i] })).filter((x) => x.lbl >= 0 && x.lbl < meta.length).map((h) => [h.score, meta[h.lbl]]);
 }
 function formatContext(hits) {
   const blocks = hits.map(([score, rec]) => `[source: ${rec.source} | score: ${score.toFixed(3)}]
 ${rec.text}`);
   return blocks.join("\n\n---\n\n");
 }
-async function getRagContext() {
-  const { pipeline } = await loadTransformers();
+async function getRagContext(ctx, question, topK = 5) {
+  const { pipeline } = await loadTransformers(ctx);
   const extractor = await pipeline("feature-extraction", MODEL_ID);
-  const { index, meta } = await loadArtifacts();
-  const question = "what is Var";
+  const { index, meta } = await loadArtifacts(ctx);
   const qvec = await embed(question, extractor);
-  const hits = retrieve(question, index, meta, qvec, TOP_K);
-  const ctx = formatContext(hits);
-  return ctx;
+  const hits = retrieve(question, index, meta, qvec, topK);
+  console.log("[RAG] meta.len=", meta.length, "index.ntotal=", index.ntotal());
+  console.log(
+    "[RAG] preview hit sources=",
+    hits.slice(0, 3).map((t) => {
+      const [s, r] = t;
+      return { s: +s.toFixed(3), src: r.source };
+    })
+  );
+  return formatContext(hits);
 }
 
 // src/utils/ai/promptBuilder.ts
 async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
-  console.log("getRagContext", getRagContext);
   const fileLabel = fileName || "current file";
   const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
   const userPreferences = await getUserPreferences(context);
@@ -49822,7 +49818,26 @@ USER PREFERENCES:
 ${userPreferences || "No preferences set."}
 ---
 `;
-  return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+  const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+  let finalPrompt = originalPrompt;
+  try {
+    const ragCtx = await getRagContext(context, originalPrompt, 5);
+    console.log("[RAG] ctx length:", ragCtx?.length ?? 0);
+    console.log("[RAG] ctx preview:", (ragCtx || "").slice(0, 160));
+    if (ragCtx && ragCtx.trim().length > 0) {
+      finalPrompt = `You are an AI assistant for F# and WebSharper code review.
+Use ONLY the context below where applicable.
+
+RAG CONTEXT:
+${ragCtx}
+
+=== ORIGINAL TASK ===
+${originalPrompt}`;
+    }
+  } catch (e) {
+    console.warn("[RAG] disabled or failed:", e);
+  }
+  return finalPrompt;
 }
 function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
   return `
@@ -49858,9 +49873,9 @@ REMINDER: You must output the entire file content with ONLY the selected region 
 }
 
 // src/utils/ui/outputChannel.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode7.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -49878,22 +49893,22 @@ function setPanel(panel) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
-var vscode7 = __toESM(require("vscode"));
-var fs2 = __toESM(require("fs"));
+var vscode8 = __toESM(require("vscode"));
+var fs = __toESM(require("fs"));
 function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const htmlPath = vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
-  let htmlContent = fs2.readFileSync(htmlPath.fsPath, "utf8");
-  const diffJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
-  const markedJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
-  const githubDarkStyleUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
-  const highlightJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
-  const fSharpSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
-  const cssUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
-  const jsUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
+  const htmlPath = vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
+  let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
+  const diffJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
+  const markedJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
+  const githubDarkStyleUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
+  const highlightJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
+  const fSharpSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
+  const cssUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
+  const jsUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
   htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
   return htmlContent;
 }
@@ -49902,28 +49917,28 @@ function escapeHtml(raw) {
 }
 
 // src/utils/webview/webviewMessageHandler.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 function handleWebviewMessage(panelInstance2) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode8.Selection(
-          new vscode8.Position(message.selection.start.line, message.selection.start.character),
-          new vscode8.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode9.Selection(
+          new vscode9.Position(message.selection.start.line, message.selection.start.character),
+          new vscode9.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
             await handleAccept(message, originalSelection, panelInstance2);
             break;
           case "reject":
-            vscode8.window.showInformationMessage("AI suggestion rejected.");
+            vscode9.window.showInformationMessage("AI suggestion rejected.");
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode8.commands.executeCommand("extension.setAIPreferences", message.documentUri);
+            vscode9.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
           case "clearPreferences":
-            vscode8.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
+            vscode9.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
             break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
@@ -49931,7 +49946,7 @@ function handleWebviewMessage(panelInstance2) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode9.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -49939,14 +49954,14 @@ function handleWebviewMessage(panelInstance2) {
 }
 async function handleAccept(message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode9.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode9.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode8.Uri.parse(message.documentUri);
+  const docUri = vscode9.Uri.parse(message.documentUri);
   await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
   panelInstance2.dispose();
 }
@@ -49956,7 +49971,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   const existingPanel = getPanel();
   const userPreferences = await getUserPreferences(context);
   if (existingPanel) {
-    existingPanel.reveal(vscode9.ViewColumn.Beside);
+    existingPanel.reveal(vscode10.ViewColumn.Beside);
     existingPanel.webview.html = getWebviewContent(
       existingPanel.webview,
       context.extensionUri,
@@ -49965,17 +49980,17 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
     );
     return existingPanel;
   }
-  const newPanel = vscode9.window.createWebviewPanel(
+  const newPanel = vscode10.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode9.ViewColumn.Beside,
+    vscode10.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [
-        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
-        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
-        vscode9.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
+        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
+        vscode10.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
       ]
     }
   );
@@ -49995,23 +50010,23 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode10.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
-    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode10.window.activeTextEditor;
+  return vscode11.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
+    vscode11.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode11.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showErrorMessage("No active F# editor found.");
+      vscode11.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode10.window.showErrorMessage("This command only works on F# files.");
+      vscode11.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty || !selectedCode.trim()) {
-      vscode10.window.showWarningMessage("Please select some F# code to review.");
+      vscode11.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
@@ -50026,7 +50041,7 @@ function registerShowSuggestion(context) {
     console.log(prompt);
     const git = getGitClient();
     if (!git) {
-      vscode10.window.showErrorMessage("Git client not available.");
+      vscode11.window.showErrorMessage("Git client not available.");
       return;
     }
     const suggestionPanel = await showSuggestionWebview(
@@ -50035,7 +50050,7 @@ function registerShowSuggestion(context) {
       fileName
     );
     if (!suggestionPanel) {
-      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode11.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     const userPreferences = await getUserPreferences(context);
@@ -50065,7 +50080,7 @@ function registerShowSuggestion(context) {
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
       console.error("Error during AI response streaming:", error);
-      vscode10.window.showErrorMessage("Error receiving AI suggestion.");
+      vscode11.window.showErrorMessage("Error receiving AI suggestion.");
       suggestionPanel.webview.postMessage({
         command: "aiError",
         error: "Failed to get full response from AI."
@@ -50075,9 +50090,9 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
+  return vscode12.commands.registerCommand("extension.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -50090,7 +50105,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode11.window.showInformationMessage(
+  const choice = await vscode12.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -50100,28 +50115,28 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode11.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode12.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode11.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode12.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
 }
 
 // src/commands/aiPreferences.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.setAIPreferences",
     (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.clearAIPreferences",
     (documentUri) => clearUserPreferences(context, documentUri)
   );

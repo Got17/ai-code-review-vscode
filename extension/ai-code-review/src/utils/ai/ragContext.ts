@@ -1,120 +1,104 @@
-// Build with CJS: tsc -p tsconfig.json  (module: commonjs)
-// Run: node dist/rag_query.js
+import * as vscode from 'vscode';
+import { createRequire } from 'node:module';
 
-import fs from "node:fs/promises";
-import path from "node:path";
-import { createRequire } from "node:module";
-
-// Use CJS require for faiss-node (CommonJS package)
 const requireCJS = createRequire(__filename);
-const { IndexFlatIP } = requireCJS("faiss-node");
+const { IndexFlatIP } = requireCJS('faiss-node');
 
-// Minimal local types to avoid ESM type-imports in CJS output
-type FeatureExtractionPipeline = (
-  x: string | string[],
-  opts?: { pooling?: "mean" | "none"; normalize?: boolean }
-) => Promise<any>;
+type MetaRec = { id: string; text: string; source: string; title: string };
+type Meta = MetaRec[];
+type FeatureExtractionPipeline = (x: string | string[], opts?: { pooling?: 'mean' | 'none'; normalize?: boolean }) => Promise<any>;
 type Tensor = { dims?: number[]; data: Float32Array };
 
-// ---- Config ----
-const ART = "rag_artifacts";
-const MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-const TOP_K = 5;
+const MODEL_ID = 'Xenova/all-MiniLM-L6-v2';
 
-// Dynamically import ESM-only transformers at runtime (works in CJS)
-async function loadTransformers(): Promise<{
-  pipeline: (task: string, model: string) => Promise<FeatureExtractionPipeline>;
-  env: any;
-}> {
-  const mod = (await import("@huggingface/transformers")) as any; // dynamic import OK in CJS
-  mod.env.localModelPath = "./models/";
-  mod.env.allowRemoteModels = true;
-  return { pipeline: mod.pipeline, env: mod.env };
+async function loadTransformers(ctx: vscode.ExtensionContext) {
+    const mod: any = await import('@huggingface/transformers');
+    // Use absolute paths inside the extension:
+    mod.env.localModelPath = vscode.Uri.joinPath(ctx.extensionUri, 'models').fsPath;
+    mod.env.allowRemoteModels = false; // or false if you want strictly offline
+    return { pipeline: mod.pipeline as (task: string, model: string) => Promise<FeatureExtractionPipeline> };
 }
 
-type Meta = { id: string; text: string; source: string; title: string }[];
+async function loadArtifacts(ctx: vscode.ExtensionContext) {
+    const artDir = vscode.Uri.joinPath(ctx.extensionUri, 'resources', 'rag-artifacts');
 
-async function loadArtifacts() {
-  const indexPath = path.join(ART, "kb.index");
-  const metaPath = path.join(ART, "metadata.json");
-  const meta: Meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
-  const index = IndexFlatIP.read(indexPath); // instance
-  return { index, meta };
+    // FAISS needs a string path:
+    const indexFsPath = vscode.Uri.joinPath(artDir, 'kb.index').fsPath;
+
+    // VS Code FS API returns Uint8Array:
+    const metaUri = vscode.Uri.joinPath(artDir, 'metadata.json');
+    const metaBytes = await vscode.workspace.fs.readFile(metaUri);
+    const meta: Meta = JSON.parse(Buffer.from(metaBytes).toString('utf8'));
+
+    const index = IndexFlatIP.read(indexFsPath);
+    return { index, meta };
 }
 
-// Embed like Python ST: [question] → mean pool, normalize=false, then manual L2
+// === Embedding / retrieval helpers (unchanged logic) ===
 async function embed(question: string, extractor: FeatureExtractionPipeline): Promise<Float32Array> {
-  const out = (await extractor([question], { pooling: "mean", normalize: false })) as Tensor | Tensor[];
-  let vec: Float32Array;
-  if (Array.isArray(out)) {
-    vec = out[0].data as Float32Array;
-  } else {
-    const dims = out.dims ?? [1, (out.data as Float32Array).length];
-    const d = dims[1] ?? (out.data as Float32Array).length;
-    vec = (out.data as Float32Array).subarray(0, d);
-  }
-  // L2-normalize
-  let s = 0;
-  for (let i = 0; i < vec.length; i++) {
-    s += vec[i] * vec[i];
-  }
-  const inv = 1 / (Math.sqrt(s) + 1e-12);
-  const normed = new Float32Array(vec.length);
-  for (let i = 0; i < vec.length; i++) {
-    normed[i] = vec[i] * inv;
-  }
-  return normed;
+    const out = (await extractor([question], { pooling: 'mean', normalize: false })) as Tensor | Tensor[];
+    const vec = Array.isArray(out)
+        ? (out[0].data as Float32Array)
+        : (out.data as Float32Array).subarray(0, (out.dims?.[1] ?? (out.data as Float32Array).length));
+    let s = 0; for (let i = 0; i < vec.length; i++) {
+        s += vec[i] * vec[i];
+    }
+    const inv = 1 / (Math.sqrt(s) + 1e-12);
+    const normed = new Float32Array(vec.length);
+    for (let i = 0; i < vec.length; i++) {
+        normed[i] = vec[i] * inv;
+    }
+    return normed;
 }
 
 function retrieve(
-  _question: string,
-  index: InstanceType<typeof IndexFlatIP>,
-  meta: Meta,
-  qvec: Float32Array,
-  k = TOP_K
+    _question: string,
+    index: InstanceType<typeof IndexFlatIP>,
+    meta: Meta,
+    qvec: Float32Array,
+    k = 5
 ) {
-  const dim = index.getDimension();
-  const nTotal = index.ntotal();
-  if (dim !== qvec.length) {
-    throw new Error(`FAISS dim mismatch: ${dim} != ${qvec.length}`);
-  }
-  if (nTotal !== meta.length) {
-    throw new Error(`FAISS ntotal != meta.length: ${nTotal} != ${meta.length}`);
-  }
+    const dim = index.getDimension();
+    const nTotal = index.ntotal();
+    if (dim !== qvec.length) {
+        throw new Error(`FAISS dim mismatch: ${dim} != ${qvec.length}`);
+    }
+    if (nTotal !== meta.length) {
+        throw new Error(`FAISS ntotal != meta.length: ${nTotal} != ${meta.length}`);
+    }
 
-  const { distances, labels } = index.search(Array.from(qvec), Math.min(k, meta.length));
-  const hits = labels
-    .map((lbl: number, i: number) => ({ lbl, score: distances[i] }))
-    .filter((x: { lbl: number; }) => x.lbl >= 0 && x.lbl < meta.length)
-    .map((h: { score: any; lbl:any; }) => [h.score, meta[h.lbl]] as const);
-  return hits;
+    const { distances, labels } = index.search(Array.from(qvec), Math.min(k, meta.length));
+    return labels
+        .map((lbl: number, i: number) => ({ lbl, score: distances[i] }))
+        .filter((x: { lbl: number; }) => x.lbl >= 0 && x.lbl < meta.length)
+        .map((h: { score: any; lbl: any; }) => [h.score, meta[h.lbl]] as const);
 }
 
 function formatContext(hits: ReadonlyArray<readonly [number, Meta[number]]>) {
-  const blocks = hits.map(([score, rec]) => `[source: ${rec.source} | score: ${score.toFixed(3)}]\n${rec.text}`);
-  return blocks.join("\n\n---\n\n");
+    const blocks = hits.map(([score, rec]) => `[source: ${rec.source} | score: ${score.toFixed(3)}]\n${rec.text}`);
+    return blocks.join('\n\n---\n\n');
 }
 
-async function writeResult(prompt: string, response?: string) {
-  await fs.mkdir(ART, { recursive: true });
-  const file = path.join(ART, "result.txt");
-  const header = "------ PROMPT ------\n";
-  const body = `${prompt}\n\n`;
-  const respHeader = "------ OLLAMA RESPONSE ------\n";
-  const respBody = response ? `${response}\n` : "";
-  await fs.writeFile(file, header + body + (response ? respHeader + respBody : ""), "utf8");
-  console.log("Saved:", file);
-}
+// Public API: take the original prompt (or a condensed query), return TOP-K context text
+export async function getRagContext(ctx: vscode.ExtensionContext, question: string, topK = 5): Promise<string> {
+    const { pipeline } = await loadTransformers(ctx);
+    const extractor = (await pipeline('feature-extraction', MODEL_ID)) as FeatureExtractionPipeline;
+    const { index, meta } = await loadArtifacts(ctx);
 
-export async function getRagContext() {
-  const { pipeline } = await loadTransformers(); // dynamic ESM import
-  const extractor = (await pipeline("feature-extraction", MODEL_ID)) as FeatureExtractionPipeline;
+    const qvec = await embed(question, extractor);
+    const hits = retrieve(question, index, meta, qvec, topK);
 
-  const { index, meta } = await loadArtifacts();
-  const question = "what is Var";
-  const qvec = await embed(question, extractor);
-  const hits = retrieve(question, index, meta, qvec, TOP_K);
-  const ctx = formatContext(hits);
-  
-  return ctx;
+    // quick diag logs
+    console.log('[RAG] meta.len=', meta.length, 'index.ntotal=', index.ntotal());
+    type Hit = readonly [number, Meta[number]];
+
+    console.log(
+        '[RAG] preview hit sources=',
+        hits.slice(0, 3).map((t: Hit) => {
+        const [s, r] = t;
+        return { s: +s.toFixed(3), src: r.source };
+        })
+    );
+
+    return formatContext(hits);
 }
