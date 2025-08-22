@@ -1,0 +1,18 @@
+{
+  "name": "my-thesis-project",
+  "version": "1.0.0",
+  "description": "This project is a VS Code extension that provides AI-generated code review suggestions for F# and WebSharper code. It analyzes selected code and suggests improvements in readability, performance, and maintainability using a locally hosted LLM.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "rag:prepare": "python tools/rag-py/rag-prepare.py",
+    "rag:copy": "node -e \"const fs=require('fs'),p=require('path'); const src='rag-artifacts'; const dst='extension/ai-code-review/resources/rag-artifacts'; fs.mkdirSync(dst,{recursive:true}); for (const f of ['kb.index','metadata.json']) fs.copyFileSync(p.join(src,f), p.join(dst,f));\"",
+    "rag:build": "npm run rag:prepare && npm run rag:copy"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
