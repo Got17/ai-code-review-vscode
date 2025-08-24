@@ -5504,7 +5504,7 @@ Unstaged: ${notStaged.length}`
 }
 
 // src/commands/showSuggestion.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/utils/ai/aiClient.ts
 var vscode3 = __toESM(require("vscode"));
@@ -5700,6 +5700,140 @@ async function showConfirmationPrompt(message, yesLabel = "Yes", noLabel = "No")
   return choice === yesLabel;
 }
 
+// src/utils/ai/ragContext.ts
+var vscode6 = __toESM(require("vscode"));
+var import_node_module = require("node:module");
+var requireCJS = (0, import_node_module.createRequire)(__filename);
+var { IndexFlatIP } = requireCJS("faiss-node");
+var MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+var DEFAULT_TOP_K = 5;
+var MODELS_DIR = "models";
+var ARTIFACTS_DIR = ["resources", "rag-artifacts"];
+var INDEX_FILE = "kb.index";
+var META_FILE = "metadata.json";
+var cache2 = /* @__PURE__ */ new Map();
+function l2Normalize(vector) {
+  let sumOfSquares = 0;
+  for (let i = 0; i < vector.length; i++) {
+    sumOfSquares += vector[i] * vector[i];
+  }
+  const normalizationFactor = 1 / (Math.sqrt(sumOfSquares) + 1e-12);
+  const normalizedVector = new Float32Array(vector.length);
+  for (let i = 0; i < vector.length; i++) {
+    normalizedVector[i] = vector[i] * normalizationFactor;
+  }
+  return normalizedVector;
+}
+async function readJson(uri, resourceName) {
+  try {
+    const fileContentsAsBytes = await vscode6.workspace.fs.readFile(uri);
+    const fileContentsAsString = Buffer.from(fileContentsAsBytes).toString("utf8");
+    const parsedJson = JSON.parse(fileContentsAsString);
+    return parsedJson;
+  } catch (error) {
+    const errorMessage = error?.message ?? String(error);
+    throw new Error(`Failed to read/parse ${resourceName}: ${errorMessage}`);
+  }
+}
+function joinExtensionPath(baseUri, ...relativeSegments) {
+  return vscode6.Uri.joinPath(baseUri, ...relativeSegments);
+}
+async function loadTransformers(context) {
+  const transformersModule = await import("@huggingface/transformers");
+  const localModelDirectory = joinExtensionPath(context.extensionUri, MODELS_DIR).fsPath;
+  transformersModule.env.localModelPath = localModelDirectory;
+  transformersModule.env.allowRemoteModels = false;
+  return {
+    pipeline: transformersModule.pipeline
+  };
+}
+async function loadArtifacts(context) {
+  const artifactsDirectory = joinExtensionPath(context.extensionUri, ...ARTIFACTS_DIR);
+  const indexFilePath = joinExtensionPath(artifactsDirectory, INDEX_FILE).fsPath;
+  const metadataFileUri = joinExtensionPath(artifactsDirectory, META_FILE);
+  const faissIndex = IndexFlatIP.read(indexFilePath);
+  const metadataRecords = await readJson(metadataFileUri, META_FILE);
+  if (faissIndex.ntotal() !== metadataRecords.length) {
+    throw new Error(
+      `RAG artifacts mismatch: index.ntotal=${faissIndex.ntotal()} vs metadata.records=${metadataRecords.length}. Rebuild artifacts so they are consistent.`
+    );
+  }
+  return { index: faissIndex, meta: metadataRecords };
+}
+async function embed(queryText, extractor) {
+  const extractionResult = await extractor([queryText], {
+    pooling: "mean",
+    normalize: false
+    // we normalize manually
+  });
+  const tensor = Array.isArray(extractionResult) ? extractionResult[0] : extractionResult;
+  const rawEmbedding = tensor.data;
+  const embeddingDim = tensor.dims?.[1] ?? rawEmbedding.length;
+  const unnormalizedEmbedding = rawEmbedding.subarray(0, embeddingDim);
+  return l2Normalize(unnormalizedEmbedding);
+}
+function retrieve(faissIndex, metadataRecords, queryEmbedding, topK = DEFAULT_TOP_K) {
+  const indexDimension = faissIndex.getDimension();
+  if (indexDimension !== queryEmbedding.length) {
+    throw new Error(
+      `FAISS dimension mismatch: index=${indexDimension} vs query=${queryEmbedding.length}`
+    );
+  }
+  const { distances: similarityScores, labels: neighborIndices } = faissIndex.search(
+    Array.from(queryEmbedding),
+    Math.min(topK, metadataRecords.length)
+  );
+  const hits = [];
+  for (let i = 0; i < neighborIndices.length; i++) {
+    const neighborIndex = neighborIndices[i];
+    if (neighborIndex >= 0 && neighborIndex < metadataRecords.length) {
+      const metadataRecord = metadataRecords[neighborIndex];
+      hits.push([similarityScores[i], metadataRecord]);
+    }
+  }
+  return hits;
+}
+function formatContext(hits) {
+  const contextBlocks = hits.map(
+    ([similarityScore, metadataRecord]) => `[source: ${metadataRecord.source} | score: ${similarityScore.toFixed(3)}]
+${metadataRecord.text}`
+  );
+  return contextBlocks.join("\n\n---\n\n");
+}
+async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
+  const cacheKey = context.extensionUri.toString();
+  const cacheEntry = cache2.get(cacheKey) ?? {};
+  if (!cacheEntry.extractor) {
+    const { pipeline } = await loadTransformers(context);
+    cacheEntry.extractor = await pipeline(
+      "feature-extraction",
+      MODEL_ID
+    );
+  }
+  if (!cacheEntry.index || !cacheEntry.meta) {
+    const { index: faissIndex, meta: metadataRecords } = await loadArtifacts(context);
+    cacheEntry.index = faissIndex;
+    cacheEntry.meta = metadataRecords;
+  }
+  cache2.set(cacheKey, cacheEntry);
+  const queryEmbedding = await embed(queryText, cacheEntry.extractor);
+  const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
+  console.log(
+    "[RAG] metadata.length =",
+    cacheEntry.meta.length,
+    "index.ntotal =",
+    cacheEntry.index.ntotal()
+  );
+  console.log(
+    "[RAG] preview hit sources =",
+    retrievalHits.slice(0, Math.min(3, retrievalHits.length)).map(([similarityScore, record]) => ({
+      score: +similarityScore.toFixed(3),
+      source: record.source
+    }))
+  );
+  return formatContext(retrievalHits);
+}
+
 // src/utils/ai/promptBuilder.ts
 async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
   const fileLabel = fileName || "current file";
@@ -5711,7 +5845,26 @@ USER PREFERENCES:
 ${userPreferences || "No preferences set."}
 ---
 `;
-  return generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+  const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+  let finalPrompt = originalPrompt;
+  try {
+    const ragCtx = await getRagContext(context, originalPrompt, 5);
+    console.log("[RAG] ctx length:", ragCtx?.length ?? 0);
+    console.log("[RAG] ctx preview:", (ragCtx || "").slice(0, 160));
+    if (ragCtx && ragCtx.trim().length > 0) {
+      finalPrompt = `You are an AI assistant for F# and WebSharper code review.
+Use ONLY the context below where applicable.
+
+RAG CONTEXT:
+${ragCtx}
+
+=== ORIGINAL TASK ===
+${originalPrompt}`;
+    }
+  } catch (e) {
+    console.warn("[RAG] disabled or failed:", e);
+  }
+  return finalPrompt;
 }
 function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
   return `
@@ -5747,9 +5900,9 @@ REMINDER: You must output the entire file content with ONLY the selected region 
 }
 
 // src/utils/ui/outputChannel.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode7.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -5767,22 +5920,22 @@ function setPanel(panel) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 var fs = __toESM(require("fs"));
 function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const htmlPath = vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
+  const htmlPath = vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
   let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
-  const diffJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
-  const markedJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
-  const githubDarkStyleUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
-  const highlightJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
-  const fSharpSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
-  const cssUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
-  const jsUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
+  const diffJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
+  const markedJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
+  const githubDarkStyleUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
+  const highlightJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
+  const fSharpSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
+  const cssUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
+  const jsUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
   htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
   return htmlContent;
 }
@@ -5791,28 +5944,28 @@ function escapeHtml(raw) {
 }
 
 // src/utils/webview/webviewMessageHandler.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 function handleWebviewMessage(panelInstance2) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode8.Selection(
-          new vscode8.Position(message.selection.start.line, message.selection.start.character),
-          new vscode8.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode9.Selection(
+          new vscode9.Position(message.selection.start.line, message.selection.start.character),
+          new vscode9.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
             await handleAccept(message, originalSelection, panelInstance2);
             break;
           case "reject":
-            vscode8.window.showInformationMessage("AI suggestion rejected.");
+            vscode9.window.showInformationMessage("AI suggestion rejected.");
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode8.commands.executeCommand("extension.setAIPreferences", message.documentUri);
+            vscode9.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
           case "clearPreferences":
-            vscode8.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
+            vscode9.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
             break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
@@ -5820,7 +5973,7 @@ function handleWebviewMessage(panelInstance2) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode9.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -5828,14 +5981,14 @@ function handleWebviewMessage(panelInstance2) {
 }
 async function handleAccept(message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode9.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode9.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode8.Uri.parse(message.documentUri);
+  const docUri = vscode9.Uri.parse(message.documentUri);
   await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
   panelInstance2.dispose();
 }
@@ -5845,7 +5998,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   const existingPanel = getPanel();
   const userPreferences = await getUserPreferences(context);
   if (existingPanel) {
-    existingPanel.reveal(vscode9.ViewColumn.Beside);
+    existingPanel.reveal(vscode10.ViewColumn.Beside);
     existingPanel.webview.html = getWebviewContent(
       existingPanel.webview,
       context.extensionUri,
@@ -5854,17 +6007,17 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
     );
     return existingPanel;
   }
-  const newPanel = vscode9.window.createWebviewPanel(
+  const newPanel = vscode10.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode9.ViewColumn.Beside,
+    vscode10.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [
-        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
-        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
-        vscode9.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
+        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
+        vscode10.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
       ]
     }
   );
@@ -5884,23 +6037,23 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode10.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
-    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode10.window.activeTextEditor;
+  return vscode11.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
+    vscode11.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode11.window.activeTextEditor;
     if (!editor) {
-      vscode10.window.showErrorMessage("No active F# editor found.");
+      vscode11.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode10.window.showErrorMessage("This command only works on F# files.");
+      vscode11.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty || !selectedCode.trim()) {
-      vscode10.window.showWarningMessage("Please select some F# code to review.");
+      vscode11.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
@@ -5915,7 +6068,7 @@ function registerShowSuggestion(context) {
     console.log(prompt);
     const git = getGitClient();
     if (!git) {
-      vscode10.window.showErrorMessage("Git client not available.");
+      vscode11.window.showErrorMessage("Git client not available.");
       return;
     }
     const suggestionPanel = await showSuggestionWebview(
@@ -5924,7 +6077,7 @@ function registerShowSuggestion(context) {
       fileName
     );
     if (!suggestionPanel) {
-      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode11.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     const userPreferences = await getUserPreferences(context);
@@ -5954,7 +6107,7 @@ function registerShowSuggestion(context) {
       showOutput(fileName, accumulatedResponse);
     } catch (error) {
       console.error("Error during AI response streaming:", error);
-      vscode10.window.showErrorMessage("Error receiving AI suggestion.");
+      vscode11.window.showErrorMessage("Error receiving AI suggestion.");
       suggestionPanel.webview.postMessage({
         command: "aiError",
         error: "Failed to get full response from AI."
@@ -5964,9 +6117,9 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 function registerUndoLastSuggestion() {
-  return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
+  return vscode12.commands.registerCommand("extension.undoLastSuggestion", async () => {
     const git = getGitClient();
     if (!git) {
       return;
@@ -5979,7 +6132,7 @@ function registerUndoLastSuggestion() {
   });
 }
 async function confirmUndo() {
-  const choice = await vscode11.window.showInformationMessage(
+  const choice = await vscode12.window.showInformationMessage(
     "\u23EA Do you want to undo the last suggestion?",
     "Yes",
     "Cancel"
@@ -5989,28 +6142,28 @@ async function confirmUndo() {
 async function undoLastCommit(git) {
   try {
     await git.raw(["checkout", "HEAD~1", "--", "."]);
-    vscode11.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
+    vscode12.window.showInformationMessage("\u{1F504} Last suggestion reverted to previous state.");
   } catch (err) {
-    vscode11.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
+    vscode12.window.showErrorMessage(`\u274C Failed to undo: ${err.message}`);
   }
 }
 
 // src/commands/aiPreferences.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.setAIPreferences",
     (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.clearAIPreferences",
     (documentUri) => clearUserPreferences(context, documentUri)
   );
