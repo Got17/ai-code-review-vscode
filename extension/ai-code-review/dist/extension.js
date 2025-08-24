@@ -5706,67 +5706,132 @@ var import_node_module = require("node:module");
 var requireCJS = (0, import_node_module.createRequire)(__filename);
 var { IndexFlatIP } = requireCJS("faiss-node");
 var MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-async function loadTransformers(ctx) {
-  const mod = await import("@huggingface/transformers");
-  mod.env.localModelPath = vscode6.Uri.joinPath(ctx.extensionUri, "models").fsPath;
-  mod.env.allowRemoteModels = false;
-  return { pipeline: mod.pipeline };
+var DEFAULT_TOP_K = 5;
+var MODELS_DIR = "models";
+var ARTIFACTS_DIR = ["resources", "rag-artifacts"];
+var INDEX_FILE = "kb.index";
+var META_FILE = "metadata.json";
+var cache2 = /* @__PURE__ */ new Map();
+function l2Normalize(vector) {
+  let sumOfSquares = 0;
+  for (let i = 0; i < vector.length; i++) {
+    sumOfSquares += vector[i] * vector[i];
+  }
+  const normalizationFactor = 1 / (Math.sqrt(sumOfSquares) + 1e-12);
+  const normalizedVector = new Float32Array(vector.length);
+  for (let i = 0; i < vector.length; i++) {
+    normalizedVector[i] = vector[i] * normalizationFactor;
+  }
+  return normalizedVector;
 }
-async function loadArtifacts(ctx) {
-  const artDir = vscode6.Uri.joinPath(ctx.extensionUri, "resources", "rag-artifacts");
-  const indexFsPath = vscode6.Uri.joinPath(artDir, "kb.index").fsPath;
-  const metaUri = vscode6.Uri.joinPath(artDir, "metadata.json");
-  const metaBytes = await vscode6.workspace.fs.readFile(metaUri);
-  const meta = JSON.parse(Buffer.from(metaBytes).toString("utf8"));
-  const index = IndexFlatIP.read(indexFsPath);
-  return { index, meta };
+async function readJson(uri, resourceName) {
+  try {
+    const fileContentsAsBytes = await vscode6.workspace.fs.readFile(uri);
+    const fileContentsAsString = Buffer.from(fileContentsAsBytes).toString("utf8");
+    const parsedJson = JSON.parse(fileContentsAsString);
+    return parsedJson;
+  } catch (error) {
+    const errorMessage = error?.message ?? String(error);
+    throw new Error(`Failed to read/parse ${resourceName}: ${errorMessage}`);
+  }
 }
-async function embed(question, extractor) {
-  const out = await extractor([question], { pooling: "mean", normalize: false });
-  const vec = Array.isArray(out) ? out[0].data : out.data.subarray(0, out.dims?.[1] ?? out.data.length);
-  let s = 0;
-  for (let i = 0; i < vec.length; i++) {
-    s += vec[i] * vec[i];
-  }
-  const inv = 1 / (Math.sqrt(s) + 1e-12);
-  const normed = new Float32Array(vec.length);
-  for (let i = 0; i < vec.length; i++) {
-    normed[i] = vec[i] * inv;
-  }
-  return normed;
+function joinExtensionPath(baseUri, ...relativeSegments) {
+  return vscode6.Uri.joinPath(baseUri, ...relativeSegments);
 }
-function retrieve(_question, index, meta, qvec, k = 5) {
-  const dim = index.getDimension();
-  const nTotal = index.ntotal();
-  if (dim !== qvec.length) {
-    throw new Error(`FAISS dim mismatch: ${dim} != ${qvec.length}`);
+async function loadTransformers(context) {
+  const transformersModule = await import("@huggingface/transformers");
+  const localModelDirectory = joinExtensionPath(context.extensionUri, MODELS_DIR).fsPath;
+  transformersModule.env.localModelPath = localModelDirectory;
+  transformersModule.env.allowRemoteModels = false;
+  return {
+    pipeline: transformersModule.pipeline
+  };
+}
+async function loadArtifacts(context) {
+  const artifactsDirectory = joinExtensionPath(context.extensionUri, ...ARTIFACTS_DIR);
+  const indexFilePath = joinExtensionPath(artifactsDirectory, INDEX_FILE).fsPath;
+  const metadataFileUri = joinExtensionPath(artifactsDirectory, META_FILE);
+  const faissIndex = IndexFlatIP.read(indexFilePath);
+  const metadataRecords = await readJson(metadataFileUri, META_FILE);
+  if (faissIndex.ntotal() !== metadataRecords.length) {
+    throw new Error(
+      `RAG artifacts mismatch: index.ntotal=${faissIndex.ntotal()} vs metadata.records=${metadataRecords.length}. Rebuild artifacts so they are consistent.`
+    );
   }
-  if (nTotal !== meta.length) {
-    throw new Error(`FAISS ntotal != meta.length: ${nTotal} != ${meta.length}`);
+  return { index: faissIndex, meta: metadataRecords };
+}
+async function embed(queryText, extractor) {
+  const extractionResult = await extractor([queryText], {
+    pooling: "mean",
+    normalize: false
+    // we normalize manually
+  });
+  const tensor = Array.isArray(extractionResult) ? extractionResult[0] : extractionResult;
+  const rawEmbedding = tensor.data;
+  const embeddingDim = tensor.dims?.[1] ?? rawEmbedding.length;
+  const unnormalizedEmbedding = rawEmbedding.subarray(0, embeddingDim);
+  return l2Normalize(unnormalizedEmbedding);
+}
+function retrieve(faissIndex, metadataRecords, queryEmbedding, topK = DEFAULT_TOP_K) {
+  const indexDimension = faissIndex.getDimension();
+  if (indexDimension !== queryEmbedding.length) {
+    throw new Error(
+      `FAISS dimension mismatch: index=${indexDimension} vs query=${queryEmbedding.length}`
+    );
   }
-  const { distances, labels } = index.search(Array.from(qvec), Math.min(k, meta.length));
-  return labels.map((lbl, i) => ({ lbl, score: distances[i] })).filter((x) => x.lbl >= 0 && x.lbl < meta.length).map((h) => [h.score, meta[h.lbl]]);
+  const { distances: similarityScores, labels: neighborIndices } = faissIndex.search(
+    Array.from(queryEmbedding),
+    Math.min(topK, metadataRecords.length)
+  );
+  const hits = [];
+  for (let i = 0; i < neighborIndices.length; i++) {
+    const neighborIndex = neighborIndices[i];
+    if (neighborIndex >= 0 && neighborIndex < metadataRecords.length) {
+      const metadataRecord = metadataRecords[neighborIndex];
+      hits.push([similarityScores[i], metadataRecord]);
+    }
+  }
+  return hits;
 }
 function formatContext(hits) {
-  const blocks = hits.map(([score, rec]) => `[source: ${rec.source} | score: ${score.toFixed(3)}]
-${rec.text}`);
-  return blocks.join("\n\n---\n\n");
-}
-async function getRagContext(ctx, question, topK = 5) {
-  const { pipeline } = await loadTransformers(ctx);
-  const extractor = await pipeline("feature-extraction", MODEL_ID);
-  const { index, meta } = await loadArtifacts(ctx);
-  const qvec = await embed(question, extractor);
-  const hits = retrieve(question, index, meta, qvec, topK);
-  console.log("[RAG] meta.len=", meta.length, "index.ntotal=", index.ntotal());
-  console.log(
-    "[RAG] preview hit sources=",
-    hits.slice(0, 3).map((t) => {
-      const [s, r] = t;
-      return { s: +s.toFixed(3), src: r.source };
-    })
+  const contextBlocks = hits.map(
+    ([similarityScore, metadataRecord]) => `[source: ${metadataRecord.source} | score: ${similarityScore.toFixed(3)}]
+${metadataRecord.text}`
   );
-  return formatContext(hits);
+  return contextBlocks.join("\n\n---\n\n");
+}
+async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
+  const cacheKey = context.extensionUri.toString();
+  const cacheEntry = cache2.get(cacheKey) ?? {};
+  if (!cacheEntry.extractor) {
+    const { pipeline } = await loadTransformers(context);
+    cacheEntry.extractor = await pipeline(
+      "feature-extraction",
+      MODEL_ID
+    );
+  }
+  if (!cacheEntry.index || !cacheEntry.meta) {
+    const { index: faissIndex, meta: metadataRecords } = await loadArtifacts(context);
+    cacheEntry.index = faissIndex;
+    cacheEntry.meta = metadataRecords;
+  }
+  cache2.set(cacheKey, cacheEntry);
+  const queryEmbedding = await embed(queryText, cacheEntry.extractor);
+  const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
+  console.log(
+    "[RAG] metadata.length =",
+    cacheEntry.meta.length,
+    "index.ntotal =",
+    cacheEntry.index.ntotal()
+  );
+  console.log(
+    "[RAG] preview hit sources =",
+    retrievalHits.slice(0, Math.min(3, retrievalHits.length)).map(([similarityScore, record]) => ({
+      score: +similarityScore.toFixed(3),
+      source: record.source
+    }))
+  );
+  return formatContext(retrievalHits);
 }
 
 // src/utils/ai/promptBuilder.ts
