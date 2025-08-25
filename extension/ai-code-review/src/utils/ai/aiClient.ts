@@ -1,21 +1,25 @@
 import * as vscode from 'vscode';
 import { AI_API, AI_MODEL } from "../constants";
+import { getCurrentApi, getCurrentModel } from './modelManager';
 
-export async function* queryAIStream(suggestionPanel: vscode.WebviewPanel, prompt: string) {
+export async function* queryAIStream(
+	suggestionPanel: vscode.WebviewPanel,
+    prompt: string,
+    context: vscode.ExtensionContext
+) {
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 120_000); //120s
 
-		const response = await fetch(AI_API, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-                model: AI_MODEL,
-                prompt,
-                stream: true
-            }),
-			signal: controller.signal
-		});
+		const api = getCurrentApi(context);
+        const model = getCurrentModel(context);
+
+        const response = await fetch(api, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model, prompt, stream: true }),
+            signal: controller.signal
+        });
 
 		clearTimeout(timeout);
 

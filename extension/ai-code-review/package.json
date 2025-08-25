@@ -18,6 +18,10 @@
         "title": "AI Code Review: Show suggestion"
       },
       {
+        "command": "extension.changeOllamaModel",
+        "title": "AI Code Review: Change Ollama Model"
+      },
+      {
         "command": "extension.setAIPreferences",
         "title": "AI Code Review: Set AI Preferences"
       },

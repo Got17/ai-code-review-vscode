@@ -1288,9 +1288,9 @@ var init_simple_git_options = __esm2({
     };
   }
 });
-function appendTaskOptions(options, commands7 = []) {
+function appendTaskOptions(options, commands8 = []) {
   if (!filterPlainObject(options)) {
-    return commands7;
+    return commands8;
   }
   return Object.keys(options).reduce((commands22, key) => {
     const value = options[key];
@@ -1308,7 +1308,7 @@ function appendTaskOptions(options, commands7 = []) {
       commands22.push(key);
     }
     return commands22;
-  }, commands7);
+  }, commands8);
 }
 function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
   const command = [];
@@ -1439,18 +1439,18 @@ function checkIsRepoTask(action) {
     case "root":
       return checkIsRepoRootTask();
   }
-  const commands7 = ["rev-parse", "--is-inside-work-tree"];
+  const commands8 = ["rev-parse", "--is-inside-work-tree"];
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     onError,
     parser
   };
 }
 function checkIsRepoRootTask() {
-  const commands7 = ["rev-parse", "--git-dir"];
+  const commands8 = ["rev-parse", "--git-dir"];
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     onError,
     parser(path) {
@@ -1459,9 +1459,9 @@ function checkIsRepoRootTask() {
   };
 }
 function checkIsBareRepoTask() {
-  const commands7 = ["rev-parse", "--is-bare-repository"];
+  const commands8 = ["rev-parse", "--is-bare-repository"];
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     onError,
     parser
@@ -1551,18 +1551,18 @@ function configurationErrorTask(error) {
     }
   };
 }
-function straightThroughStringTask(commands7, trimmed2 = false) {
+function straightThroughStringTask(commands8, trimmed2 = false) {
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
       return trimmed2 ? String(text).trim() : text;
     }
   };
 }
-function straightThroughBufferTask(commands7) {
+function straightThroughBufferTask(commands8) {
   return {
-    commands: commands7,
+    commands: commands8,
     format: "buffer",
     parser(buffer) {
       return buffer;
@@ -1608,9 +1608,9 @@ function cleanWithOptionsTask(mode, customArgs) {
   return cleanTask(cleanMode, options);
 }
 function cleanTask(mode, customArgs) {
-  const commands7 = ["clean", `-${mode}`, ...customArgs];
+  const commands8 = ["clean", `-${mode}`, ...customArgs];
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
       return cleanSummaryParser(mode === "n", text);
@@ -1773,13 +1773,13 @@ function asConfigScope(scope, fallback) {
   return fallback;
 }
 function addConfigTask(key, value, append2, scope) {
-  const commands7 = ["config", `--${scope}`];
+  const commands8 = ["config", `--${scope}`];
   if (append2) {
-    commands7.push("--add");
+    commands8.push("--add");
   }
-  commands7.push(key, value);
+  commands8.push(key, value);
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
       return text;
@@ -1787,12 +1787,12 @@ function addConfigTask(key, value, append2, scope) {
   };
 }
 function getConfigTask(key, scope) {
-  const commands7 = ["config", "--null", "--show-origin", "--get-all", key];
+  const commands8 = ["config", "--null", "--show-origin", "--get-all", key];
   if (scope) {
-    commands7.splice(1, 0, `--${scope}`);
+    commands8.splice(1, 0, `--${scope}`);
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
       return configGetParser(text, key);
@@ -1800,12 +1800,12 @@ function getConfigTask(key, scope) {
   };
 }
 function listConfigTask(scope) {
-  const commands7 = ["config", "--list", "--show-origin", "--null"];
+  const commands8 = ["config", "--list", "--show-origin", "--null"];
   if (scope) {
-    commands7.push(`--${scope}`);
+    commands8.push(`--${scope}`);
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
       return configListParser(text);
@@ -1917,10 +1917,10 @@ function grep_default() {
       if (typeof searchTerm === "string") {
         searchTerm = grepQueryBuilder().param(searchTerm);
       }
-      const commands7 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
+      const commands8 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
       return this._runTask(
         {
-          commands: commands7,
+          commands: commands8,
           format: "utf-8",
           parser(stdOut) {
             return parseGrep(stdOut);
@@ -1969,12 +1969,12 @@ __export2(reset_exports, {
   resetTask: () => resetTask
 });
 function resetTask(mode, customArgs) {
-  const commands7 = ["reset"];
+  const commands8 = ["reset"];
   if (isValidResetMode(mode)) {
-    commands7.push(`--${mode}`);
+    commands8.push(`--${mode}`);
   }
-  commands7.push(...customArgs);
-  return straightThroughStringTask(commands7);
+  commands8.push(...customArgs);
+  return straightThroughStringTask(commands8);
 }
 function getResetMode(mode) {
   if (isValidResetMode(mode)) {
@@ -2142,10 +2142,10 @@ var init_tasks_pending_queue = __esm2({
     };
   }
 });
-function pluginContext(task, commands7) {
+function pluginContext(task, commands8) {
   return {
     method: first(task.commands) || "",
-    commands: commands7
+    commands: commands8
   };
 }
 function onErrorReceived(target, logger) {
@@ -2447,11 +2447,11 @@ var init_change_working_directory = __esm2({
   }
 });
 function checkoutTask(args) {
-  const commands7 = ["checkout", ...args];
-  if (commands7[1] === "-b" && commands7.includes("-B")) {
-    commands7[1] = remove(commands7, "-B");
+  const commands8 = ["checkout", ...args];
+  if (commands8[1] === "-b" && commands8.includes("-B")) {
+    commands8[1] = remove(commands8, "-B");
   }
-  return straightThroughStringTask(commands7);
+  return straightThroughStringTask(commands8);
 }
 function checkout_default() {
   return {
@@ -2583,7 +2583,7 @@ var init_parse_commit = __esm2({
   }
 });
 function commitTask(message, files, customArgs) {
-  const commands7 = [
+  const commands8 = [
     "-c",
     "core.abbrev=40",
     "commit",
@@ -2592,7 +2592,7 @@ function commitTask(message, files, customArgs) {
     ...customArgs
   ];
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser: parseCommitResult
   };
@@ -2641,11 +2641,11 @@ var init_first_commit = __esm2({
   }
 });
 function hashObjectTask(filePath, write) {
-  const commands7 = ["hash-object", filePath];
+  const commands8 = ["hash-object", filePath];
   if (write) {
-    commands7.push("-w");
+    commands8.push("-w");
   }
-  return straightThroughStringTask(commands7, true);
+  return straightThroughStringTask(commands8, true);
 }
 var init_hash_object = __esm2({
   "src/lib/tasks/hash-object.ts"() {
@@ -2695,15 +2695,15 @@ function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
 function initTask(bare = false, path, customArgs) {
-  const commands7 = ["init", ...customArgs];
-  if (bare && !hasBareCommand(commands7)) {
-    commands7.splice(1, 0, bareCommand);
+  const commands8 = ["init", ...customArgs];
+  if (bare && !hasBareCommand(commands8)) {
+    commands8.splice(1, 0, bareCommand);
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands7.includes("--bare"), path, text);
+      return parseInit(commands8.includes("--bare"), path, text);
     }
   };
 }
@@ -2935,14 +2935,14 @@ __export2(diff_exports, {
 });
 function diffSummaryTask(customArgs) {
   let logFormat = logFormatFromCommand(customArgs);
-  const commands7 = ["diff"];
+  const commands8 = ["diff"];
   if (logFormat === "") {
     logFormat = "--stat";
-    commands7.push("--stat=4096");
+    commands8.push("--stat=4096");
   }
-  commands7.push(...customArgs);
-  return validateLogFormatConfig(commands7) || {
-    commands: commands7,
+  commands8.push(...customArgs);
+  return validateLogFormatConfig(commands8) || {
+    commands: commands8,
     format: "utf-8",
     parser: getDiffParser(logFormat)
   };
@@ -3461,18 +3461,18 @@ function pushTagsTask(ref = {}, customArgs) {
   return pushTask(ref, customArgs);
 }
 function pushTask(ref = {}, customArgs) {
-  const commands7 = ["push", ...customArgs];
+  const commands8 = ["push", ...customArgs];
   if (ref.branch) {
-    commands7.splice(1, 0, ref.branch);
+    commands8.splice(1, 0, ref.branch);
   }
   if (ref.remote) {
-    commands7.splice(1, 0, ref.remote);
+    commands8.splice(1, 0, ref.remote);
   }
-  remove(commands7, "-v");
-  append(commands7, "--verbose");
-  append(commands7, "--porcelain");
+  remove(commands8, "-v");
+  append(commands8, "--verbose");
+  append(commands8, "--porcelain");
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser: parsePushResult
   };
@@ -3487,19 +3487,19 @@ var init_push = __esm2({
 function show_default() {
   return {
     showBuffer() {
-      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
-      if (!commands7.includes("--binary")) {
-        commands7.splice(1, 0, "--binary");
+      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
+      if (!commands8.includes("--binary")) {
+        commands8.splice(1, 0, "--binary");
       }
       return this._runTask(
-        straightThroughBufferTask(commands7),
+        straightThroughBufferTask(commands8),
         trailingFunctionArgument(arguments)
       );
     },
     show() {
-      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
+      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
       return this._runTask(
-        straightThroughStringTask(commands7),
+        straightThroughStringTask(commands8),
         trailingFunctionArgument(arguments)
       );
     }
@@ -3712,7 +3712,7 @@ var init_StatusSummary = __esm2({
   }
 });
 function statusTask(customArgs) {
-  const commands7 = [
+  const commands8 = [
     "status",
     "--porcelain",
     "-b",
@@ -3722,7 +3722,7 @@ function statusTask(customArgs) {
   ];
   return {
     format: "utf-8",
-    commands: commands7,
+    commands: commands8,
     parser(text) {
       return parseStatusSummary(text);
     }
@@ -4143,22 +4143,22 @@ __export2(branch_exports, {
   deleteBranchTask: () => deleteBranchTask,
   deleteBranchesTask: () => deleteBranchesTask
 });
-function containsDeleteBranchCommand(commands7) {
+function containsDeleteBranchCommand(commands8) {
   const deleteCommands = ["-d", "-D", "--delete"];
-  return commands7.some((command) => deleteCommands.includes(command));
+  return commands8.some((command) => deleteCommands.includes(command));
 }
 function branchTask(customArgs) {
   const isDelete = containsDeleteBranchCommand(customArgs);
-  const commands7 = ["branch", ...customArgs];
-  if (commands7.length === 1) {
-    commands7.push("-a");
+  const commands8 = ["branch", ...customArgs];
+  if (commands8.length === 1) {
+    commands8.push("-a");
   }
-  if (!commands7.includes("-v")) {
-    commands7.splice(1, 0, "-v");
+  if (!commands8.includes("-v")) {
+    commands8.splice(1, 0, "-v");
   }
   return {
     format: "utf-8",
-    commands: commands7,
+    commands: commands8,
     parser(stdOut, stdErr) {
       if (isDelete) {
         return parseBranchDeletions(stdOut, stdErr).all[0];
@@ -4253,14 +4253,14 @@ function disallowedCommand(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function cloneTask(repo, directory, customArgs) {
-  const commands7 = ["clone", ...customArgs];
-  filterString(repo) && commands7.push(repo);
-  filterString(directory) && commands7.push(directory);
-  const banned = commands7.find(disallowedCommand);
+  const commands8 = ["clone", ...customArgs];
+  filterString(repo) && commands8.push(repo);
+  filterString(directory) && commands8.push(directory);
+  const banned = commands8.find(disallowedCommand);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
-  return straightThroughStringTask(commands7);
+  return straightThroughStringTask(commands8);
 }
 function cloneMirrorTask(repo, directory, customArgs) {
   append(customArgs, "--mirror");
@@ -4332,16 +4332,16 @@ function disallowedCommand2(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function fetchTask(remote, branch, customArgs) {
-  const commands7 = ["fetch", ...customArgs];
+  const commands8 = ["fetch", ...customArgs];
   if (remote && branch) {
-    commands7.push(remote, branch);
+    commands8.push(remote, branch);
   }
-  const banned = commands7.find(disallowedCommand2);
+  const banned = commands8.find(disallowedCommand2);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser: parseFetchResult
   };
@@ -4391,12 +4391,12 @@ __export2(pull_exports, {
   pullTask: () => pullTask
 });
 function pullTask(remote, branch, customArgs) {
-  const commands7 = ["pull", ...customArgs];
+  const commands8 = ["pull", ...customArgs];
   if (remote && branch) {
-    commands7.splice(1, 0, remote, branch);
+    commands8.splice(1, 0, remote, branch);
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser(stdOut, stdErr) {
       return parsePullResult(stdOut, stdErr);
@@ -4462,29 +4462,29 @@ function addRemoteTask(remoteName, remoteRepo, customArgs) {
   return straightThroughStringTask(["remote", "add", ...customArgs, remoteName, remoteRepo]);
 }
 function getRemotesTask(verbose) {
-  const commands7 = ["remote"];
+  const commands8 = ["remote"];
   if (verbose) {
-    commands7.push("-v");
+    commands8.push("-v");
   }
   return {
-    commands: commands7,
+    commands: commands8,
     format: "utf-8",
     parser: verbose ? parseGetRemotesVerbose : parseGetRemotes
   };
 }
 function listRemotesTask(customArgs) {
-  const commands7 = [...customArgs];
-  if (commands7[0] !== "ls-remote") {
-    commands7.unshift("ls-remote");
+  const commands8 = [...customArgs];
+  if (commands8[0] !== "ls-remote") {
+    commands8.unshift("ls-remote");
   }
-  return straightThroughStringTask(commands7);
+  return straightThroughStringTask(commands8);
 }
 function remoteTask(customArgs) {
-  const commands7 = [...customArgs];
-  if (commands7[0] !== "remote") {
-    commands7.unshift("remote");
+  const commands8 = [...customArgs];
+  if (commands8[0] !== "remote") {
+    commands8.unshift("remote");
   }
-  return straightThroughStringTask(commands7);
+  return straightThroughStringTask(commands8);
 }
 function removeRemoteTask(remoteName) {
   return straightThroughStringTask(["remote", "remove", remoteName]);
@@ -4502,14 +4502,14 @@ __export2(stash_list_exports, {
 });
 function stashListTask(opt = {}, customArgs) {
   const options = parseLogOptions(opt);
-  const commands7 = ["stash", "list", ...options.commands, ...customArgs];
+  const commands8 = ["stash", "list", ...options.commands, ...customArgs];
   const parser4 = createListLogSummaryParser(
     options.splitter,
     options.fields,
-    logFormatFromCommand(commands7)
+    logFormatFromCommand(commands8)
   );
-  return validateLogFormatConfig(commands7) || {
-    commands: commands7,
+  return validateLogFormatConfig(commands8) || {
+    commands: commands8,
     format: "utf-8",
     parser: parser4
   };
@@ -4537,11 +4537,11 @@ function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
 }
 function subModuleTask(customArgs) {
-  const commands7 = [...customArgs];
-  if (commands7[0] !== "submodule") {
-    commands7.unshift("submodule");
+  const commands8 = [...customArgs];
+  if (commands8[0] !== "submodule") {
+    commands8.unshift("submodule");
   }
-  return straightThroughStringTask(commands7);
+  return straightThroughStringTask(commands8);
 }
 function updateSubModuleTask(customArgs) {
   return subModuleTask(["update", ...customArgs]);
@@ -4842,9 +4842,9 @@ var require_git = __commonJS2({
     Git2.prototype.branchLocal = function(then) {
       return this._runTask(branchLocalTask2(), trailingFunctionArgument2(arguments));
     };
-    Git2.prototype.raw = function(commands7) {
-      const createRestCommands = !Array.isArray(commands7);
-      const command = [].slice.call(createRestCommands ? arguments : commands7, 0);
+    Git2.prototype.raw = function(commands8) {
+      const createRestCommands = !Array.isArray(commands8);
+      const command = [].slice.call(createRestCommands ? arguments : commands8, 0);
       for (let i = 0; i < command.length && createRestCommands; i++) {
         if (!filterPrimitives2(command[i])) {
           command.splice(i, command.length - i);
@@ -4979,9 +4979,9 @@ var require_git = __commonJS2({
       return this._runTask(task, trailingFunctionArgument2(arguments));
     };
     Git2.prototype.revparse = function() {
-      const commands7 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
+      const commands8 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
       return this._runTask(
-        straightThroughStringTask2(commands7, true),
+        straightThroughStringTask2(commands8, true),
         trailingFunctionArgument2(arguments)
       );
     };
@@ -5514,19 +5514,75 @@ var WEBVIEW_LIBRARY_DIR = "webview-lib";
 var AI_MODEL = "qwen2.5-coder:7b-instruct";
 var AI_API = "http://localhost:11434/api/generate";
 
+// src/utils/ai/modelManager.ts
+var STORAGE_KEYS = {
+  model: "ollamaModel",
+  api: "ollamaApi"
+};
+function getStringPref(context, key) {
+  const value = context.globalState.get(key);
+  const trimmed2 = value?.trim();
+  return trimmed2 ? trimmed2 : void 0;
+}
+async function setStringPref(context, key, value) {
+  await context.globalState.update(key, value.trim());
+}
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function deriveOllamaBaseUrl(apiEndpoint) {
+  const trimmed2 = apiEndpoint.trim();
+  const withoutGenerate = trimmed2.replace(/\/api\/generate.*$/i, "");
+  const withoutTrailing = withoutGenerate.replace(/\/+$/g, "");
+  return withoutTrailing.length > 0 ? withoutTrailing : trimmed2;
+}
+function getCurrentApi(context) {
+  return getStringPref(context, STORAGE_KEYS.api) ?? AI_API;
+}
+async function setCurrentApi(context, value) {
+  await setStringPref(context, STORAGE_KEYS.api, value);
+}
+function getCurrentModel(context) {
+  return getStringPref(context, STORAGE_KEYS.model) ?? AI_MODEL;
+}
+async function setCurrentModel(context, value) {
+  await setStringPref(context, STORAGE_KEYS.model, value);
+}
+async function listOllamaModels(context) {
+  const apiEndpoint = getCurrentApi(context);
+  const baseUrl = deriveOllamaBaseUrl(apiEndpoint);
+  const tagsUrl = `${baseUrl}/api/tags`;
+  try {
+    const res = await fetchWithTimeout(tagsUrl, { method: "GET" }, 5e3);
+    if (!res.ok) {
+      return [];
+    }
+    const json = await res.json();
+    const raw = Array.isArray(json?.models) ? json.models : [];
+    const names = raw.map((m) => m.model || m.name || "").filter((s) => Boolean(s && s.trim()));
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
 // src/utils/ai/aiClient.ts
-async function* queryAIStream(suggestionPanel, prompt) {
+async function* queryAIStream(suggestionPanel, prompt, context) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12e4);
-    const response = await fetch(AI_API, {
+    const api = getCurrentApi(context);
+    const model = getCurrentModel(context);
+    const response = await fetch(api, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        prompt,
-        stream: true
-      }),
+      body: JSON.stringify({ model, prompt, stream: true }),
       signal: controller.signal
     });
     clearTimeout(timeout);
@@ -5967,6 +6023,9 @@ function handleWebviewMessage(panelInstance2) {
           case "clearPreferences":
             vscode9.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
             break;
+          case "changeModel":
+            vscode9.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
+            break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
             break;
@@ -6081,6 +6140,7 @@ function registerShowSuggestion(context) {
       return;
     }
     const userPreferences = await getUserPreferences(context);
+    const currentModel = getCurrentModel(context);
     suggestionPanel.webview.postMessage({
       command: "init",
       wholeFileContent,
@@ -6089,11 +6149,12 @@ function registerShowSuggestion(context) {
         end: { line: selection.end.line, character: selection.end.character }
       } : null,
       documentUri: documentUri?.toString() || null,
-      userPreferences
+      userPreferences,
+      currentModel
     });
     let accumulatedResponse = "";
     try {
-      for await (const chunk of queryAIStream(suggestionPanel, prompt)) {
+      for await (const chunk of queryAIStream(suggestionPanel, prompt, context)) {
         accumulatedResponse += chunk;
         suggestionPanel.webview.postMessage({
           command: "aiChunk",
@@ -6169,6 +6230,108 @@ function registerClearAIPreferences(context) {
   );
 }
 
+// src/commands/changeOllamaModel.ts
+var vscode14 = __toESM(require("vscode"));
+var CMD_CHANGE_MODEL = "extension.changeOllamaModel";
+var CMD_SHOW_SUGGESTION = "extension.showSuggestion";
+var DEFAULT_API = "http://localhost:11434/api/generate";
+function registerChangeOllamaModel(context) {
+  return vscode14.commands.registerCommand(
+    CMD_CHANGE_MODEL,
+    async (documentUri) => {
+      try {
+        const api = await pickEndpoint(context);
+        if (!api) {
+          return;
+        }
+        await setCurrentApi(context, api);
+        const model = await pickModel(context);
+        if (!model) {
+          return;
+        }
+        await setCurrentModel(context, model);
+        vscode14.window.showInformationMessage(`Ollama model set to: ${model}`);
+        if (documentUri) {
+          const go = await vscode14.window.showInformationMessage(
+            `Run "Show Suggestion" now with the new model?`,
+            "Yes",
+            "No"
+          );
+          if (go === "Yes") {
+            const doc = await vscode14.workspace.openTextDocument(
+              vscode14.Uri.parse(documentUri)
+            );
+            await vscode14.window.showTextDocument(doc, {
+              preserveFocus: false,
+              viewColumn: vscode14.ViewColumn.One
+            });
+            await vscode14.commands.executeCommand(CMD_SHOW_SUGGESTION);
+          }
+        }
+      } catch (err) {
+        vscode14.window.showErrorMessage(
+          `Failed to change Ollama model: ${err?.message ?? String(err)}`
+        );
+      }
+    }
+  );
+}
+async function pickEndpoint(context) {
+  const current = getCurrentApi(context) || DEFAULT_API;
+  const choice = await vscode14.window.showQuickPick(
+    [
+      { label: "Use current endpoint", description: current, value: current },
+      {
+        label: "Enter custom endpoint\u2026",
+        description: "e.g. http://localhost:11434/api/generate"
+      }
+    ],
+    { placeHolder: "Select Ollama endpoint" }
+  );
+  if (!choice) {
+    return;
+  }
+  if (!choice.value) {
+    const entered = await vscode14.window.showInputBox({
+      prompt: "Ollama Generate API endpoint",
+      value: current,
+      validateInput: (v) => v.trim() ? void 0 : "Endpoint is required"
+    });
+    return entered?.trim();
+  }
+  return choice.value;
+}
+async function pickModel(context) {
+  const [current, models] = await Promise.all([
+    getCurrentModel(context),
+    listOllamaModels(context)
+  ]);
+  const discovered = models.map((m) => ({ label: m, value: m }));
+  const items = [
+    ...discovered,
+    {
+      label: "Enter custom model\u2026",
+      description: "Type any local Ollama model tag"
+    }
+  ];
+  const picked = await vscode14.window.showQuickPick(items, {
+    placeHolder: models.length ? `Select model (current: ${current})` : `No models found. Enter a custom model (current: ${current}).`,
+    matchOnDescription: true
+  });
+  if (!picked) {
+    return;
+  }
+  if (!picked.value) {
+    const manual = await vscode14.window.showInputBox({
+      prompt: "Enter the Ollama model tag",
+      value: current,
+      validateInput: (v) => v.trim() ? void 0 : "Model is required"
+    });
+    return manual?.trim();
+  }
+  return picked.value;
+}
+
 // src/extension.ts
 function activate(context) {
   context.subscriptions.push(
@@ -6177,7 +6340,8 @@ function activate(context) {
     registerShowAIPreferences(context),
     registerClearAIPreferences(context),
     registerCheckGitStatus(),
-    registerUndoLastSuggestion()
+    registerUndoLastSuggestion(),
+    registerChangeOllamaModel(context)
   );
 }
 function deactivate() {

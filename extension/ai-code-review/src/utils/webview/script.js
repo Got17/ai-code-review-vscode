@@ -14,6 +14,7 @@ let jsOriginalWholeFileContent = null;
 let jsCurrentSelection = null;
 let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
+let jsCurrentModel = null;
 
 // === UTILS ===
 function escapeHtml(content) {
@@ -105,6 +106,10 @@ function renderPreferenceSection() {
     detail.id = "user-preference";
     detail.textContent = `${jsUserPreferences}`;
 
+    const modelLine = document.createElement("div");
+    modelLine.style.margin = '8px 0';
+    modelLine.textContent = `Model: ${jsCurrentModel}`;
+
     const editButton = createButton({
         id: "edit-preference-button",
         text: "✏️ Edit Preferences",
@@ -119,7 +124,14 @@ function renderPreferenceSection() {
         onClick: () => vscode.postMessage(buildMessagePayload('clearPreferences'))
     });
 
-    streamingResponseArea.append(header, detail, editButton, clearButton);
+    const changeModelBtn = createButton({
+        id: "change-model-button",
+        text: "🧠 Change Model",
+        title: "Pick another Ollama model",
+        onClick: () => vscode.postMessage(buildMessagePayload('changeModel'))
+    });
+
+    streamingResponseArea.append(header, detail, editButton, clearButton, changeModelBtn);
 }
 
 function renderMarkdownChunk(chunk) {
@@ -149,6 +161,7 @@ window.addEventListener('message', event => {
             jsCurrentSelection = message.selection;
             jsCurrentDocumentUri = message.documentUri;
             jsUserPreferences = message.userPreferences;
+            jsCurrentModel = message.currentModel || 'N/A';
             break;
 
         case 'aiChunk':

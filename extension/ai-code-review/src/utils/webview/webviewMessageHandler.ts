@@ -26,6 +26,9 @@ export function handleWebviewMessage(
                     case 'clearPreferences':
                         vscode.commands.executeCommand('extension.clearAIPreferences', message.documentUri);
                         break;
+                    case 'changeModel':
+                        vscode.commands.executeCommand('extension.changeOllamaModel', message.documentUri);
+                        break;
                     default:
                         console.warn(`Unhandled command received from webview: ${message.command}`);
                         break;
