@@ -6,6 +6,8 @@ const streamingResponseArea = document.getElementById('streaming-response-area')
 const acceptButton = document.getElementById('accept-button');
 const rejectButton = document.getElementById('reject-button');
 
+const modelSelect = document.getElementById('model-select');
+
 // === STATE ===
 let accumulatedRawResponse = '';
 let extractedAISuggestedCode = null;
@@ -46,6 +48,35 @@ function createButton({ id, text, title, onClick }) {
     btn.title = title;
     btn.addEventListener('click', onClick);
     return btn;
+}
+
+function populateModelOptions(current, models) {
+    console.log('[jsScript] Generate Model options');
+    // clear
+    modelSelect.innerHTML = '';
+
+    const uniqueModels = Array.from(new Set(models || []));
+    // Put current (if not present) at top
+    const list = uniqueModels.includes(current) ? uniqueModels : [current, ...uniqueModels];
+
+    for (const model of list) {
+        if (!model) {
+            continue;
+        }
+        const optionElement = document.createElement('option');
+        optionElement.value = model;
+        optionElement.textContent = model;
+        if (model === current) {
+            optionElement.selected = true;
+        }
+        modelSelect.appendChild(optionElement);
+    }
+
+    // last option: open command flow
+    const last = document.createElement('option');
+    last.value = 'change-model';
+    last.textContent = 'Change Model';
+    modelSelect.appendChild(last);
 }
 
 // === CODE EXTRACTION & DIFF ===
@@ -125,14 +156,7 @@ function renderPreferenceSection() {
         onClick: () => vscode.postMessage(buildMessagePayload('clearPreferences'))
     });
 
-    const changeModelBtn = createButton({
-        id: "change-model-button",
-        text: "🧠 Change Model",
-        title: "Pick another Ollama model",
-        onClick: () => vscode.postMessage(buildMessagePayload('changeModel'))
-    });
-
-    streamingResponseArea.append(header, detail, editButton, clearButton, changeModelBtn);
+    streamingResponseArea.append(header, detail, editButton, clearButton);
 }
 
 function renderMarkdownChunk(chunk) {
@@ -158,11 +182,19 @@ window.addEventListener('message', event => {
 
     switch (message.command) {
         case 'init':
+            console.log('[jsScript] Recieved message from Init', message);
+            // populateModelOptions(jsCurrentModel || 'N/A', []);
             jsOriginalWholeFileContent = message.wholeFileContent;
             jsCurrentSelection = message.selection;
             jsCurrentDocumentUri = message.documentUri;
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
+            vscode.postMessage(buildMessagePayload('requestModels'));
+            break;
+
+        case 'modelsList':
+            console.log('[jsScript] modelsList activate');
+            populateModelOptions(jsCurrentModel, message.models || []);
             break;
 
         case 'aiChunk':
@@ -213,4 +245,23 @@ acceptButton.addEventListener('click', () => {
 
 rejectButton.addEventListener('click', () => {
     vscode.postMessage(buildMessagePayload('reject'));
+});
+
+modelSelect.addEventListener('change', () => {
+    console.log('[jsScript] modelSelect changed');
+    const selectedModelValue = modelSelect.value;
+    if (selectedModelValue === 'change-model') {
+        vscode.postMessage(buildMessagePayload('changeModel'));
+        // restore selected to current
+        const current = jsCurrentModel || 'N/A';
+        for (const option of modelSelect.options) {
+            if (option.value === current) {
+                option.selected = true;
+            }
+        }
+        return;
+    }
+    // Set model directly
+    jsCurrentModel = selectedModelValue;
+    vscode.postMessage({ ...buildMessagePayload('setModelDirect'), model: selectedModelValue });
 });

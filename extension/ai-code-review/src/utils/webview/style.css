@@ -12,9 +12,37 @@ hr {
 }
 .file-info { 
     font-size: 0.9em; 
-    opacity: 0.7; 
-    margin-bottom: 1em; 
+    opacity: 0.7;
 }
+
+#top-bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .5rem 0;
+    background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.model-area {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-select {
+    background: var(--vscode-input-background, #2d2d2d);
+    color: var(--vscode-input-foreground, #ddd);
+    border: 1px solid var(--vscode-editorWidget-border, #444);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.9em;
+    max-width: 28rem;
+}
+
 .buttons { 
     margin-top: 1.5rem; 
     padding-top: 1rem; 

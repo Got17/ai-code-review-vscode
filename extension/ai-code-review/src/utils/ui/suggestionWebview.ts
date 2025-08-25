@@ -44,7 +44,7 @@ export async function showSuggestionWebview(
 		setPanel(undefined);
 	}, null, context.subscriptions);
 
-	handleWebviewMessage(newPanel);
+	handleWebviewMessage(newPanel, context);
 
 	newPanel.webview.html = getWebviewContent(
 		newPanel.webview, 

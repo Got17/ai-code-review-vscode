@@ -30,8 +30,16 @@
 <body>
 	<!-- Dynamic content injected from webviewHtml function -->
 	<div id="webview-body-content">
-		<div class="file-info">📄 File: {{fileName}}</div>
-		<hr>
+		<!-- TOP BAR -->
+		<div id="top-bar">
+			<div class="file-info">📄 File: {{fileName}}</div>
+
+			<div class="model-area">
+				<select id="model-select" class="model-select" title="Pick Ollama model">
+				<!-- populated at runtime -->
+				</select>
+			</div>
+		</div>
 		
 		<div id="streaming-response-area">
 			<div class="loading-text">🤖 AI is generating suggestion, please wait... (response will stream here)</div>

@@ -34,21 +34,7 @@ export function registerChangeOllamaModel(context: vscode.ExtensionContext) {
 
                 // Optional quick rerun
                 if (documentUri) {
-                    const go = await vscode.window.showInformationMessage(
-                        `Run "Show Suggestion" now with the new model?`,
-                        "Yes",
-                        "No"
-                    );
-                    if (go === "Yes") {
-                        const doc = await vscode.workspace.openTextDocument(
-                            vscode.Uri.parse(documentUri)
-                        );
-                        await vscode.window.showTextDocument(doc, {
-                            preserveFocus: false,
-                            viewColumn: vscode.ViewColumn.One,
-                        });
-                        await vscode.commands.executeCommand(CMD_SHOW_SUGGESTION);
-                    }
+                    await promptAndShowSuggestion(documentUri);
                 }
             } catch (err: any) {
                 vscode.window.showErrorMessage(
@@ -57,6 +43,28 @@ export function registerChangeOllamaModel(context: vscode.ExtensionContext) {
             }
         }
     );
+}
+
+/** Ask user if they want to run the "Show Suggestion" command */
+export async function promptAndShowSuggestion(documentUri: string) {
+    const go = await vscode.window.showInformationMessage(
+        `Run "Show Suggestion" now with the new model?`,
+        "Yes",
+        "No"
+    );
+
+    if (go === "Yes") {
+        const doc = await vscode.workspace.openTextDocument(
+            vscode.Uri.parse(documentUri)
+        );
+
+        await vscode.window.showTextDocument(doc, {
+            preserveFocus: false,
+            viewColumn: vscode.ViewColumn.One,
+        });
+
+        await vscode.commands.executeCommand(CMD_SHOW_SUGGESTION);
+    }
 }
 
 /** Ask user to keep or enter endpoint */

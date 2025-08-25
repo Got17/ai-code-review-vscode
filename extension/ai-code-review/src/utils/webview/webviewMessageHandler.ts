@@ -1,8 +1,11 @@
 import * as vscode from 'vscode';
 import { applySuggestion } from '../ai';
+import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
+import { promptAndShowSuggestion } from '../../commands';
 
 export function handleWebviewMessage(
-	panelInstance: vscode.WebviewPanel
+	panelInstance: vscode.WebviewPanel,
+    context: vscode.ExtensionContext
 ) {
 	panelInstance.webview.onDidReceiveMessage(
         async message => {
@@ -29,6 +32,25 @@ export function handleWebviewMessage(
                     case 'changeModel':
                         vscode.commands.executeCommand('extension.changeOllamaModel', message.documentUri);
                         break;
+
+                    case 'requestModels':
+                        console.log('[handleWebviewMessage] requestModels activate');
+                        await sendModelsList(context, panelInstance);
+                        break;
+                    
+                    case 'setModelDirect': 
+                        console.log('[handleWebviewMessage] setModelDirect activate');
+                        const picked = String(message.model || '').trim();
+                        if (!picked) {
+                            break;
+                        }
+                        await setCurrentModel(context, picked);
+                        vscode.window.showInformationMessage(`Ollama model set to: ${picked}`);
+                        
+                        await sendModelsList(context, panelInstance);
+                        await promptAndShowSuggestion(message.documentUri);
+                        break;
+                    
                     default:
                         console.warn(`Unhandled command received from webview: ${message.command}`);
                         break;
@@ -41,6 +63,20 @@ export function handleWebviewMessage(
         undefined
     );
 }
+
+async function sendModelsList(context: vscode.ExtensionContext, panelInstance: vscode.WebviewPanel) {
+    const [currentModel, models] = await Promise.all([
+        getCurrentModel(context),
+        listOllamaModels(context)
+    ]);
+
+    panelInstance.webview.postMessage({
+        command: 'modelsList',
+        currentModel,
+        models
+    });
+}
+
 
 async function handleAccept(
     message: any,

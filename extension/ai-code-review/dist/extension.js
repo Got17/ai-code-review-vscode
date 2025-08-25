@@ -6002,7 +6002,7 @@ function escapeHtml(raw) {
 
 // src/utils/webview/webviewMessageHandler.ts
 var vscode9 = __toESM(require("vscode"));
-function handleWebviewMessage(panelInstance2) {
+function handleWebviewMessage(panelInstance2, context) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
@@ -6027,6 +6027,21 @@ function handleWebviewMessage(panelInstance2) {
           case "changeModel":
             vscode9.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
             break;
+          case "requestModels":
+            console.log("[handleWebviewMessage] requestModels activate");
+            await sendModelsList(context, panelInstance2);
+            break;
+          case "setModelDirect":
+            console.log("[handleWebviewMessage] setModelDirect activate");
+            const picked = String(message.model || "").trim();
+            if (!picked) {
+              break;
+            }
+            await setCurrentModel(context, picked);
+            vscode9.window.showInformationMessage(`Ollama model set to: ${picked}`);
+            await sendModelsList(context, panelInstance2);
+            await promptAndShowSuggestion(message.documentUri);
+            break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
             break;
@@ -6038,6 +6053,17 @@ function handleWebviewMessage(panelInstance2) {
     },
     void 0
   );
+}
+async function sendModelsList(context, panelInstance2) {
+  const [currentModel, models] = await Promise.all([
+    getCurrentModel(context),
+    listOllamaModels(context)
+  ]);
+  panelInstance2.webview.postMessage({
+    command: "modelsList",
+    currentModel,
+    models
+  });
 }
 async function handleAccept(message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
@@ -6085,7 +6111,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   newPanel.onDidDispose(() => {
     setPanel(void 0);
   }, null, context.subscriptions);
-  handleWebviewMessage(newPanel);
+  handleWebviewMessage(newPanel, context);
   newPanel.webview.html = getWebviewContent(
     newPanel.webview,
     context.extensionUri,
@@ -6256,21 +6282,7 @@ function registerChangeOllamaModel(context) {
         await setCurrentModel(context, model);
         vscode14.window.showInformationMessage(`Ollama model set to: ${model}`);
         if (documentUri) {
-          const go = await vscode14.window.showInformationMessage(
-            `Run "Show Suggestion" now with the new model?`,
-            "Yes",
-            "No"
-          );
-          if (go === "Yes") {
-            const doc = await vscode14.workspace.openTextDocument(
-              vscode14.Uri.parse(documentUri)
-            );
-            await vscode14.window.showTextDocument(doc, {
-              preserveFocus: false,
-              viewColumn: vscode14.ViewColumn.One
-            });
-            await vscode14.commands.executeCommand(CMD_SHOW_SUGGESTION);
-          }
+          await promptAndShowSuggestion(documentUri);
         }
       } catch (err) {
         vscode14.window.showErrorMessage(
@@ -6279,6 +6291,23 @@ function registerChangeOllamaModel(context) {
       }
     }
   );
+}
+async function promptAndShowSuggestion(documentUri) {
+  const go = await vscode14.window.showInformationMessage(
+    `Run "Show Suggestion" now with the new model?`,
+    "Yes",
+    "No"
+  );
+  if (go === "Yes") {
+    const doc = await vscode14.workspace.openTextDocument(
+      vscode14.Uri.parse(documentUri)
+    );
+    await vscode14.window.showTextDocument(doc, {
+      preserveFocus: false,
+      viewColumn: vscode14.ViewColumn.One
+    });
+    await vscode14.commands.executeCommand(CMD_SHOW_SUGGESTION);
+  }
 }
 async function pickEndpoint(context) {
   const current = getCurrentApi(context) || DEFAULT_API;
