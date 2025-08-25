@@ -9,6 +9,7 @@ const rejectButton = document.getElementById('reject-button');
 // === STATE ===
 let accumulatedRawResponse = '';
 let extractedAISuggestedCode = null;
+let errorOccurred = false;
 
 let jsOriginalWholeFileContent = null;
 let jsCurrentSelection = null;
@@ -188,9 +189,11 @@ window.addEventListener('message', event => {
             break;
 
         case 'aiError':
+            errorOccurred = true;
             streamingResponseArea.textContent = 'Error: ' + message.error;
             streamingResponseArea.classList.remove('loading-text');
             streamingResponseArea.style.color = 'red';
+            acceptButton.disabled = true;
             rejectButton.disabled = false;
             break;
 

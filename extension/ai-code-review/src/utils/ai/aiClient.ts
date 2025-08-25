@@ -65,6 +65,7 @@ function handleStreamError(suggestionPanel: vscode.WebviewPanel, error: any) {
 			error: 'Failed to query AI',
 		});
 	}
+	throw error;
 }
 
 async function* streamResponseChunks(body: ReadableStream<Uint8Array>) {

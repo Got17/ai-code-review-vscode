@@ -5622,6 +5622,7 @@ function handleStreamError(suggestionPanel, error) {
       error: "Failed to query AI"
     });
   }
+  throw error;
 }
 async function* streamResponseChunks(body) {
   const reader = body.getReader();
@@ -6096,7 +6097,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode11.commands.registerCommand("extension.showSuggestion", async (fallbackUri) => {
+  return vscode11.commands.registerCommand("extension.showSuggestion", async () => {
     vscode11.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
     const editor = vscode11.window.activeTextEditor;
     if (!editor) {
@@ -6153,6 +6154,7 @@ function registerShowSuggestion(context) {
       currentModel
     });
     let accumulatedResponse = "";
+    let hadStreamError = false;
     try {
       for await (const chunk of queryAIStream(suggestionPanel, prompt, context)) {
         accumulatedResponse += chunk;
@@ -6161,17 +6163,19 @@ function registerShowSuggestion(context) {
           chunk
         });
       }
-      suggestionPanel.webview.postMessage({
-        command: "aiStreamEnd",
-        fullResponse: accumulatedResponse
-      });
-      showOutput(fileName, accumulatedResponse);
+      if (!hadStreamError) {
+        suggestionPanel.webview.postMessage({
+          command: "aiStreamEnd",
+          fullResponse: accumulatedResponse
+        });
+        showOutput(fileName, accumulatedResponse);
+      }
     } catch (error) {
+      hadStreamError = true;
       console.error("Error during AI response streaming:", error);
-      vscode11.window.showErrorMessage("Error receiving AI suggestion.");
       suggestionPanel.webview.postMessage({
         command: "aiError",
-        error: "Failed to get full response from AI."
+        error: "Failed to get full response from AI. (Make sure Ollama is running)"
       });
     }
   });

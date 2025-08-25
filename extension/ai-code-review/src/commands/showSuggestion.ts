@@ -5,7 +5,7 @@ import { showSuggestionWebview, showOutput } from '../utils/ui';
 import { getCurrentModel } from '../utils/ai/modelManager';
 
 export function registerShowSuggestion(context: vscode.ExtensionContext) {
-    return vscode.commands.registerCommand('extension.showSuggestion', async (fallbackUri) => {
+    return vscode.commands.registerCommand('extension.showSuggestion', async () => {
         
         // Show status message
         vscode.window.setStatusBarMessage('🤖 Analyzing F# code...', 5000);
@@ -85,6 +85,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         });
 
         let accumulatedResponse = '';
+        let hadStreamError = false;
 
         // Stream AI suggestions
         try {
@@ -96,21 +97,23 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
                 });
             }
 
-            suggestionPanel.webview.postMessage({
-                command: 'aiStreamEnd',
-                fullResponse: accumulatedResponse,
-            });
+            if (!hadStreamError) {
+                suggestionPanel.webview.postMessage({
+                    command: 'aiStreamEnd',
+                    fullResponse: accumulatedResponse,
+                });
 
-            // Show full AI output
-            showOutput(fileName, accumulatedResponse);
+                // Show full AI output
+                showOutput(fileName, accumulatedResponse);
+            }
 
         } catch (error) {
+            hadStreamError = true;
             console.error('Error during AI response streaming:', error);
-            vscode.window.showErrorMessage('Error receiving AI suggestion.');
 
             suggestionPanel.webview.postMessage({
                 command: 'aiError',
-                error: 'Failed to get full response from AI.',
+                error: 'Failed to get full response from AI. (Make sure Ollama is running)',
             });
         }
     });
