@@ -8,6 +8,8 @@ const rejectButton = document.getElementById('reject-button');
 
 const modelSelect = document.getElementById('model-select');
 
+const jumpToLatestBtn = document.getElementById('jump-to-latest');
+
 // === STATE ===
 let accumulatedRawResponse = '';
 let extractedAISuggestedCode = null;
@@ -18,6 +20,9 @@ let jsCurrentSelection = null;
 let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
 let jsCurrentModel = null;
+
+let autoScrollEnabled = true;
+const BOTTOM_THRESH_PX = 60;
 
 // === UTILS ===
 function escapeHtml(content) {
@@ -36,9 +41,14 @@ function buildMessagePayload(command) {
 }
 
 function scrollToBottom() {
-    setTimeout(() => {
+    if (autoScrollEnabled) {
+        setTimeout(() => {
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-    }, 0);
+        }, 0);
+    } else {
+        // show the button if user scrolled up
+        jumpToLatestBtn.style.display = 'block';
+    }
 }
 
 function createButton({ id, text, title, onClick }) {
@@ -77,6 +87,10 @@ function populateModelOptions(current, models) {
     last.value = 'change-model';
     last.textContent = 'Change Model';
     modelSelect.appendChild(last);
+}
+
+function isAtBottom() {
+    return (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - BOTTOM_THRESH_PX);
 }
 
 // === CODE EXTRACTION & DIFF ===
@@ -234,7 +248,19 @@ window.addEventListener('message', event => {
     }
 });
 
+window.addEventListener('scroll', () => {
+    const atBottom = isAtBottom();
+    autoScrollEnabled = atBottom;
+    jumpToLatestBtn.style.display = atBottom ? 'none' : 'block';
+});
+
 // === BUTTONS ===
+jumpToLatestBtn.addEventListener('click', () => {
+    autoScrollEnabled = true;
+    jumpToLatestBtn.style.display = 'none';
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+});
+
 acceptButton.addEventListener('click', () => {
     if (!extractedAISuggestedCode) {
         alert('Error: No improved code available to apply.');
