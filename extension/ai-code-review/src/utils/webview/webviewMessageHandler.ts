@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { applySuggestion } from '../ai';
+import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
 import { promptAndShowSuggestion } from '../../commands';
 
@@ -49,6 +49,10 @@ export function handleWebviewMessage(
                         
                         await sendModelsList(context, panelInstance);
                         await promptAndShowSuggestion(message.documentUri);
+                        break;
+
+                    case 'stopStream':
+                        abortActiveRequest();
                         break;
                     
                     default:

@@ -5573,10 +5573,33 @@ async function listOllamaModels(context) {
 }
 
 // src/utils/ai/aiClient.ts
+var activeAbort = null;
+var abortReason = null;
+var UserAbort = class extends Error {
+  constructor() {
+    super("User aborted");
+    this.name = "UserAbort";
+  }
+};
+function abortActiveRequest() {
+  if (activeAbort) {
+    abortReason = "user";
+    try {
+      activeAbort.abort();
+    } catch {
+    }
+  }
+}
 async function* queryAIStream(suggestionPanel, prompt, context) {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12e4);
+    abortActiveRequest();
+    activeAbort = controller;
+    abortReason = null;
+    const timeout = setTimeout(() => {
+      abortReason = "timeout";
+      controller.abort();
+    }, 12e4);
     const api = getCurrentApi(context);
     const model = getCurrentModel(context);
     const response = await fetch(api, {
@@ -5595,6 +5618,8 @@ async function* queryAIStream(suggestionPanel, prompt, context) {
       return;
     }
     yield* streamResponseChunks(response.body);
+    activeAbort = null;
+    abortReason = null;
   } catch (error) {
     handleStreamError(suggestionPanel, error);
   }
@@ -5606,8 +5631,18 @@ async function handleAPIError(response) {
 }
 function handleStreamError(suggestionPanel, error) {
   if (error.name === "AbortError") {
-    console.error("AI request timed out.");
-    vscode3.window.showErrorMessage("AI request timed out.");
+    if (abortReason === "user") {
+      suggestionPanel.webview.postMessage({ command: "aiStopped" });
+      vscode3.window.setStatusBarMessage("\u23F9\uFE0F Stopped AI stream", 3e3);
+      activeAbort = null;
+      abortReason = null;
+      throw new UserAbort();
+    } else {
+      vscode3.window.showErrorMessage("AI request timed out.");
+      suggestionPanel.webview.postMessage({ command: "aiError", error: "AI request timed out." });
+      activeAbort = null;
+      abortReason = null;
+    }
   } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
     console.error("Failed to connect to the AI server. Is the Ollama server running?");
     vscode3.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
@@ -6042,6 +6077,9 @@ function handleWebviewMessage(panelInstance2, context) {
             await sendModelsList(context, panelInstance2);
             await promptAndShowSuggestion(message.documentUri);
             break;
+          case "stopStream":
+            abortActiveRequest();
+            break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
             break;
@@ -6197,6 +6235,9 @@ function registerShowSuggestion(context) {
         showOutput(fileName, accumulatedResponse);
       }
     } catch (error) {
+      if (error instanceof UserAbort || error.name === "UserAbort") {
+        return;
+      }
       hadStreamError = true;
       console.error("Error during AI response streaming:", error);
       suggestionPanel.webview.postMessage({

@@ -2,6 +2,20 @@ import * as vscode from 'vscode';
 import { AI_API, AI_MODEL } from "../constants";
 import { getCurrentApi, getCurrentModel } from './modelManager';
 
+let activeAbort: AbortController | null = null;
+let abortReason: 'user' | 'timeout' | null = null;
+
+export class UserAbort extends Error {
+	constructor() { super('User aborted'); this.name = 'UserAbort'; }
+}
+
+export function abortActiveRequest() {
+	if (activeAbort) {
+		abortReason = 'user';
+		try { activeAbort.abort(); } catch {}
+	}
+}
+
 export async function* queryAIStream(
 	suggestionPanel: vscode.WebviewPanel,
     prompt: string,
@@ -9,7 +23,16 @@ export async function* queryAIStream(
 ) {
 	try {
 		const controller = new AbortController();
-		const timeout = setTimeout(() => controller.abort(), 120_000); //120s
+
+		// cancel any previous active stream
+		abortActiveRequest();
+		activeAbort = controller;
+		abortReason = null;
+
+		const timeout = setTimeout(() => {
+			abortReason = 'timeout';
+			controller.abort();
+		}, 120_000); //120s
 
 		const api = getCurrentApi(context);
         const model = getCurrentModel(context);
@@ -34,7 +57,8 @@ export async function* queryAIStream(
         }
 
 		yield* streamResponseChunks(response.body);
-
+		activeAbort = null;
+		abortReason = null;
 	} catch (error: any) {
         handleStreamError(suggestionPanel, error);
     }
@@ -48,8 +72,18 @@ async function handleAPIError(response: Response) {
 
 function handleStreamError(suggestionPanel: vscode.WebviewPanel, error: any) {
 	if (error.name === 'AbortError') {
-		console.error('AI request timed out.');
-		vscode.window.showErrorMessage('AI request timed out.');
+		if (abortReason === 'user') {
+			// tell the webview and throw a recognizable error that the caller can ignore
+			suggestionPanel.webview.postMessage({ command: 'aiStopped' });
+			vscode.window.setStatusBarMessage('⏹️ Stopped AI stream', 3000);
+			activeAbort = null; abortReason = null;
+			throw new UserAbort();
+		} else {
+			// timeout
+			vscode.window.showErrorMessage('AI request timed out.');
+			suggestionPanel.webview.postMessage({ command: 'aiError', error: 'AI request timed out.' });
+			activeAbort = null; abortReason = null;
+		}
 	} else if (error instanceof TypeError && error.message.includes('fetch failed')) {
 		console.error('Failed to connect to the AI server. Is the Ollama server running?');
 		vscode.window.showErrorMessage('Failed to connect to AI. Make sure Ollama is running.', {modal: true});

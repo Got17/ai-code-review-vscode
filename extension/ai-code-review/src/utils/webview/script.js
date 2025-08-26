@@ -5,10 +5,12 @@ const streamingResponseArea = document.getElementById('streaming-response-area')
 
 const acceptButton = document.getElementById('accept-button');
 const rejectButton = document.getElementById('reject-button');
+const stopButton = document.getElementById('stop-button');
 
 const modelSelect = document.getElementById('model-select');
 
 const jumpToLatestBtn = document.getElementById('jump-to-latest');
+
 
 // === STATE ===
 let accumulatedRawResponse = '';
@@ -222,13 +224,13 @@ window.addEventListener('message', event => {
 
     switch (message.command) {
         case 'init':
-            console.log('[jsScript] Recieved message from Init', message);
             // populateModelOptions(jsCurrentModel || 'N/A', []);
             jsOriginalWholeFileContent = message.wholeFileContent;
             jsCurrentSelection = message.selection;
             jsCurrentDocumentUri = message.documentUri;
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
+            stopButton.disabled = false;
             vscode.postMessage(buildMessagePayload('requestModels'));
             break;
 
@@ -258,6 +260,7 @@ window.addEventListener('message', event => {
             if (extractedAISuggestedCode) acceptButton.disabled = false;
             rejectButton.disabled = false;
             renderPreferenceSection();
+            stopButton.disabled = true;
             break;
 
         case 'aiError':
@@ -267,6 +270,16 @@ window.addEventListener('message', event => {
             streamingResponseArea.style.color = 'red';
             acceptButton.disabled = true;
             rejectButton.disabled = false;
+            break;
+
+        case 'aiStopped':
+            // user aborted; keep what we have, show a small note
+            const note = document.createElement('div');
+            note.className = 'stopped-note';
+            note.textContent = '⏹ Stopped by user.';
+            streamingResponseArea.appendChild(note);
+            stopButton.disabled = true;
+            rejectButton.disabled = false;  // let user close the panel cleanly
             break;
 
         default:
@@ -297,6 +310,11 @@ acceptButton.addEventListener('click', () => {
 
 rejectButton.addEventListener('click', () => {
     vscode.postMessage(buildMessagePayload('reject'));
+});
+
+stopButton.addEventListener('click', () => {
+    stopButton.disabled = true; // prevent double-clicks
+    vscode.postMessage(buildMessagePayload('stopStream'));
 });
 
 modelSelect.addEventListener('change', () => {

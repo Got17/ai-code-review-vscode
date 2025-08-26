@@ -184,3 +184,22 @@ button:disabled {
     opacity: .6;
     font-size: .85em;
 }
+/* Stop button */
+#stop-button {
+  background: #7a2f2f;
+  border: 1px solid #7a2f2f;
+  color: #fff;
+  border-radius: 6px;
+  padding: .5rem .8rem;
+}
+#stop-button[disabled] {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+/* Small note when user stops */
+.stopped-note {
+  margin: .75rem 0;
+  font-size: .9em;
+  opacity: .8;
+}

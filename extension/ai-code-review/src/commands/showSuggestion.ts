@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { queryAIStream, buildPrompt, getUserPreferences } from '../utils/ai';
+import { queryAIStream, buildPrompt, getUserPreferences, UserAbort } from '../utils/ai';
 import { getGitClient } from '../utils/git';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 import { getCurrentModel } from '../utils/ai/modelManager';
@@ -107,7 +107,11 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
                 showOutput(fileName, accumulatedResponse);
             }
 
-        } catch (error) {
+        } catch (error: any) {
+            if (error instanceof UserAbort || error.name === 'UserAbort') {
+                // user stopped: webview already updated; just exit
+                return;
+            }
             hadStreamError = true;
             console.error('Error during AI response streaming:', error);
 
