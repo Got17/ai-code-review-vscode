@@ -145,32 +145,58 @@ function generateDiffHtml(originalCode, improvedCode) {
 
 // === RENDERING ===
 function renderPreferenceSection() {
-    const header = document.createElement("h3");
-    header.textContent = "Active AI Preferences:";
+    const card = document.createElement('section');
+    card.className = 'prefs-card';
 
-    const detail = document.createElement("pre");
-    detail.id = "user-preference";
-    detail.textContent = `${jsUserPreferences}`;
+    const header = document.createElement('div');
+    header.className = 'prefs-header';
 
-    const modelLine = document.createElement("div");
-    modelLine.style.margin = '8px 0';
-    modelLine.textContent = `Model: ${jsCurrentModel}`;
+    const title = document.createElement('div');
+    title.className = 'prefs-title';
+    title.textContent = 'Active AI Preferences';
 
-    const editButton = createButton({
-        id: "edit-preference-button",
-        text: "✏️ Edit Preferences",
-        title: "Edit AI Preferences",
+    const actions = document.createElement('div');
+    actions.className = 'prefs-actions';
+
+    const editBtn = createButton({
+        id: 'edit-preference-button',
+        text: 'Edit',
+        title: 'Edit AI Preferences',
         onClick: () => vscode.postMessage(buildMessagePayload('editPreferences'))
     });
+    editBtn.className = 'btn-ghost';
 
-    const clearButton = createButton({
-        id: "clear-preference-button",
-        text: "🧹 Clear Preferences",
-        title: "Clear AI Preferences",
+    const clearBtn = createButton({
+        id: 'clear-preference-button',
+        text: 'Clear',
+        title: 'Clear AI Preferences',
         onClick: () => vscode.postMessage(buildMessagePayload('clearPreferences'))
     });
+    clearBtn.className = 'btn-ghost btn-danger';
 
-    streamingResponseArea.append(header, detail, editButton, clearButton);
+    actions.append(editBtn, clearBtn);
+    header.append(title, actions);
+
+    const body = document.createElement('div');
+    body.className = 'prefs-body';
+
+    const pre = document.createElement('pre');
+    pre.id = 'user-preference';
+    pre.className = 'prefs-pre';
+    const txt = (jsUserPreferences || '').trim();
+    pre.textContent = txt || 'None set.';
+    if (!txt) {
+        pre.classList.add('prefs-empty');
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'prefs-meta';
+    meta.textContent = `Model: ${jsCurrentModel}`;
+
+    body.append(pre, meta);
+    card.append(header, body);
+
+    streamingResponseArea.append(card);
 }
 
 function renderMarkdownChunk(chunk) {

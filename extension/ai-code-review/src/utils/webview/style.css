@@ -73,6 +73,7 @@ button:disabled {
 }
 #streaming-response-area pre {
     background: var(--vscode-textBlockQuote-background, #2d2d2d); 
+    color: var(--vscode-foreground, #ddd);
     padding: 1rem; 
     overflow-x: auto; 
     white-space: pre-wrap; 
@@ -96,6 +97,9 @@ button:disabled {
     background-color: #da3633;
     opacity: 1; 
 }
+.hljs {
+    color: var(--vscode-editor-foreground, #ddd);
+}
 
 #jump-to-latest {
     position: fixed;
@@ -112,6 +116,71 @@ button:disabled {
     margin: auto;
 }
 #jump-to-latest:hover {
-  background: var(--vscode-button-hoverBackground, #1177bb);
-  color: var(--vscode-button-foreground, #fff);
+    background: var(--vscode-button-hoverBackground, #1177bb);
+    color: var(--vscode-button-foreground, #fff);
+}
+/* --- Preferences Card --- */
+.prefs-card {
+    margin-top: 1rem;
+    border: 1px solid var(--vscode-editorWidget-border, #444);
+    background: rgba(255,255,255,0.02);
+    border-radius: 8px;
+}
+
+.prefs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .6rem .8rem;
+    border-bottom: 1px solid var(--vscode-editorWidget-border, #333);
+}
+
+.prefs-title {
+    font-weight: 600;
+    opacity: .9;
+}
+
+.prefs-actions { 
+    display: flex; 
+    gap: .5rem; 
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--vscode-foreground, #ddd);
+    border: 1px solid var(--vscode-editorWidget-border, #444);
+    padding: .3rem .6rem;
+    border-radius: 6px;
+    font-size: .85em;
+}
+.btn-ghost:hover {
+    background: var(--vscode-toolbar-hoverBackground, #2d2d2d);
+}
+
+.btn-danger {
+    border-color: #7a2f2f;
+    color: #ffb3b3;
+}
+.btn-danger:hover { background: #7a2f2f33; }
+
+.prefs-body { padding: .8rem; }
+
+.prefs-pre {
+    margin: 0;
+    background: var(--vscode-textBlockQuote-background, #2d2d2d);
+    color: var(--vscode-foreground, #ddd);
+    padding: .6rem .8rem;
+    border-radius: 6px;
+    white-space: pre-wrap;
+}
+
+.prefs-empty {
+    color: var(--vscode-descriptionForeground, #888);
+    font-style: italic;
+}
+
+.prefs-meta {
+    margin-top: .5rem;
+    opacity: .6;
+    font-size: .85em;
 }
