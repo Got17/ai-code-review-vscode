@@ -5910,19 +5910,6 @@ async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
   cache2.set(cacheKey, cacheEntry);
   const queryEmbedding = await embed(queryText, cacheEntry.extractor);
   const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
-  console.log(
-    "[RAG] metadata.length =",
-    cacheEntry.meta.length,
-    "index.ntotal =",
-    cacheEntry.index.ntotal()
-  );
-  console.log(
-    "[RAG] preview hit sources =",
-    retrievalHits.slice(0, Math.min(3, retrievalHits.length)).map(([similarityScore, record]) => ({
-      score: +similarityScore.toFixed(3),
-      source: record.source
-    }))
-  );
   return formatContext(retrievalHits);
 }
 
@@ -6063,11 +6050,9 @@ function handleWebviewMessage(panelInstance2, context) {
             vscode9.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
             break;
           case "requestModels":
-            console.log("[handleWebviewMessage] requestModels activate");
             await sendModelsList(context, panelInstance2);
             break;
           case "setModelDirect":
-            console.log("[handleWebviewMessage] setModelDirect activate");
             const picked = String(message.model || "").trim();
             if (!picked) {
               break;

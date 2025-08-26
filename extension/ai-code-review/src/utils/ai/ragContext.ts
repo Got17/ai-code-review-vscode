@@ -335,21 +335,6 @@ export async function getRagContext(
     /** Retrieve nearest neighbors */
     const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
 
-    /** Debug logging */
-    console.log(
-        "[RAG] metadata.length =",
-        cacheEntry.meta!.length,
-        "index.ntotal =",
-        cacheEntry.index!.ntotal()
-    );
-    console.log(
-        "[RAG] preview hit sources =",
-        retrievalHits.slice(0, Math.min(3, retrievalHits.length)).map(([similarityScore, record]) => ({
-        score: +similarityScore.toFixed(3),
-        source: record.source,
-        }))
-    );
-
     /** Format context */
     return formatContext(retrievalHits);
 }

@@ -63,7 +63,6 @@ function createButton({ id, text, title, onClick }) {
 }
 
 function populateModelOptions(current, models) {
-    console.log('[jsScript] Generate Model options');
     // clear
     modelSelect.innerHTML = '';
 
@@ -208,8 +207,6 @@ function renderMarkdownChunk(chunk) {
 }
 
 // === MARKDOWN OPTIONS ===
-console.log('hljs loaded:', typeof hljs !== 'undefined');
-
 marked.setOptions({
     highlight: function (code, lang) {
         const isDiffFSharp = lang && lang.toLowerCase() === 'diff:fsharp';
@@ -235,7 +232,6 @@ window.addEventListener('message', event => {
             break;
 
         case 'modelsList':
-            console.log('[jsScript] modelsList activate');
             populateModelOptions(jsCurrentModel, message.models || []);
             break;
 
@@ -318,7 +314,6 @@ stopButton.addEventListener('click', () => {
 });
 
 modelSelect.addEventListener('change', () => {
-    console.log('[jsScript] modelSelect changed');
     const selectedModelValue = modelSelect.value;
     if (selectedModelValue === 'change-model') {
         vscode.postMessage(buildMessagePayload('changeModel'));

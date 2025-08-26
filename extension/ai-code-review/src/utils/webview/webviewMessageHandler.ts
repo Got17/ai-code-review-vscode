@@ -34,12 +34,10 @@ export function handleWebviewMessage(
                         break;
 
                     case 'requestModels':
-                        console.log('[handleWebviewMessage] requestModels activate');
                         await sendModelsList(context, panelInstance);
                         break;
                     
-                    case 'setModelDirect': 
-                        console.log('[handleWebviewMessage] setModelDirect activate');
+                    case 'setModelDirect':
                         const picked = String(message.model || '').trim();
                         if (!picked) {
                             break;
