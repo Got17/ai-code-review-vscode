@@ -52,6 +52,30 @@ export function handleWebviewMessage(
                     case 'stopStream':
                         abortActiveRequest();
                         break;
+
+                    case 'refresh':
+                        // Open the same document and restore the original selection, then rerun
+                        const docUri = vscode.Uri.parse(message.documentUri);
+                        const doc = await vscode.workspace.openTextDocument(docUri);
+                        const editor = await vscode.window.showTextDocument(doc, {
+                            preserveFocus: false,
+                            viewColumn: vscode.ViewColumn.One,
+                        });
+
+                        if (message.selection) {
+                            const selection = new vscode.Selection(
+                                new vscode.Position(message.selection.start.line, message.selection.start.character),
+                                new vscode.Position(message.selection.end.line, message.selection.end.character)
+                            );
+                            editor.selection = selection;
+                            editor.revealRange(
+                                new vscode.Range(selection.start, selection.end), 
+                                vscode.TextEditorRevealType.InCenterIfOutsideViewport
+                            );
+                        }
+
+                        await vscode.commands.executeCommand('extension.showSuggestion');
+                        break;                    
                     
                     default:
                         console.warn(`Unhandled command received from webview: ${message.command}`);

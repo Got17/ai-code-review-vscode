@@ -13,18 +13,17 @@ hr {
 .file-info { 
     font-size: 0.9em; 
     opacity: 0.7;
+    line-height: 32px;
+    margin-bottom: .4rem;
 }
 
 #top-bar {
     position: sticky;
     top: 0;
     z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 1rem;
     padding: .5rem 0;
-    background: var(--vscode-editor-background, #1e1e1e);
+    background: var(--vscode-editor-background, #1e1e1e);    
 }
 
 .model-area {
@@ -41,6 +40,42 @@ hr {
     padding: 0.3rem 0.5rem;
     font-size: 0.9em;
     max-width: 28rem;
+    /* ensure select aligns nicely with 32px buttons */
+    height: 32px;
+}
+
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: 1px solid var(--vscode-editorWidget-border, #444);
+    background: var(--vscode-input-background, #2d2d2d);
+    color: var(--vscode-input-foreground, #ddd);
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;  /* keeps symbols crisp */
+    line-height: 1;
+    margin: 0;
+}
+
+.icon-btn:hover {
+    background: var(--vscode-toolbar-hoverBackground, #2d2d2d);
+}
+
+.icon-btn[disabled] {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.icon-btn.danger {
+    border-color: #7a2f2f;
+    color: #ffb3b3;
+}
+.icon-btn.danger:hover {
+    background: #7a2f2f33;
 }
 
 .buttons { 
@@ -184,22 +219,10 @@ button:disabled {
     opacity: .6;
     font-size: .85em;
 }
-/* Stop button */
-#stop-button {
-  background: #7a2f2f;
-  border: 1px solid #7a2f2f;
-  color: #fff;
-  border-radius: 6px;
-  padding: .5rem .8rem;
-}
-#stop-button[disabled] {
-  opacity: .6;
-  cursor: not-allowed;
-}
 
 /* Small note when user stops */
 .stopped-note {
-  margin: .75rem 0;
-  font-size: .9em;
-  opacity: .8;
+    margin: .75rem 0;
+    font-size: .9em;
+    opacity: .8;
 }

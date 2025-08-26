@@ -6,6 +6,7 @@ const streamingResponseArea = document.getElementById('streaming-response-area')
 const acceptButton = document.getElementById('accept-button');
 const rejectButton = document.getElementById('reject-button');
 const stopButton = document.getElementById('stop-button');
+const refreshButton = document.getElementById('refresh-button');
 
 const modelSelect = document.getElementById('model-select');
 
@@ -228,6 +229,7 @@ window.addEventListener('message', event => {
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
             stopButton.disabled = false;
+            refreshButton.disabled = true;
             vscode.postMessage(buildMessagePayload('requestModels'));
             break;
 
@@ -254,8 +256,9 @@ window.addEventListener('message', event => {
 
             // eslint-disable-next-line curly
             if (extractedAISuggestedCode) acceptButton.disabled = false;
-            rejectButton.disabled = false;
             renderPreferenceSection();
+            rejectButton.disabled = false;            
+            refreshButton.disabled = false;
             stopButton.disabled = true;
             break;
 
@@ -266,6 +269,8 @@ window.addEventListener('message', event => {
             streamingResponseArea.style.color = 'red';
             acceptButton.disabled = true;
             rejectButton.disabled = false;
+            refreshButton.disabled = false;
+            stopButton.disabled = true;
             break;
 
         case 'aiStopped':
@@ -274,6 +279,7 @@ window.addEventListener('message', event => {
             note.className = 'stopped-note';
             note.textContent = '⏹ Stopped by user.';
             streamingResponseArea.appendChild(note);
+            refreshButton.disabled = false;
             stopButton.disabled = true;
             rejectButton.disabled = false;  // let user close the panel cleanly
             break;
@@ -311,6 +317,11 @@ rejectButton.addEventListener('click', () => {
 stopButton.addEventListener('click', () => {
     stopButton.disabled = true; // prevent double-clicks
     vscode.postMessage(buildMessagePayload('stopStream'));
+});
+
+refreshButton.addEventListener('click', () => {
+    refreshButton.disabled = true;           // avoid double taps
+    vscode.postMessage(buildMessagePayload('refresh'));
 });
 
 modelSelect.addEventListener('change', () => {

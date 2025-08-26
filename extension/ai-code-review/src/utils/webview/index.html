@@ -38,6 +38,18 @@
 				<select id="model-select" class="model-select" title="Pick Ollama model">
 				<!-- populated at runtime -->
 				</select>
+
+				<button id="refresh-button"
+					class="icon-btn"
+					title="Refresh (re-run Show Suggestion)"
+					aria-label="Refresh"
+					disabled>⟳</button>
+
+				<button id="stop-button"
+					class="icon-btn danger"
+					title="Stop AI"
+					aria-label="Stop"
+					disabled>⏹</button>
 			</div>
 		</div>
 		
@@ -48,7 +60,6 @@
 		<div class="buttons">
 			<button title="Accept AI Suggestion" id="accept-button" disabled>✅ Accept Suggestion</button>
 			<button title="Reject AI Suggestion" id="reject-button" disabled>❌ Reject Suggestion</button>
-			<button title="Stop AI" id="stop-button">⏹ Stop</button>
 		</div>
 	</div>
 
