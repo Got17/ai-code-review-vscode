@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
 import { promptAndShowSuggestion } from '../../commands';
+import { openShadowRepo, shadowCommit, formatAiCommitMessage } from '../git/shadowRepo';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel,
@@ -17,7 +18,7 @@ export function handleWebviewMessage(
 
                 switch (message.command) {
                     case 'accept':
-                        await handleAccept(message, originalSelection, panelInstance);
+                        await handleAccept(context, message, originalSelection, panelInstance);
                         break;
                     case 'reject':
                         vscode.window.showInformationMessage('AI suggestion rejected.');
@@ -105,6 +106,7 @@ async function sendModelsList(context: vscode.ExtensionContext, panelInstance: v
 
 
 async function handleAccept(
+    context: vscode.ExtensionContext,
     message: any,
     originalSelection: vscode.Selection,
     panelInstance: vscode.WebviewPanel
@@ -122,6 +124,25 @@ async function handleAccept(
     const docUri = vscode.Uri.parse(message.documentUri);
 
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+
+    try {
+        const extensionConfiguration = vscode.workspace.getConfiguration('aiCodeReview');
+        const enableShadow = extensionConfiguration.get<boolean>('git.enable', false);
+        if (enableShadow) {        
+            const shadow = await openShadowRepo(context);
+            const doc = await vscode.workspace.openTextDocument(docUri);
+
+            // build a commit subject/body
+            const subjectHint = (message.commitSubject as string | undefined) ?? 'refactor selected region';
+            const bullets = (message.summary as string | undefined)?.split('\n').filter(Boolean);
+
+            const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
+            const hash = await shadowCommit(shadow, [doc.uri.fsPath], subject, body, context);
+            vscode.window.setStatusBarMessage(`✅ AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
+        }
+    } catch (e: any) {
+        vscode.window.showWarningMessage(`Shadow commit failed: ${e?.message ?? String(e)}`);
+    }
 
     panelInstance.dispose();
 }

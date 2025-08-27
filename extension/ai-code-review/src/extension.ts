@@ -8,7 +8,7 @@ export function activate(context: vscode.ExtensionContext) {
 		registerShowAIPreferences(context),
 		registerClearAIPreferences(context),
 		registerCheckGitStatus(),
-		registerUndoLastSuggestion(),
+		registerUndoLastSuggestion(context),
 		registerChangeOllamaModel(context)
 	);
 }

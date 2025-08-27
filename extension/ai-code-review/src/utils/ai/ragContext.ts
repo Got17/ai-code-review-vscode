@@ -315,8 +315,8 @@ export async function getRagContext(
     if (!cacheEntry.extractor) {
         const { pipeline } = await loadTransformers(context);
         cacheEntry.extractor = (await pipeline(
-        "feature-extraction",
-        MODEL_ID
+            "feature-extraction",
+            MODEL_ID
         )) as FeatureExtractionPipeline;
     }
 

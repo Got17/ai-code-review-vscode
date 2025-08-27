@@ -1,37 +1,12 @@
 import * as vscode from 'vscode';
-import { getGitClient } from '../utils/git';
-import { SimpleGit } from 'simple-git';
+import { shadowRevertLast } from '../utils/git/shadowRepo';
 
-export function registerUndoLastSuggestion() {
+export function registerUndoLastSuggestion(context: vscode.ExtensionContext) {
 	return vscode.commands.registerCommand('extension.undoLastSuggestion', async () => {
-		const git = getGitClient();
-		if (!git) {
-            return;
-        }
-
-		const confirm = await confirmUndo();
-		if (!confirm) {
+		const ok = await vscode.window.showInformationMessage('Revert last AI change (shadow)?', 'Yes', 'Cancel');
+		if (ok !== 'Yes') {
 			return;
 		}
-
-		await undoLastCommit(git);
+		await shadowRevertLast(context);
 	});
 }
-
-async function confirmUndo(): Promise<boolean> {
-	const choice = await vscode.window.showInformationMessage(
-		'⏪ Do you want to undo the last suggestion?',
-		'Yes', 'Cancel'
-	);
-	return choice === 'Yes';
-}
-
-async function undoLastCommit(git: SimpleGit): Promise<void> {
-	try {
-		await git.raw(['checkout', 'HEAD~1', '--', '.']);
-		vscode.window.showInformationMessage('🔄 Last suggestion reverted to previous state.');
-	} catch (err: any) {
-		vscode.window.showErrorMessage(`❌ Failed to undo: ${err.message}`);
-	}
-}
-
