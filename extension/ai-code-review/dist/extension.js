@@ -5999,13 +5999,11 @@ async function openShadowRepo(context) {
   }
   return { git, gitDir, workTree, repoRoot };
 }
-async function shadowCommit(shadow, files, subject, body, context) {
+async function shadowCommit(shadow, files, aiExplanation, context) {
   const { git, gitDir, workTree } = shadow;
   const rels = files.map((f) => path.relative(workTree, f));
   await git.raw(["--git-dir", gitDir, "-C", workTree, "add", "--", ...rels]);
-  const msg = body && body.trim() ? `${subject}
-
-${body.trim()}` : subject;
+  const msg = `${AI_COMMIT_PREFIX} (${aiExplanation})`;
   await git.raw(["--git-dir", gitDir, "-C", workTree, "commit", "-m", msg]);
   const head = (await git.raw(["--git-dir", gitDir, "rev-parse", "HEAD"])).trim();
   if (context) {
@@ -6024,12 +6022,6 @@ async function shadowRevertLast(context) {
   await git.raw(["--git-dir", gitDir, "-C", workTree, "revert", "--no-edit", last2]);
   await context.globalState.update(LAST_AI_COMMIT_KEY, void 0);
   vscode7.window.showInformationMessage(`Reverted AI commit ${last2.slice(0, 7)} (shadow).`);
-}
-function formatAiCommitMessage(subjectHint, bullets) {
-  const base = subjectHint && subjectHint.trim().length > 0 ? subjectHint.trim() : "apply suggested changes";
-  const subject = `${AI_COMMIT_PREFIX}: ${base}`.slice(0, 70);
-  const body = Array.isArray(bullets) && bullets.length ? bullets.map((b) => `- ${b}`).join("\n") : void 0;
-  return { subject, body };
 }
 async function isTrackedFile(shadow, relPath) {
   try {
@@ -6162,10 +6154,8 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
     }
     if (enableShadow) {
       const shadow = await openShadowRepo(context);
-      const subjectHint = message.commitSubject ?? "refactor selected region";
-      const bullets = message.summary?.split("\n").filter(Boolean);
-      const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
-      const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], subject, body, context);
+      const aiExplanation = message.aiExplanation;
+      const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], aiExplanation, context);
       vscode8.window.setStatusBarMessage(`\u2705 AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
     }
   } catch (e) {

@@ -49,7 +49,7 @@ export async function openShadowRepo(context: vscode.ExtensionContext): Promise<
     try {
         await git.raw(['-C', repoRoot, 'rev-parse', '--git-dir']);
     } catch {
-        await git.raw(['-C', repoRoot, 'init']);                                 // non-bare
+        await git.raw(['-C', repoRoot, 'init']);
         await git.raw(['-C', repoRoot, 'config', 'user.name', 'AI Reviewer']);
         await git.raw(['-C', repoRoot, 'config', 'user.email', 'ai@example.local']);
         await git.raw(['-C', repoRoot, 'config', 'core.worktree', workTree]);    // key line
@@ -62,8 +62,7 @@ export async function openShadowRepo(context: vscode.ExtensionContext): Promise<
 export async function shadowCommit(
     shadow: Shadow,
     files: string[],
-    subject: string,
-    body?: string,
+    aiExplanation: string,
     context?: vscode.ExtensionContext
 ): Promise<string> {
     const { git, gitDir, workTree } = shadow;
@@ -72,7 +71,8 @@ export async function shadowCommit(
     const rels = files.map(f => path.relative(workTree, f));
     await git.raw(['--git-dir', gitDir, '-C', workTree, 'add', '--', ...rels]);
 
-    const msg = body && body.trim() ? `${subject}\n\n${body.trim()}` : subject;
+    const msg = `${AI_COMMIT_PREFIX} (${aiExplanation})`;
+
     await git.raw(['--git-dir', gitDir, '-C', workTree, 'commit', '-m', msg]);
 
     const head = (await git.raw(['--git-dir', gitDir, 'rev-parse', 'HEAD'])).trim();
@@ -94,23 +94,6 @@ export async function shadowRevertLast(context: vscode.ExtensionContext) {
     await git.raw(['--git-dir', gitDir, '-C', workTree, 'revert', '--no-edit', last]);
     await context.globalState.update(LAST_AI_COMMIT_KEY, undefined);
     vscode.window.showInformationMessage(`Reverted AI commit ${last.slice(0,7)} (shadow).`);
-}
-
-export function formatAiCommitMessage(
-    subjectHint?: string, 
-    bullets?: string[]
-): CommitMessage {
-    // Subject (<=50 chars, imperative). Keep it short & meaningful.
-    const base = subjectHint && subjectHint.trim().length > 0
-        ? subjectHint.trim()
-        : 'apply suggested changes';
-
-    const subject = `${AI_COMMIT_PREFIX}: ${base}`.slice(0, 70);
-    const body = Array.isArray(bullets) && bullets.length
-        ? bullets.map(b => `- ${b}`).join('\n')
-        : undefined;
-
-    return { subject, body };
 }
 
 export async function isTrackedFile(shadow: Shadow, relPath: string): Promise<boolean> {

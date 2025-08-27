@@ -23,6 +23,7 @@ let jsCurrentSelection = null;
 let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
 let jsCurrentModel = null;
+let jsAiExplanation = null;
 
 let autoScrollEnabled = true;
 const BOTTOM_THRESH_PX = 60;
@@ -39,7 +40,8 @@ function buildMessagePayload(command) {
         command,
         aiSuggestedCode: extractedAISuggestedCode,
         selection: jsCurrentSelection,
-        documentUri: jsCurrentDocumentUri
+        documentUri: jsCurrentDocumentUri,
+        aiExplanation: jsAiExplanation
     };
 }
 
@@ -104,6 +106,16 @@ function extractImprovedCode(aiResponse) {
     const fallback = /```fsharp\n([\s\S]*?)\n```/i;
 
     const match = aiResponse.match(regex) || aiResponse.match(fallback);
+    return match?.[1]?.trim() ?? null;
+}
+
+function extractExplanation(aiResponse) {
+    // eslint-disable-next-line curly
+    if (!aiResponse) return null;
+
+    const regex = /^### Explanation[\s\S]*?\n- ([\s\S]*?)(?=\n|$)/im;
+
+    const match = aiResponse.match(regex);
     return match?.[1]?.trim() ?? null;
 }
 
@@ -222,7 +234,6 @@ window.addEventListener('message', event => {
 
     switch (message.command) {
         case 'init':
-            // populateModelOptions(jsCurrentModel || 'N/A', []);
             jsOriginalWholeFileContent = message.wholeFileContent;
             jsCurrentSelection = message.selection;
             jsCurrentDocumentUri = message.documentUri;
@@ -244,6 +255,8 @@ window.addEventListener('message', event => {
 
         case 'aiStreamEnd':
             extractedAISuggestedCode = extractImprovedCode(message.fullResponse || accumulatedRawResponse);
+            
+            jsAiExplanation = extractExplanation(accumulatedRawResponse);
 
             const improvedCode = extractedAISuggestedCode || '';
             const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');

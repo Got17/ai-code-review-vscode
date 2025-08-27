@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
 import { promptAndShowSuggestion } from '../../commands';
-import { openShadowRepo, shadowCommit, formatAiCommitMessage, ensureBaselineForFile  } from '../git/shadowRepo';
+import { openShadowRepo, shadowCommit, ensureBaselineForFile  } from '../git/shadowRepo';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel,
@@ -125,10 +125,10 @@ async function handleAccept(
         if (enableShadow) {
         // ensure disk matches current buffer before baseline
         if (docBefore.isDirty && autoSave) { await docBefore.save(); }
-        const shadow = await openShadowRepo(context);
+            const shadow = await openShadowRepo(context);
 
-        // baseline once per file (prevents "revert = delete")
-        await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
+            // baseline once per file (prevents "revert = delete")
+            await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
         }
 
         // apply new content in editor
@@ -141,11 +141,9 @@ async function handleAccept(
         // shadow commit
         if (enableShadow) {
             const shadow = await openShadowRepo(context);
-            const subjectHint = (message.commitSubject as string | undefined) ?? 'refactor selected region';
-            const bullets = (message.summary as string | undefined)?.split('\n').filter(Boolean);
+            const aiExplanation =  message.aiExplanation;
 
-            const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
-            const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], subject, body, context);
+            const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], aiExplanation, context);
             vscode.window.setStatusBarMessage(`✅ AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
         }
     } catch (e: any) {
