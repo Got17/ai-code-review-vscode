@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
 import { promptAndShowSuggestion } from '../../commands';
-import { openShadowRepo, shadowCommit, formatAiCommitMessage } from '../git/shadowRepo';
+import { openShadowRepo, shadowCommit, formatAiCommitMessage, ensureBaselineForFile  } from '../git/shadowRepo';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel,
@@ -111,33 +111,41 @@ async function handleAccept(
     originalSelection: vscode.Selection,
     panelInstance: vscode.WebviewPanel
 ) {
-    if (!message.aiSuggestedCode) {
-        vscode.window.showErrorMessage('AI did not provide improved code to apply.');
-        return;
-    }
-
-    if (!message.selection || !message.documentUri) {
-        vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.');
-        return;
-    }
+    if (!message.aiSuggestedCode) { vscode.window.showErrorMessage('AI did not provide improved code to apply.'); return; }
+    if (!message.selection || !message.documentUri) { vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.'); return; }
 
     const docUri = vscode.Uri.parse(message.documentUri);
+    const docBefore = await vscode.workspace.openTextDocument(docUri);
 
-    await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+    const cfg = vscode.workspace.getConfiguration('aiCodeReview');
+    const enableShadow = cfg.get<boolean>('git.enable', false);
+    const autoSave = true;
 
     try {
-        const extensionConfiguration = vscode.workspace.getConfiguration('aiCodeReview');
-        const enableShadow = extensionConfiguration.get<boolean>('git.enable', false);
-        if (enableShadow) {        
-            const shadow = await openShadowRepo(context);
-            const doc = await vscode.workspace.openTextDocument(docUri);
+        if (enableShadow) {
+        // ensure disk matches current buffer before baseline
+        if (docBefore.isDirty && autoSave) { await docBefore.save(); }
+        const shadow = await openShadowRepo(context);
 
-            // build a commit subject/body
+        // baseline once per file (prevents "revert = delete")
+        await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
+        }
+
+        // apply new content in editor
+        await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+
+        // persist to disk so commit matches the change
+        const docAfter = await vscode.workspace.openTextDocument(docUri);
+        if (autoSave) { await docAfter.save(); }
+
+        // shadow commit
+        if (enableShadow) {
+            const shadow = await openShadowRepo(context);
             const subjectHint = (message.commitSubject as string | undefined) ?? 'refactor selected region';
             const bullets = (message.summary as string | undefined)?.split('\n').filter(Boolean);
 
             const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
-            const hash = await shadowCommit(shadow, [doc.uri.fsPath], subject, body, context);
+            const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], subject, body, context);
             vscode.window.setStatusBarMessage(`✅ AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
         }
     } catch (e: any) {

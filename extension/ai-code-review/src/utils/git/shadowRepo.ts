@@ -112,3 +112,22 @@ export function formatAiCommitMessage(
 
     return { subject, body };
 }
+
+export async function isTrackedFile(shadow: Shadow, relPath: string): Promise<boolean> {
+    try {
+        await shadow.git.raw(['--git-dir', shadow.gitDir, '-C', shadow.workTree, 'ls-files', '--error-unmatch', '--', relPath]);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+export async function ensureBaselineForFile(shadow: Shadow, absPath: string): Promise<void> {
+    const rel = path.relative(shadow.workTree, absPath);
+    if (await isTrackedFile(shadow, rel)) {
+        return;
+    }
+
+    await shadow.git.raw(['--git-dir', shadow.gitDir, '-C', shadow.workTree, 'add', '--', rel]);
+    await shadow.git.raw(['--git-dir', shadow.gitDir, '-C', shadow.workTree, 'commit', '-m', `chore(ai): baseline snapshot ${rel}`]);
+}

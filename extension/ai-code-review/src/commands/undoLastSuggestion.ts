@@ -7,6 +7,9 @@ export function registerUndoLastSuggestion(context: vscode.ExtensionContext) {
 		if (ok !== 'Yes') {
 			return;
 		}
+
+		await vscode.workspace.saveAll();
+		
 		await shadowRevertLast(context);
 	});
 }

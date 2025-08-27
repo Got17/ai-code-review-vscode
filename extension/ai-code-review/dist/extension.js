@@ -5527,6 +5527,22 @@ function formatAiCommitMessage(subjectHint, bullets) {
   const body = Array.isArray(bullets) && bullets.length ? bullets.map((b) => `- ${b}`).join("\n") : void 0;
   return { subject, body };
 }
+async function isTrackedFile(shadow, relPath) {
+  try {
+    await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "ls-files", "--error-unmatch", "--", relPath]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function ensureBaselineForFile(shadow, absPath) {
+  const rel = path.relative(shadow.workTree, absPath);
+  if (await isTrackedFile(shadow, rel)) {
+    return;
+  }
+  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "add", "--", rel]);
+  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "commit", "-m", `chore(ai): baseline snapshot ${rel}`]);
+}
 
 // src/commands/checkGitStatus.ts
 function registerCheckGitStatus() {
@@ -6183,17 +6199,29 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
     return;
   }
   const docUri = vscode10.Uri.parse(message.documentUri);
-  await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+  const docBefore = await vscode10.workspace.openTextDocument(docUri);
+  const cfg = vscode10.workspace.getConfiguration("aiCodeReview");
+  const enableShadow = cfg.get("git.enable", false);
+  const autoSave = true;
   try {
-    const extensionConfiguration = vscode10.workspace.getConfiguration("aiCodeReview");
-    const enableShadow = extensionConfiguration.get("git.enable", false);
+    if (enableShadow) {
+      if (docBefore.isDirty && autoSave) {
+        await docBefore.save();
+      }
+      const shadow = await openShadowRepo(context);
+      await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
+    }
+    await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+    const docAfter = await vscode10.workspace.openTextDocument(docUri);
+    if (autoSave) {
+      await docAfter.save();
+    }
     if (enableShadow) {
       const shadow = await openShadowRepo(context);
-      const doc = await vscode10.workspace.openTextDocument(docUri);
       const subjectHint = message.commitSubject ?? "refactor selected region";
       const bullets = message.summary?.split("\n").filter(Boolean);
       const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
-      const hash = await shadowCommit(shadow, [doc.uri.fsPath], subject, body, context);
+      const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], subject, body, context);
       vscode10.window.setStatusBarMessage(`\u2705 AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
     }
   } catch (e) {
@@ -6341,6 +6369,7 @@ function registerUndoLastSuggestion(context) {
     if (ok !== "Yes") {
       return;
     }
+    await vscode13.workspace.saveAll();
     await shadowRevertLast(context);
   });
 }
