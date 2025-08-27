@@ -44,10 +44,6 @@
         "title": "AI Code Review: Clear AI Preferences"
       },
       {
-        "command": "extension.checkGitStatus",
-        "title": "AI Code Review: Check Git Status"
-      },
-      {
         "command": "extension.undoLastSuggestion",
         "title": "AI Code Review: Undo Last Suggestion"
       }

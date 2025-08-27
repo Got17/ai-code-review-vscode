@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { queryAIStream, buildPrompt, getUserPreferences, UserAbort } from '../utils/ai';
-import { getGitClient } from '../utils/git';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 import { getCurrentModel } from '../utils/ai/modelManager';
 
@@ -48,13 +47,6 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         );
 
         console.log(prompt);
-
-        // Ensure Git is available
-        const git = getGitClient();
-        if (!git) {
-            vscode.window.showErrorMessage('Git client not available.');
-            return;
-        }
 
         // Open the suggestion webview panel
         const suggestionPanel = await showSuggestionWebview(

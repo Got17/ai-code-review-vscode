@@ -922,11 +922,531 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 
-// src/commands/checkGitStatus.ts
-var vscode3 = __toESM(require("vscode"));
+// src/commands/showSuggestion.ts
+var vscode10 = __toESM(require("vscode"));
 
-// src/utils/git/gitUtils.ts
+// src/utils/ai/aiClient.ts
 var vscode = __toESM(require("vscode"));
+
+// src/utils/constants.ts
+var WEBVIEW_LIBRARY_DIR = "webview-lib";
+var AI_MODEL = "qwen2.5-coder:7b-instruct";
+var AI_API = "http://localhost:11434/api/generate";
+
+// src/utils/ai/modelManager.ts
+var STORAGE_KEYS = {
+  model: "ollamaModel",
+  api: "ollamaApi"
+};
+function getStringPref(context, key) {
+  const value = context.globalState.get(key);
+  const trimmed2 = value?.trim();
+  return trimmed2 ? trimmed2 : void 0;
+}
+async function setStringPref(context, key, value) {
+  await context.globalState.update(key, value.trim());
+}
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 5e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function deriveOllamaBaseUrl(apiEndpoint) {
+  const trimmed2 = apiEndpoint.trim();
+  const withoutGenerate = trimmed2.replace(/\/api\/generate.*$/i, "");
+  const withoutTrailing = withoutGenerate.replace(/\/+$/g, "");
+  return withoutTrailing.length > 0 ? withoutTrailing : trimmed2;
+}
+function getCurrentApi(context) {
+  return getStringPref(context, STORAGE_KEYS.api) ?? AI_API;
+}
+async function setCurrentApi(context, value) {
+  await setStringPref(context, STORAGE_KEYS.api, value);
+}
+function getCurrentModel(context) {
+  return getStringPref(context, STORAGE_KEYS.model) ?? AI_MODEL;
+}
+async function setCurrentModel(context, value) {
+  await setStringPref(context, STORAGE_KEYS.model, value);
+}
+async function listOllamaModels(context) {
+  const apiEndpoint = getCurrentApi(context);
+  const baseUrl = deriveOllamaBaseUrl(apiEndpoint);
+  const tagsUrl = `${baseUrl}/api/tags`;
+  try {
+    const res = await fetchWithTimeout(tagsUrl, { method: "GET" }, 5e3);
+    if (!res.ok) {
+      return [];
+    }
+    const json = await res.json();
+    const raw = Array.isArray(json?.models) ? json.models : [];
+    const names = raw.map((m) => m.model || m.name || "").filter((s) => Boolean(s && s.trim()));
+    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+  } catch {
+    return [];
+  }
+}
+
+// src/utils/ai/aiClient.ts
+var activeAbort = null;
+var abortReason = null;
+var UserAbort = class extends Error {
+  constructor() {
+    super("User aborted");
+    this.name = "UserAbort";
+  }
+};
+function abortActiveRequest() {
+  if (activeAbort) {
+    abortReason = "user";
+    try {
+      activeAbort.abort();
+    } catch {
+    }
+  }
+}
+async function* queryAIStream(suggestionPanel, prompt, context) {
+  try {
+    const controller = new AbortController();
+    abortActiveRequest();
+    activeAbort = controller;
+    abortReason = null;
+    const timeout = setTimeout(() => {
+      abortReason = "timeout";
+      controller.abort();
+    }, 12e4);
+    const api = getCurrentApi(context);
+    const model = getCurrentModel(context);
+    const response = await fetch(api, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, prompt, stream: true }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      await handleAPIError(response);
+      return;
+    }
+    if (!response.body) {
+      vscode.window.showErrorMessage("AI response body is null.");
+      return;
+    }
+    yield* streamResponseChunks(response.body);
+    activeAbort = null;
+    abortReason = null;
+  } catch (error) {
+    handleStreamError(suggestionPanel, error);
+  }
+}
+async function handleAPIError(response) {
+  const errorBody = await response.text();
+  console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
+  vscode.window.showErrorMessage("AI Server Error");
+}
+function handleStreamError(suggestionPanel, error) {
+  if (error.name === "AbortError") {
+    if (abortReason === "user") {
+      suggestionPanel.webview.postMessage({ command: "aiStopped" });
+      vscode.window.setStatusBarMessage("\u23F9\uFE0F Stopped AI stream", 3e3);
+      activeAbort = null;
+      abortReason = null;
+      throw new UserAbort();
+    } else {
+      vscode.window.showErrorMessage("AI request timed out.");
+      suggestionPanel.webview.postMessage({ command: "aiError", error: "AI request timed out." });
+      activeAbort = null;
+      abortReason = null;
+    }
+  } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
+    console.error("Failed to connect to the AI server. Is the Ollama server running?");
+    vscode.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to connect to AI"
+    });
+  } else {
+    console.error("Failed to query AI:", error);
+    suggestionPanel.webview.postMessage({
+      command: "aiError",
+      error: "Failed to query AI"
+    });
+  }
+  throw error;
+}
+async function* streamResponseChunks(body) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      yield* flushRemainingBuffer(buffer);
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    let newlineIndex;
+    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, newlineIndex).trim();
+      buffer = buffer.slice(newlineIndex + 1);
+      if (!line) {
+        continue;
+      }
+      try {
+        const jsonLine = JSON.parse(line);
+        if (jsonLine.response) {
+          yield jsonLine.response;
+        }
+        if (jsonLine.done) {
+          return;
+        }
+      } catch (err) {
+        console.error("Error parsing stream line:", err, line);
+      }
+    }
+  }
+}
+function* flushRemainingBuffer(buffer) {
+  if (!buffer.trim()) {
+    return;
+  }
+  try {
+    const jsonLine = JSON.parse(buffer);
+    if (jsonLine.response) {
+      yield jsonLine.response;
+    }
+  } catch (e) {
+    console.error("Error parsing final buffered JSON line:", e, buffer);
+  }
+}
+
+// src/utils/ai/applySuggestion.ts
+var vscode2 = __toESM(require("vscode"));
+async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
+  if (!documentUri) {
+    vscode2.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
+    return;
+  }
+  const doc = await vscode2.workspace.openTextDocument(documentUri);
+  const editor = await vscode2.window.showTextDocument(doc, {
+    preserveFocus: false,
+    viewColumn: vscode2.window.activeTextEditor?.viewColumn || vscode2.ViewColumn.One
+  });
+  if (editor.document.uri.toString() !== documentUri.toString()) {
+    vscode2.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
+    return;
+  }
+  const fullRange = new vscode2.Range(
+    doc.lineAt(0).range.start,
+    doc.lineAt(doc.lineCount - 1).range.end
+  );
+  const success = await editor.edit((editBuilder) => {
+    editBuilder.replace(fullRange, aiProvidedFullFileContent);
+  });
+  if (!success) {
+    vscode2.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
+    return;
+  }
+  editor.selection = originalSelectionForContext;
+  editor.revealRange(originalSelectionForContext, vscode2.TextEditorRevealType.InCenterIfOutsideViewport);
+  vscode2.window.showInformationMessage("AI suggestion applied (entire file updated).");
+}
+
+// src/utils/ai/preferencesManager.ts
+var vscode3 = __toESM(require("vscode"));
+var PREFERENCES_KEY = "aiPreferences";
+async function setUserPreferences(context, documentUri) {
+  const existing = await getUserPreferences(context);
+  const input = await vscode3.window.showInputBox({
+    prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
+    value: existing || ""
+  });
+  await handlePreferenceUpdateFlow("saved", input, context, documentUri);
+}
+async function getUserPreferences(context) {
+  return await context.globalState.get(PREFERENCES_KEY) || "";
+}
+async function showUserPreferences(context) {
+  const preferences = await getUserPreferences(context);
+  vscode3.window.showInformationMessage(
+    preferences ? `Current AI Preferences:
+${preferences}` : "No AI preferences set yet."
+  );
+}
+async function clearUserPreferences(context, documentUri) {
+  await context.globalState.update(PREFERENCES_KEY, "");
+  await handlePreferenceUpdateFlow("cleared", "None set.", context, documentUri);
+}
+async function handlePreferenceUpdateFlow(actionMessage, input, context, documentUri) {
+  if (input === void 0) {
+    return;
+  }
+  await context.globalState.update(PREFERENCES_KEY, input.trim());
+  await promptAndRunShowSuggestionCommand(actionMessage, documentUri);
+}
+async function promptAndRunShowSuggestionCommand(actionMessage, documentUri) {
+  const userConfirmed = await showConfirmationPrompt(
+    `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`
+  );
+  if (!userConfirmed) {
+    return;
+  }
+  if (!documentUri) {
+    vscode3.window.showWarningMessage("No document URI found to reopen.");
+    return;
+  }
+  const doc = await vscode3.workspace.openTextDocument(vscode3.Uri.parse(documentUri));
+  await vscode3.window.showTextDocument(doc, {
+    preserveFocus: false,
+    viewColumn: vscode3.ViewColumn.One
+  });
+  await vscode3.commands.executeCommand("extension.showSuggestion");
+}
+async function showConfirmationPrompt(message, yesLabel = "Yes", noLabel = "No") {
+  const choice = await vscode3.window.showInformationMessage(message, yesLabel, noLabel);
+  return choice === yesLabel;
+}
+
+// src/utils/ai/ragContext.ts
+var vscode4 = __toESM(require("vscode"));
+var import_node_module = require("node:module");
+var requireCJS = (0, import_node_module.createRequire)(__filename);
+var { IndexFlatIP } = requireCJS("faiss-node");
+var MODEL_ID = "Xenova/all-MiniLM-L6-v2";
+var DEFAULT_TOP_K = 5;
+var MODELS_DIR = "models";
+var ARTIFACTS_DIR = ["resources", "rag-artifacts"];
+var INDEX_FILE = "kb.index";
+var META_FILE = "metadata.json";
+var cache = /* @__PURE__ */ new Map();
+function l2Normalize(vector) {
+  let sumOfSquares = 0;
+  for (let i = 0; i < vector.length; i++) {
+    sumOfSquares += vector[i] * vector[i];
+  }
+  const normalizationFactor = 1 / (Math.sqrt(sumOfSquares) + 1e-12);
+  const normalizedVector = new Float32Array(vector.length);
+  for (let i = 0; i < vector.length; i++) {
+    normalizedVector[i] = vector[i] * normalizationFactor;
+  }
+  return normalizedVector;
+}
+async function readJson(uri, resourceName) {
+  try {
+    const fileContentsAsBytes = await vscode4.workspace.fs.readFile(uri);
+    const fileContentsAsString = Buffer.from(fileContentsAsBytes).toString("utf8");
+    const parsedJson = JSON.parse(fileContentsAsString);
+    return parsedJson;
+  } catch (error) {
+    const errorMessage = error?.message ?? String(error);
+    throw new Error(`Failed to read/parse ${resourceName}: ${errorMessage}`);
+  }
+}
+function joinExtensionPath(baseUri, ...relativeSegments) {
+  return vscode4.Uri.joinPath(baseUri, ...relativeSegments);
+}
+async function loadTransformers(context) {
+  const transformersModule = await import("@huggingface/transformers");
+  const localModelDirectory = joinExtensionPath(context.extensionUri, MODELS_DIR).fsPath;
+  transformersModule.env.localModelPath = localModelDirectory;
+  transformersModule.env.allowRemoteModels = false;
+  return {
+    pipeline: transformersModule.pipeline
+  };
+}
+async function loadArtifacts(context) {
+  const artifactsDirectory = joinExtensionPath(context.extensionUri, ...ARTIFACTS_DIR);
+  const indexFilePath = joinExtensionPath(artifactsDirectory, INDEX_FILE).fsPath;
+  const metadataFileUri = joinExtensionPath(artifactsDirectory, META_FILE);
+  const faissIndex = IndexFlatIP.read(indexFilePath);
+  const metadataRecords = await readJson(metadataFileUri, META_FILE);
+  if (faissIndex.ntotal() !== metadataRecords.length) {
+    throw new Error(
+      `RAG artifacts mismatch: index.ntotal=${faissIndex.ntotal()} vs metadata.records=${metadataRecords.length}. Rebuild artifacts so they are consistent.`
+    );
+  }
+  return { index: faissIndex, meta: metadataRecords };
+}
+async function embed(queryText, extractor) {
+  const extractionResult = await extractor([queryText], {
+    pooling: "mean",
+    normalize: false
+    // we normalize manually
+  });
+  const tensor = Array.isArray(extractionResult) ? extractionResult[0] : extractionResult;
+  const rawEmbedding = tensor.data;
+  const embeddingDim = tensor.dims?.[1] ?? rawEmbedding.length;
+  const unnormalizedEmbedding = rawEmbedding.subarray(0, embeddingDim);
+  return l2Normalize(unnormalizedEmbedding);
+}
+function retrieve(faissIndex, metadataRecords, queryEmbedding, topK = DEFAULT_TOP_K) {
+  const indexDimension = faissIndex.getDimension();
+  if (indexDimension !== queryEmbedding.length) {
+    throw new Error(
+      `FAISS dimension mismatch: index=${indexDimension} vs query=${queryEmbedding.length}`
+    );
+  }
+  const { distances: similarityScores, labels: neighborIndices } = faissIndex.search(
+    Array.from(queryEmbedding),
+    Math.min(topK, metadataRecords.length)
+  );
+  const hits = [];
+  for (let i = 0; i < neighborIndices.length; i++) {
+    const neighborIndex = neighborIndices[i];
+    if (neighborIndex >= 0 && neighborIndex < metadataRecords.length) {
+      const metadataRecord = metadataRecords[neighborIndex];
+      hits.push([similarityScores[i], metadataRecord]);
+    }
+  }
+  return hits;
+}
+function formatContext(hits) {
+  const contextBlocks = hits.map(
+    ([similarityScore, metadataRecord]) => `[source: ${metadataRecord.source} | score: ${similarityScore.toFixed(3)}]
+${metadataRecord.text}`
+  );
+  return contextBlocks.join("\n\n---\n\n");
+}
+async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
+  const cacheKey = context.extensionUri.toString();
+  const cacheEntry = cache.get(cacheKey) ?? {};
+  if (!cacheEntry.extractor) {
+    const { pipeline } = await loadTransformers(context);
+    cacheEntry.extractor = await pipeline(
+      "feature-extraction",
+      MODEL_ID
+    );
+  }
+  if (!cacheEntry.index || !cacheEntry.meta) {
+    const { index: faissIndex, meta: metadataRecords } = await loadArtifacts(context);
+    cacheEntry.index = faissIndex;
+    cacheEntry.meta = metadataRecords;
+  }
+  cache.set(cacheKey, cacheEntry);
+  const queryEmbedding = await embed(queryText, cacheEntry.extractor);
+  const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
+  return formatContext(retrievalHits);
+}
+
+// src/utils/ai/promptBuilder.ts
+async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
+  const fileLabel = fileName || "current file";
+  const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
+  const userPreferences = await getUserPreferences(context);
+  const preferencesBlock = `
+---
+USER PREFERENCES:
+${userPreferences || "No preferences set."}
+---
+`;
+  const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
+  let finalPrompt = originalPrompt;
+  try {
+    const ragCtx = await getRagContext(context, originalPrompt, 5);
+    console.log("[RAG] ctx length:", ragCtx?.length ?? 0);
+    console.log("[RAG] ctx preview:", (ragCtx || "").slice(0, 160));
+    if (ragCtx && ragCtx.trim().length > 0) {
+      finalPrompt = `You are an AI assistant for F# and WebSharper code review.
+Use ONLY the context below where applicable.
+
+RAG CONTEXT:
+${ragCtx}
+
+=== ORIGINAL TASK ===
+${originalPrompt}`;
+    }
+  } catch (e) {
+    console.warn("[RAG] disabled or failed:", e);
+  }
+  return finalPrompt;
+}
+function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
+  return `
+${preferencesBlock}
+You are a code review assistant specialized in F# and WebSharper.
+Improve ONLY the SELECTED CODE within the full file context.
+
+---
+INSTRUCTIONS:
+1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
+2. Preserve all other code in the file unless absolutely necessary for correctness.
+3. Do NOT reorder or reformat the rest of the file.
+4. Avoid unnecessary renames unless the user's preferences ask for it.
+5. If removing code, be sure it's entirely unused.
+6. You MUST format your response as:
+   - ### Summary of Issues (bullet list)
+   - ### Improved Code (entire file)
+   - ### Explanation (bullet list)
+
+**Full File \`${fileLabel}\`:**
+\`\`\`fsharp
+${fullContent}
+\`\`\`
+
+**Selected Code \`${fileLabel}\`**:
+${selectionContextInfo}
+\`\`\`fsharp
+${selectedSnippet}
+\`\`\`
+
+REMINDER: You must output the entire file content with ONLY the selected region changed.
+    `.trim();
+}
+
+// src/utils/ui/outputChannel.ts
+var vscode5 = __toESM(require("vscode"));
+function showOutput(fileName, response) {
+  const outputChannel = vscode5.window.createOutputChannel("AI Code Review");
+  outputChannel.clear();
+  outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
+  outputChannel.appendLine(`
+${response}`);
+  outputChannel.show(true);
+}
+
+// src/utils/ui/panelManager.ts
+var panelInstance;
+function getPanel() {
+  return panelInstance;
+}
+function setPanel(panel) {
+  panelInstance = panel;
+}
+
+// src/utils/ui/suggestionWebview.ts
+var vscode9 = __toESM(require("vscode"));
+
+// src/utils/webview/webviewContent.ts
+var vscode6 = __toESM(require("vscode"));
+var fs = __toESM(require("fs"));
+function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
+  const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
+  const htmlPath = vscode6.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
+  let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
+  const diffJsSrcUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
+  const markedJsSrcUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
+  const githubDarkStyleUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
+  const highlightJsSrcUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
+  const fSharpSrcUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
+  const cssUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
+  const jsUri = webview.asWebviewUri(vscode6.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
+  htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
+  return htmlContent;
+}
+function escapeHtml(raw) {
+  return raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+// src/utils/webview/webviewMessageHandler.ts
+var vscode8 = __toESM(require("vscode"));
+
+// src/utils/git/shadowRepo.ts
+var vscode7 = __toESM(require("vscode"));
+var path = __toESM(require("node:path"));
 
 // node_modules/simple-git/dist/esm/index.js
 var import_node_buffer = require("node:buffer");
@@ -961,20 +1481,20 @@ var __copyProps2 = (to, from, except, desc) => {
 var __toCommonJS2 = (mod) => __copyProps2(__defProp2({}, "__esModule", { value: true }), mod);
 function pathspec(...paths) {
   const key = new String(paths);
-  cache.set(key, paths);
+  cache2.set(key, paths);
   return key;
 }
 function isPathSpec(path2) {
-  return path2 instanceof String && cache.has(path2);
+  return path2 instanceof String && cache2.has(path2);
 }
 function toPaths(pathSpec) {
-  return cache.get(pathSpec) || [];
+  return cache2.get(pathSpec) || [];
 }
-var cache;
+var cache2;
 var init_pathspec = __esm2({
   "src/lib/args/pathspec.ts"() {
     "use strict";
-    cache = /* @__PURE__ */ new WeakMap();
+    cache2 = /* @__PURE__ */ new WeakMap();
   }
 });
 var GitError;
@@ -1288,9 +1808,9 @@ var init_simple_git_options = __esm2({
     };
   }
 });
-function appendTaskOptions(options, commands8 = []) {
+function appendTaskOptions(options, commands7 = []) {
   if (!filterPlainObject(options)) {
-    return commands8;
+    return commands7;
   }
   return Object.keys(options).reduce((commands22, key) => {
     const value = options[key];
@@ -1308,7 +1828,7 @@ function appendTaskOptions(options, commands8 = []) {
       commands22.push(key);
     }
     return commands22;
-  }, commands8);
+  }, commands7);
 }
 function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
   const command = [];
@@ -1439,18 +1959,18 @@ function checkIsRepoTask(action) {
     case "root":
       return checkIsRepoRootTask();
   }
-  const commands8 = ["rev-parse", "--is-inside-work-tree"];
+  const commands7 = ["rev-parse", "--is-inside-work-tree"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
   };
 }
 function checkIsRepoRootTask() {
-  const commands8 = ["rev-parse", "--git-dir"];
+  const commands7 = ["rev-parse", "--git-dir"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser(path2) {
@@ -1459,9 +1979,9 @@ function checkIsRepoRootTask() {
   };
 }
 function checkIsBareRepoTask() {
-  const commands8 = ["rev-parse", "--is-bare-repository"];
+  const commands7 = ["rev-parse", "--is-bare-repository"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
@@ -1551,18 +2071,18 @@ function configurationErrorTask(error) {
     }
   };
 }
-function straightThroughStringTask(commands8, trimmed2 = false) {
+function straightThroughStringTask(commands7, trimmed2 = false) {
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return trimmed2 ? String(text).trim() : text;
     }
   };
 }
-function straightThroughBufferTask(commands8) {
+function straightThroughBufferTask(commands7) {
   return {
-    commands: commands8,
+    commands: commands7,
     format: "buffer",
     parser(buffer) {
       return buffer;
@@ -1608,9 +2128,9 @@ function cleanWithOptionsTask(mode, customArgs) {
   return cleanTask(cleanMode, options);
 }
 function cleanTask(mode, customArgs) {
-  const commands8 = ["clean", `-${mode}`, ...customArgs];
+  const commands7 = ["clean", `-${mode}`, ...customArgs];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return cleanSummaryParser(mode === "n", text);
@@ -1773,13 +2293,13 @@ function asConfigScope(scope, fallback) {
   return fallback;
 }
 function addConfigTask(key, value, append2, scope) {
-  const commands8 = ["config", `--${scope}`];
+  const commands7 = ["config", `--${scope}`];
   if (append2) {
-    commands8.push("--add");
+    commands7.push("--add");
   }
-  commands8.push(key, value);
+  commands7.push(key, value);
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return text;
@@ -1787,12 +2307,12 @@ function addConfigTask(key, value, append2, scope) {
   };
 }
 function getConfigTask(key, scope) {
-  const commands8 = ["config", "--null", "--show-origin", "--get-all", key];
+  const commands7 = ["config", "--null", "--show-origin", "--get-all", key];
   if (scope) {
-    commands8.splice(1, 0, `--${scope}`);
+    commands7.splice(1, 0, `--${scope}`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configGetParser(text, key);
@@ -1800,12 +2320,12 @@ function getConfigTask(key, scope) {
   };
 }
 function listConfigTask(scope) {
-  const commands8 = ["config", "--list", "--show-origin", "--null"];
+  const commands7 = ["config", "--list", "--show-origin", "--null"];
   if (scope) {
-    commands8.push(`--${scope}`);
+    commands7.push(`--${scope}`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configListParser(text);
@@ -1917,10 +2437,10 @@ function grep_default() {
       if (typeof searchTerm === "string") {
         searchTerm = grepQueryBuilder().param(searchTerm);
       }
-      const commands8 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
+      const commands7 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
       return this._runTask(
         {
-          commands: commands8,
+          commands: commands7,
           format: "utf-8",
           parser(stdOut) {
             return parseGrep(stdOut);
@@ -1969,12 +2489,12 @@ __export2(reset_exports, {
   resetTask: () => resetTask
 });
 function resetTask(mode, customArgs) {
-  const commands8 = ["reset"];
+  const commands7 = ["reset"];
   if (isValidResetMode(mode)) {
-    commands8.push(`--${mode}`);
+    commands7.push(`--${mode}`);
   }
-  commands8.push(...customArgs);
-  return straightThroughStringTask(commands8);
+  commands7.push(...customArgs);
+  return straightThroughStringTask(commands7);
 }
 function getResetMode(mode) {
   if (isValidResetMode(mode)) {
@@ -2142,10 +2662,10 @@ var init_tasks_pending_queue = __esm2({
     };
   }
 });
-function pluginContext(task, commands8) {
+function pluginContext(task, commands7) {
   return {
     method: first(task.commands) || "",
-    commands: commands8
+    commands: commands7
   };
 }
 function onErrorReceived(target, logger) {
@@ -2447,11 +2967,11 @@ var init_change_working_directory = __esm2({
   }
 });
 function checkoutTask(args) {
-  const commands8 = ["checkout", ...args];
-  if (commands8[1] === "-b" && commands8.includes("-B")) {
-    commands8[1] = remove(commands8, "-B");
+  const commands7 = ["checkout", ...args];
+  if (commands7[1] === "-b" && commands7.includes("-B")) {
+    commands7[1] = remove(commands7, "-B");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function checkout_default() {
   return {
@@ -2583,7 +3103,7 @@ var init_parse_commit = __esm2({
   }
 });
 function commitTask(message, files, customArgs) {
-  const commands8 = [
+  const commands7 = [
     "-c",
     "core.abbrev=40",
     "commit",
@@ -2592,7 +3112,7 @@ function commitTask(message, files, customArgs) {
     ...customArgs
   ];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parseCommitResult
   };
@@ -2641,11 +3161,11 @@ var init_first_commit = __esm2({
   }
 });
 function hashObjectTask(filePath, write) {
-  const commands8 = ["hash-object", filePath];
+  const commands7 = ["hash-object", filePath];
   if (write) {
-    commands8.push("-w");
+    commands7.push("-w");
   }
-  return straightThroughStringTask(commands8, true);
+  return straightThroughStringTask(commands7, true);
 }
 var init_hash_object = __esm2({
   "src/lib/tasks/hash-object.ts"() {
@@ -2695,15 +3215,15 @@ function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
 function initTask(bare = false, path2, customArgs) {
-  const commands8 = ["init", ...customArgs];
-  if (bare && !hasBareCommand(commands8)) {
-    commands8.splice(1, 0, bareCommand);
+  const commands7 = ["init", ...customArgs];
+  if (bare && !hasBareCommand(commands7)) {
+    commands7.splice(1, 0, bareCommand);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands8.includes("--bare"), path2, text);
+      return parseInit(commands7.includes("--bare"), path2, text);
     }
   };
 }
@@ -2935,14 +3455,14 @@ __export2(diff_exports, {
 });
 function diffSummaryTask(customArgs) {
   let logFormat = logFormatFromCommand(customArgs);
-  const commands8 = ["diff"];
+  const commands7 = ["diff"];
   if (logFormat === "") {
     logFormat = "--stat";
-    commands8.push("--stat=4096");
+    commands7.push("--stat=4096");
   }
-  commands8.push(...customArgs);
-  return validateLogFormatConfig(commands8) || {
-    commands: commands8,
+  commands7.push(...customArgs);
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: getDiffParser(logFormat)
   };
@@ -3461,18 +3981,18 @@ function pushTagsTask(ref = {}, customArgs) {
   return pushTask(ref, customArgs);
 }
 function pushTask(ref = {}, customArgs) {
-  const commands8 = ["push", ...customArgs];
+  const commands7 = ["push", ...customArgs];
   if (ref.branch) {
-    commands8.splice(1, 0, ref.branch);
+    commands7.splice(1, 0, ref.branch);
   }
   if (ref.remote) {
-    commands8.splice(1, 0, ref.remote);
+    commands7.splice(1, 0, ref.remote);
   }
-  remove(commands8, "-v");
-  append(commands8, "--verbose");
-  append(commands8, "--porcelain");
+  remove(commands7, "-v");
+  append(commands7, "--verbose");
+  append(commands7, "--porcelain");
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parsePushResult
   };
@@ -3487,19 +4007,19 @@ var init_push = __esm2({
 function show_default() {
   return {
     showBuffer() {
-      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
-      if (!commands8.includes("--binary")) {
-        commands8.splice(1, 0, "--binary");
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
+      if (!commands7.includes("--binary")) {
+        commands7.splice(1, 0, "--binary");
       }
       return this._runTask(
-        straightThroughBufferTask(commands8),
+        straightThroughBufferTask(commands7),
         trailingFunctionArgument(arguments)
       );
     },
     show() {
-      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
       return this._runTask(
-        straightThroughStringTask(commands8),
+        straightThroughStringTask(commands7),
         trailingFunctionArgument(arguments)
       );
     }
@@ -3712,7 +4232,7 @@ var init_StatusSummary = __esm2({
   }
 });
 function statusTask(customArgs) {
-  const commands8 = [
+  const commands7 = [
     "status",
     "--porcelain",
     "-b",
@@ -3722,7 +4242,7 @@ function statusTask(customArgs) {
   ];
   return {
     format: "utf-8",
-    commands: commands8,
+    commands: commands7,
     parser(text) {
       return parseStatusSummary(text);
     }
@@ -4143,22 +4663,22 @@ __export2(branch_exports, {
   deleteBranchTask: () => deleteBranchTask,
   deleteBranchesTask: () => deleteBranchesTask
 });
-function containsDeleteBranchCommand(commands8) {
+function containsDeleteBranchCommand(commands7) {
   const deleteCommands = ["-d", "-D", "--delete"];
-  return commands8.some((command) => deleteCommands.includes(command));
+  return commands7.some((command) => deleteCommands.includes(command));
 }
 function branchTask(customArgs) {
   const isDelete = containsDeleteBranchCommand(customArgs);
-  const commands8 = ["branch", ...customArgs];
-  if (commands8.length === 1) {
-    commands8.push("-a");
+  const commands7 = ["branch", ...customArgs];
+  if (commands7.length === 1) {
+    commands7.push("-a");
   }
-  if (!commands8.includes("-v")) {
-    commands8.splice(1, 0, "-v");
+  if (!commands7.includes("-v")) {
+    commands7.splice(1, 0, "-v");
   }
   return {
     format: "utf-8",
-    commands: commands8,
+    commands: commands7,
     parser(stdOut, stdErr) {
       if (isDelete) {
         return parseBranchDeletions(stdOut, stdErr).all[0];
@@ -4253,14 +4773,14 @@ function disallowedCommand(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function cloneTask(repo, directory, customArgs) {
-  const commands8 = ["clone", ...customArgs];
-  filterString(repo) && commands8.push(repo);
-  filterString(directory) && commands8.push(directory);
-  const banned = commands8.find(disallowedCommand);
+  const commands7 = ["clone", ...customArgs];
+  filterString(repo) && commands7.push(repo);
+  filterString(directory) && commands7.push(directory);
+  const banned = commands7.find(disallowedCommand);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function cloneMirrorTask(repo, directory, customArgs) {
   append(customArgs, "--mirror");
@@ -4332,16 +4852,16 @@ function disallowedCommand2(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function fetchTask(remote, branch, customArgs) {
-  const commands8 = ["fetch", ...customArgs];
+  const commands7 = ["fetch", ...customArgs];
   if (remote && branch) {
-    commands8.push(remote, branch);
+    commands7.push(remote, branch);
   }
-  const banned = commands8.find(disallowedCommand2);
+  const banned = commands7.find(disallowedCommand2);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parseFetchResult
   };
@@ -4391,12 +4911,12 @@ __export2(pull_exports, {
   pullTask: () => pullTask
 });
 function pullTask(remote, branch, customArgs) {
-  const commands8 = ["pull", ...customArgs];
+  const commands7 = ["pull", ...customArgs];
   if (remote && branch) {
-    commands8.splice(1, 0, remote, branch);
+    commands7.splice(1, 0, remote, branch);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(stdOut, stdErr) {
       return parsePullResult(stdOut, stdErr);
@@ -4462,29 +4982,29 @@ function addRemoteTask(remoteName, remoteRepo, customArgs) {
   return straightThroughStringTask(["remote", "add", ...customArgs, remoteName, remoteRepo]);
 }
 function getRemotesTask(verbose) {
-  const commands8 = ["remote"];
+  const commands7 = ["remote"];
   if (verbose) {
-    commands8.push("-v");
+    commands7.push("-v");
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: verbose ? parseGetRemotesVerbose : parseGetRemotes
   };
 }
 function listRemotesTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "ls-remote") {
-    commands8.unshift("ls-remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "ls-remote") {
+    commands7.unshift("ls-remote");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function remoteTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "remote") {
-    commands8.unshift("remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "remote") {
+    commands7.unshift("remote");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function removeRemoteTask(remoteName) {
   return straightThroughStringTask(["remote", "remove", remoteName]);
@@ -4502,14 +5022,14 @@ __export2(stash_list_exports, {
 });
 function stashListTask(opt = {}, customArgs) {
   const options = parseLogOptions(opt);
-  const commands8 = ["stash", "list", ...options.commands, ...customArgs];
+  const commands7 = ["stash", "list", ...options.commands, ...customArgs];
   const parser4 = createListLogSummaryParser(
     options.splitter,
     options.fields,
-    logFormatFromCommand(commands8)
+    logFormatFromCommand(commands7)
   );
-  return validateLogFormatConfig(commands8) || {
-    commands: commands8,
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: parser4
   };
@@ -4537,11 +5057,11 @@ function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
 }
 function subModuleTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "submodule") {
-    commands8.unshift("submodule");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "submodule") {
+    commands7.unshift("submodule");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function updateSubModuleTask(customArgs) {
   return subModuleTask(["update", ...customArgs]);
@@ -4842,9 +5362,9 @@ var require_git = __commonJS2({
     Git2.prototype.branchLocal = function(then) {
       return this._runTask(branchLocalTask2(), trailingFunctionArgument2(arguments));
     };
-    Git2.prototype.raw = function(commands8) {
-      const createRestCommands = !Array.isArray(commands8);
-      const command = [].slice.call(createRestCommands ? arguments : commands8, 0);
+    Git2.prototype.raw = function(commands7) {
+      const createRestCommands = !Array.isArray(commands7);
+      const command = [].slice.call(createRestCommands ? arguments : commands7, 0);
       for (let i = 0; i < command.length && createRestCommands; i++) {
         if (!filterPrimitives2(command[i])) {
           command.splice(i, command.length - i);
@@ -4979,9 +5499,9 @@ var require_git = __commonJS2({
       return this._runTask(task, trailingFunctionArgument2(arguments));
     };
     Git2.prototype.revparse = function() {
-      const commands8 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
+      const commands7 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
       return this._runTask(
-        straightThroughStringTask2(commands8, true),
+        straightThroughStringTask2(commands7, true),
         trailingFunctionArgument2(arguments)
       );
     };
@@ -5449,34 +5969,18 @@ function gitInstanceFactory(baseDir, options) {
 init_git_response_error();
 var esm_default = gitInstanceFactory;
 
-// src/utils/git/gitUtils.ts
-function getWorkspaceFolder() {
-  const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!folder) {
-    vscode.window.showErrorMessage("No workspace folder found.");
-    return null;
-  }
-  return folder;
-}
-function getGitClient() {
-  const folder = getWorkspaceFolder();
-  return folder ? esm_default({ baseDir: folder }) : null;
-}
-
 // src/utils/git/shadowRepo.ts
-var vscode2 = __toESM(require("vscode"));
-var path = __toESM(require("node:path"));
 var LAST_AI_COMMIT_KEY = "ai.shadow.lastCommit";
 var AI_COMMIT_PREFIX = "chore(ai): apply suggestion";
 function getWorkTree() {
-  const wt = vscode2.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const wt = vscode7.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!wt) {
     throw new Error("No workspace folder found.");
   }
   return wt;
 }
 async function ensureDir(fsPath) {
-  await vscode2.workspace.fs.createDirectory(vscode2.Uri.file(fsPath));
+  await vscode7.workspace.fs.createDirectory(vscode7.Uri.file(fsPath));
 }
 async function openShadowRepo(context) {
   const workTree = getWorkTree();
@@ -5514,12 +6018,12 @@ async function shadowRevertLast(context) {
   const { git, gitDir, workTree } = shadow;
   const last2 = context.globalState.get(LAST_AI_COMMIT_KEY);
   if (!last2) {
-    vscode2.window.showWarningMessage("No AI commit to revert.");
+    vscode7.window.showWarningMessage("No AI commit to revert.");
     return;
   }
   await git.raw(["--git-dir", gitDir, "-C", workTree, "revert", "--no-edit", last2]);
   await context.globalState.update(LAST_AI_COMMIT_KEY, void 0);
-  vscode2.window.showInformationMessage(`Reverted AI commit ${last2.slice(0, 7)} (shadow).`);
+  vscode7.window.showInformationMessage(`Reverted AI commit ${last2.slice(0, 7)} (shadow).`);
 }
 function formatAiCommitMessage(subjectHint, bullets) {
   const base = subjectHint && subjectHint.trim().length > 0 ? subjectHint.trim() : "apply suggested changes";
@@ -5544,591 +6048,31 @@ async function ensureBaselineForFile(shadow, absPath) {
   await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "commit", "-m", `chore(ai): baseline snapshot ${rel}`]);
 }
 
-// src/commands/checkGitStatus.ts
-function registerCheckGitStatus() {
-  return vscode3.commands.registerCommand("extension.checkGitStatus", () => {
-    const git = getGitClient();
-    if (!git) {
-      return;
-    }
-    checkGitStatus(git);
-    git.status().then((status) => {
-      const staged = status.staged;
-      const notStaged = status.files.filter((f) => f.index === "?" || f.working_dir !== " ");
-      vscode3.window.showInformationMessage(
-        `\u{1F4C2} Git Status:
-
-Staged: ${staged.length}
-Unstaged: ${notStaged.length}`
-      );
-    }).catch((err) => {
-      vscode3.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
-    });
-  });
-}
-async function checkGitStatus(git) {
-  try {
-    const status = await git.status();
-    const staged = status.staged || [];
-    const notStaged = status.files.filter(
-      (f) => f.index === "?" || f.working_dir !== " "
-    );
-    vscode3.window.showInformationMessage(
-      `\u{1F4C2} Git Status:
-
-Staged: ${staged.length}
-Unstaged: ${notStaged.length}`
-    );
-  } catch (err) {
-    vscode3.window.showErrorMessage(`\u274C Git status check failed: ${err.message}`);
-  }
-}
-
-// src/commands/showSuggestion.ts
-var vscode12 = __toESM(require("vscode"));
-
-// src/utils/ai/aiClient.ts
-var vscode4 = __toESM(require("vscode"));
-
-// src/utils/constants.ts
-var WEBVIEW_LIBRARY_DIR = "webview-lib";
-var AI_MODEL = "qwen2.5-coder:7b-instruct";
-var AI_API = "http://localhost:11434/api/generate";
-
-// src/utils/ai/modelManager.ts
-var STORAGE_KEYS = {
-  model: "ollamaModel",
-  api: "ollamaApi"
-};
-function getStringPref(context, key) {
-  const value = context.globalState.get(key);
-  const trimmed2 = value?.trim();
-  return trimmed2 ? trimmed2 : void 0;
-}
-async function setStringPref(context, key, value) {
-  await context.globalState.update(key, value.trim());
-}
-async function fetchWithTimeout(url, opts = {}, timeoutMs = 5e3) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...opts, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-function deriveOllamaBaseUrl(apiEndpoint) {
-  const trimmed2 = apiEndpoint.trim();
-  const withoutGenerate = trimmed2.replace(/\/api\/generate.*$/i, "");
-  const withoutTrailing = withoutGenerate.replace(/\/+$/g, "");
-  return withoutTrailing.length > 0 ? withoutTrailing : trimmed2;
-}
-function getCurrentApi(context) {
-  return getStringPref(context, STORAGE_KEYS.api) ?? AI_API;
-}
-async function setCurrentApi(context, value) {
-  await setStringPref(context, STORAGE_KEYS.api, value);
-}
-function getCurrentModel(context) {
-  return getStringPref(context, STORAGE_KEYS.model) ?? AI_MODEL;
-}
-async function setCurrentModel(context, value) {
-  await setStringPref(context, STORAGE_KEYS.model, value);
-}
-async function listOllamaModels(context) {
-  const apiEndpoint = getCurrentApi(context);
-  const baseUrl = deriveOllamaBaseUrl(apiEndpoint);
-  const tagsUrl = `${baseUrl}/api/tags`;
-  try {
-    const res = await fetchWithTimeout(tagsUrl, { method: "GET" }, 5e3);
-    if (!res.ok) {
-      return [];
-    }
-    const json = await res.json();
-    const raw = Array.isArray(json?.models) ? json.models : [];
-    const names = raw.map((m) => m.model || m.name || "").filter((s) => Boolean(s && s.trim()));
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-  } catch {
-    return [];
-  }
-}
-
-// src/utils/ai/aiClient.ts
-var activeAbort = null;
-var abortReason = null;
-var UserAbort = class extends Error {
-  constructor() {
-    super("User aborted");
-    this.name = "UserAbort";
-  }
-};
-function abortActiveRequest() {
-  if (activeAbort) {
-    abortReason = "user";
-    try {
-      activeAbort.abort();
-    } catch {
-    }
-  }
-}
-async function* queryAIStream(suggestionPanel, prompt, context) {
-  try {
-    const controller = new AbortController();
-    abortActiveRequest();
-    activeAbort = controller;
-    abortReason = null;
-    const timeout = setTimeout(() => {
-      abortReason = "timeout";
-      controller.abort();
-    }, 12e4);
-    const api = getCurrentApi(context);
-    const model = getCurrentModel(context);
-    const response = await fetch(api, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model, prompt, stream: true }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-    if (!response.ok) {
-      await handleAPIError(response);
-      return;
-    }
-    if (!response.body) {
-      vscode4.window.showErrorMessage("AI response body is null.");
-      return;
-    }
-    yield* streamResponseChunks(response.body);
-    activeAbort = null;
-    abortReason = null;
-  } catch (error) {
-    handleStreamError(suggestionPanel, error);
-  }
-}
-async function handleAPIError(response) {
-  const errorBody = await response.text();
-  console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
-  vscode4.window.showErrorMessage("AI Server Error");
-}
-function handleStreamError(suggestionPanel, error) {
-  if (error.name === "AbortError") {
-    if (abortReason === "user") {
-      suggestionPanel.webview.postMessage({ command: "aiStopped" });
-      vscode4.window.setStatusBarMessage("\u23F9\uFE0F Stopped AI stream", 3e3);
-      activeAbort = null;
-      abortReason = null;
-      throw new UserAbort();
-    } else {
-      vscode4.window.showErrorMessage("AI request timed out.");
-      suggestionPanel.webview.postMessage({ command: "aiError", error: "AI request timed out." });
-      activeAbort = null;
-      abortReason = null;
-    }
-  } else if (error instanceof TypeError && error.message.includes("fetch failed")) {
-    console.error("Failed to connect to the AI server. Is the Ollama server running?");
-    vscode4.window.showErrorMessage("Failed to connect to AI. Make sure Ollama is running.", { modal: true });
-    suggestionPanel.webview.postMessage({
-      command: "aiError",
-      error: "Failed to connect to AI"
-    });
-  } else {
-    console.error("Failed to query AI:", error);
-    suggestionPanel.webview.postMessage({
-      command: "aiError",
-      error: "Failed to query AI"
-    });
-  }
-  throw error;
-}
-async function* streamResponseChunks(body) {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      yield* flushRemainingBuffer(buffer);
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    let newlineIndex;
-    while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line) {
-        continue;
-      }
-      try {
-        const jsonLine = JSON.parse(line);
-        if (jsonLine.response) {
-          yield jsonLine.response;
-        }
-        if (jsonLine.done) {
-          return;
-        }
-      } catch (err) {
-        console.error("Error parsing stream line:", err, line);
-      }
-    }
-  }
-}
-function* flushRemainingBuffer(buffer) {
-  if (!buffer.trim()) {
-    return;
-  }
-  try {
-    const jsonLine = JSON.parse(buffer);
-    if (jsonLine.response) {
-      yield jsonLine.response;
-    }
-  } catch (e) {
-    console.error("Error parsing final buffered JSON line:", e, buffer);
-  }
-}
-
-// src/utils/ai/applySuggestion.ts
-var vscode5 = __toESM(require("vscode"));
-async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
-  if (!documentUri) {
-    vscode5.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
-    return;
-  }
-  const doc = await vscode5.workspace.openTextDocument(documentUri);
-  const editor = await vscode5.window.showTextDocument(doc, {
-    preserveFocus: false,
-    viewColumn: vscode5.window.activeTextEditor?.viewColumn || vscode5.ViewColumn.One
-  });
-  if (editor.document.uri.toString() !== documentUri.toString()) {
-    vscode5.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
-    return;
-  }
-  const fullRange = new vscode5.Range(
-    doc.lineAt(0).range.start,
-    doc.lineAt(doc.lineCount - 1).range.end
-  );
-  const success = await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, aiProvidedFullFileContent);
-  });
-  if (!success) {
-    vscode5.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
-    return;
-  }
-  editor.selection = originalSelectionForContext;
-  editor.revealRange(originalSelectionForContext, vscode5.TextEditorRevealType.InCenterIfOutsideViewport);
-  vscode5.window.showInformationMessage("AI suggestion applied (entire file updated).");
-}
-
-// src/utils/ai/preferencesManager.ts
-var vscode6 = __toESM(require("vscode"));
-var PREFERENCES_KEY = "aiPreferences";
-async function setUserPreferences(context, documentUri) {
-  const existing = await getUserPreferences(context);
-  const input = await vscode6.window.showInputBox({
-    prompt: "Enter your AI coding preferences (e.g., no renames, functional style)",
-    value: existing || ""
-  });
-  await handlePreferenceUpdateFlow("saved", input, context, documentUri);
-}
-async function getUserPreferences(context) {
-  return await context.globalState.get(PREFERENCES_KEY) || "";
-}
-async function showUserPreferences(context) {
-  const preferences = await getUserPreferences(context);
-  vscode6.window.showInformationMessage(
-    preferences ? `Current AI Preferences:
-${preferences}` : "No AI preferences set yet."
-  );
-}
-async function clearUserPreferences(context, documentUri) {
-  await context.globalState.update(PREFERENCES_KEY, "");
-  await handlePreferenceUpdateFlow("cleared", "None set.", context, documentUri);
-}
-async function handlePreferenceUpdateFlow(actionMessage, input, context, documentUri) {
-  if (input === void 0) {
-    return;
-  }
-  await context.globalState.update(PREFERENCES_KEY, input.trim());
-  await promptAndRunShowSuggestionCommand(actionMessage, documentUri);
-}
-async function promptAndRunShowSuggestionCommand(actionMessage, documentUri) {
-  const userConfirmed = await showConfirmationPrompt(
-    `Preferences ${actionMessage}! Do you want to run 'Show Suggestion' command?`
-  );
-  if (!userConfirmed) {
-    return;
-  }
-  if (!documentUri) {
-    vscode6.window.showWarningMessage("No document URI found to reopen.");
-    return;
-  }
-  const doc = await vscode6.workspace.openTextDocument(vscode6.Uri.parse(documentUri));
-  await vscode6.window.showTextDocument(doc, {
-    preserveFocus: false,
-    viewColumn: vscode6.ViewColumn.One
-  });
-  await vscode6.commands.executeCommand("extension.showSuggestion");
-}
-async function showConfirmationPrompt(message, yesLabel = "Yes", noLabel = "No") {
-  const choice = await vscode6.window.showInformationMessage(message, yesLabel, noLabel);
-  return choice === yesLabel;
-}
-
-// src/utils/ai/ragContext.ts
-var vscode7 = __toESM(require("vscode"));
-var import_node_module = require("node:module");
-var requireCJS = (0, import_node_module.createRequire)(__filename);
-var { IndexFlatIP } = requireCJS("faiss-node");
-var MODEL_ID = "Xenova/all-MiniLM-L6-v2";
-var DEFAULT_TOP_K = 5;
-var MODELS_DIR = "models";
-var ARTIFACTS_DIR = ["resources", "rag-artifacts"];
-var INDEX_FILE = "kb.index";
-var META_FILE = "metadata.json";
-var cache2 = /* @__PURE__ */ new Map();
-function l2Normalize(vector) {
-  let sumOfSquares = 0;
-  for (let i = 0; i < vector.length; i++) {
-    sumOfSquares += vector[i] * vector[i];
-  }
-  const normalizationFactor = 1 / (Math.sqrt(sumOfSquares) + 1e-12);
-  const normalizedVector = new Float32Array(vector.length);
-  for (let i = 0; i < vector.length; i++) {
-    normalizedVector[i] = vector[i] * normalizationFactor;
-  }
-  return normalizedVector;
-}
-async function readJson(uri, resourceName) {
-  try {
-    const fileContentsAsBytes = await vscode7.workspace.fs.readFile(uri);
-    const fileContentsAsString = Buffer.from(fileContentsAsBytes).toString("utf8");
-    const parsedJson = JSON.parse(fileContentsAsString);
-    return parsedJson;
-  } catch (error) {
-    const errorMessage = error?.message ?? String(error);
-    throw new Error(`Failed to read/parse ${resourceName}: ${errorMessage}`);
-  }
-}
-function joinExtensionPath(baseUri, ...relativeSegments) {
-  return vscode7.Uri.joinPath(baseUri, ...relativeSegments);
-}
-async function loadTransformers(context) {
-  const transformersModule = await import("@huggingface/transformers");
-  const localModelDirectory = joinExtensionPath(context.extensionUri, MODELS_DIR).fsPath;
-  transformersModule.env.localModelPath = localModelDirectory;
-  transformersModule.env.allowRemoteModels = false;
-  return {
-    pipeline: transformersModule.pipeline
-  };
-}
-async function loadArtifacts(context) {
-  const artifactsDirectory = joinExtensionPath(context.extensionUri, ...ARTIFACTS_DIR);
-  const indexFilePath = joinExtensionPath(artifactsDirectory, INDEX_FILE).fsPath;
-  const metadataFileUri = joinExtensionPath(artifactsDirectory, META_FILE);
-  const faissIndex = IndexFlatIP.read(indexFilePath);
-  const metadataRecords = await readJson(metadataFileUri, META_FILE);
-  if (faissIndex.ntotal() !== metadataRecords.length) {
-    throw new Error(
-      `RAG artifacts mismatch: index.ntotal=${faissIndex.ntotal()} vs metadata.records=${metadataRecords.length}. Rebuild artifacts so they are consistent.`
-    );
-  }
-  return { index: faissIndex, meta: metadataRecords };
-}
-async function embed(queryText, extractor) {
-  const extractionResult = await extractor([queryText], {
-    pooling: "mean",
-    normalize: false
-    // we normalize manually
-  });
-  const tensor = Array.isArray(extractionResult) ? extractionResult[0] : extractionResult;
-  const rawEmbedding = tensor.data;
-  const embeddingDim = tensor.dims?.[1] ?? rawEmbedding.length;
-  const unnormalizedEmbedding = rawEmbedding.subarray(0, embeddingDim);
-  return l2Normalize(unnormalizedEmbedding);
-}
-function retrieve(faissIndex, metadataRecords, queryEmbedding, topK = DEFAULT_TOP_K) {
-  const indexDimension = faissIndex.getDimension();
-  if (indexDimension !== queryEmbedding.length) {
-    throw new Error(
-      `FAISS dimension mismatch: index=${indexDimension} vs query=${queryEmbedding.length}`
-    );
-  }
-  const { distances: similarityScores, labels: neighborIndices } = faissIndex.search(
-    Array.from(queryEmbedding),
-    Math.min(topK, metadataRecords.length)
-  );
-  const hits = [];
-  for (let i = 0; i < neighborIndices.length; i++) {
-    const neighborIndex = neighborIndices[i];
-    if (neighborIndex >= 0 && neighborIndex < metadataRecords.length) {
-      const metadataRecord = metadataRecords[neighborIndex];
-      hits.push([similarityScores[i], metadataRecord]);
-    }
-  }
-  return hits;
-}
-function formatContext(hits) {
-  const contextBlocks = hits.map(
-    ([similarityScore, metadataRecord]) => `[source: ${metadataRecord.source} | score: ${similarityScore.toFixed(3)}]
-${metadataRecord.text}`
-  );
-  return contextBlocks.join("\n\n---\n\n");
-}
-async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
-  const cacheKey = context.extensionUri.toString();
-  const cacheEntry = cache2.get(cacheKey) ?? {};
-  if (!cacheEntry.extractor) {
-    const { pipeline } = await loadTransformers(context);
-    cacheEntry.extractor = await pipeline(
-      "feature-extraction",
-      MODEL_ID
-    );
-  }
-  if (!cacheEntry.index || !cacheEntry.meta) {
-    const { index: faissIndex, meta: metadataRecords } = await loadArtifacts(context);
-    cacheEntry.index = faissIndex;
-    cacheEntry.meta = metadataRecords;
-  }
-  cache2.set(cacheKey, cacheEntry);
-  const queryEmbedding = await embed(queryText, cacheEntry.extractor);
-  const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
-  return formatContext(retrievalHits);
-}
-
-// src/utils/ai/promptBuilder.ts
-async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
-  const fileLabel = fileName || "current file";
-  const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
-  const userPreferences = await getUserPreferences(context);
-  const preferencesBlock = `
----
-USER PREFERENCES:
-${userPreferences || "No preferences set."}
----
-`;
-  const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
-  let finalPrompt = originalPrompt;
-  try {
-    const ragCtx = await getRagContext(context, originalPrompt, 5);
-    console.log("[RAG] ctx length:", ragCtx?.length ?? 0);
-    console.log("[RAG] ctx preview:", (ragCtx || "").slice(0, 160));
-    if (ragCtx && ragCtx.trim().length > 0) {
-      finalPrompt = `You are an AI assistant for F# and WebSharper code review.
-Use ONLY the context below where applicable.
-
-RAG CONTEXT:
-${ragCtx}
-
-=== ORIGINAL TASK ===
-${originalPrompt}`;
-    }
-  } catch (e) {
-    console.warn("[RAG] disabled or failed:", e);
-  }
-  return finalPrompt;
-}
-function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
-  return `
-${preferencesBlock}
-You are a code review assistant specialized in F# and WebSharper.
-Improve ONLY the SELECTED CODE within the full file context.
-
----
-INSTRUCTIONS:
-1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
-2. Preserve all other code in the file unless absolutely necessary for correctness.
-3. Do NOT reorder or reformat the rest of the file.
-4. Avoid unnecessary renames unless the user's preferences ask for it.
-5. If removing code, be sure it's entirely unused.
-6. You MUST format your response as:
-   - ### Summary of Issues (bullet list)
-   - ### Improved Code (entire file)
-   - ### Explanation (bullet list)
-
-**Full File \`${fileLabel}\`:**
-\`\`\`fsharp
-${fullContent}
-\`\`\`
-
-**Selected Code \`${fileLabel}\`**:
-${selectionContextInfo}
-\`\`\`fsharp
-${selectedSnippet}
-\`\`\`
-
-REMINDER: You must output the entire file content with ONLY the selected region changed.
-    `.trim();
-}
-
-// src/utils/ui/outputChannel.ts
-var vscode8 = __toESM(require("vscode"));
-function showOutput(fileName, response) {
-  const outputChannel = vscode8.window.createOutputChannel("AI Code Review");
-  outputChannel.clear();
-  outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
-  outputChannel.appendLine(`
-${response}`);
-  outputChannel.show(true);
-}
-
-// src/utils/ui/panelManager.ts
-var panelInstance;
-function getPanel() {
-  return panelInstance;
-}
-function setPanel(panel) {
-  panelInstance = panel;
-}
-
-// src/utils/ui/suggestionWebview.ts
-var vscode11 = __toESM(require("vscode"));
-
-// src/utils/webview/webviewContent.ts
-var vscode9 = __toESM(require("vscode"));
-var fs = __toESM(require("fs"));
-function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
-  const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const htmlPath = vscode9.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
-  let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
-  const diffJsSrcUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
-  const markedJsSrcUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
-  const githubDarkStyleUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
-  const highlightJsSrcUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
-  const fSharpSrcUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
-  const cssUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
-  const jsUri = webview.asWebviewUri(vscode9.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
-  htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{userPreferences}}", escapeHtml(userPreferences || "None set.")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
-  return htmlContent;
-}
-function escapeHtml(raw) {
-  return raw.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-}
-
 // src/utils/webview/webviewMessageHandler.ts
-var vscode10 = __toESM(require("vscode"));
 function handleWebviewMessage(panelInstance2, context) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode10.Selection(
-          new vscode10.Position(message.selection.start.line, message.selection.start.character),
-          new vscode10.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode8.Selection(
+          new vscode8.Position(message.selection.start.line, message.selection.start.character),
+          new vscode8.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
             await handleAccept(context, message, originalSelection, panelInstance2);
             break;
           case "reject":
-            vscode10.window.showInformationMessage("AI suggestion rejected.");
+            vscode8.window.showInformationMessage("AI suggestion rejected.");
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode10.commands.executeCommand("extension.setAIPreferences", message.documentUri);
+            vscode8.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
           case "clearPreferences":
-            vscode10.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
+            vscode8.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
             break;
           case "changeModel":
-            vscode10.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
+            vscode8.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
             break;
           case "requestModels":
             await sendModelsList(context, panelInstance2);
@@ -6139,7 +6083,7 @@ function handleWebviewMessage(panelInstance2, context) {
               break;
             }
             await setCurrentModel(context, picked);
-            vscode10.window.showInformationMessage(`Ollama model set to: ${picked}`);
+            vscode8.window.showInformationMessage(`Ollama model set to: ${picked}`);
             await sendModelsList(context, panelInstance2);
             await promptAndShowSuggestion(message.documentUri);
             break;
@@ -6147,24 +6091,24 @@ function handleWebviewMessage(panelInstance2, context) {
             abortActiveRequest();
             break;
           case "refresh":
-            const docUri = vscode10.Uri.parse(message.documentUri);
-            const doc = await vscode10.workspace.openTextDocument(docUri);
-            const editor = await vscode10.window.showTextDocument(doc, {
+            const docUri = vscode8.Uri.parse(message.documentUri);
+            const doc = await vscode8.workspace.openTextDocument(docUri);
+            const editor = await vscode8.window.showTextDocument(doc, {
               preserveFocus: false,
-              viewColumn: vscode10.ViewColumn.One
+              viewColumn: vscode8.ViewColumn.One
             });
             if (message.selection) {
-              const selection = new vscode10.Selection(
-                new vscode10.Position(message.selection.start.line, message.selection.start.character),
-                new vscode10.Position(message.selection.end.line, message.selection.end.character)
+              const selection = new vscode8.Selection(
+                new vscode8.Position(message.selection.start.line, message.selection.start.character),
+                new vscode8.Position(message.selection.end.line, message.selection.end.character)
               );
               editor.selection = selection;
               editor.revealRange(
-                new vscode10.Range(selection.start, selection.end),
-                vscode10.TextEditorRevealType.InCenterIfOutsideViewport
+                new vscode8.Range(selection.start, selection.end),
+                vscode8.TextEditorRevealType.InCenterIfOutsideViewport
               );
             }
-            await vscode10.commands.executeCommand("extension.showSuggestion");
+            await vscode8.commands.executeCommand("extension.showSuggestion");
             break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
@@ -6172,7 +6116,7 @@ function handleWebviewMessage(panelInstance2, context) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode10.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode8.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -6191,16 +6135,16 @@ async function sendModelsList(context, panelInstance2) {
 }
 async function handleAccept(context, message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode10.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode8.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode10.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode8.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode10.Uri.parse(message.documentUri);
-  const docBefore = await vscode10.workspace.openTextDocument(docUri);
-  const cfg = vscode10.workspace.getConfiguration("aiCodeReview");
+  const docUri = vscode8.Uri.parse(message.documentUri);
+  const docBefore = await vscode8.workspace.openTextDocument(docUri);
+  const cfg = vscode8.workspace.getConfiguration("aiCodeReview");
   const enableShadow = cfg.get("git.enable", false);
   const autoSave = true;
   try {
@@ -6212,7 +6156,7 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
       await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
     }
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-    const docAfter = await vscode10.workspace.openTextDocument(docUri);
+    const docAfter = await vscode8.workspace.openTextDocument(docUri);
     if (autoSave) {
       await docAfter.save();
     }
@@ -6222,10 +6166,10 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
       const bullets = message.summary?.split("\n").filter(Boolean);
       const { subject, body } = formatAiCommitMessage(subjectHint, ["bullets"]);
       const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], subject, body, context);
-      vscode10.window.setStatusBarMessage(`\u2705 AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
+      vscode8.window.setStatusBarMessage(`\u2705 AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
     }
   } catch (e) {
-    vscode10.window.showWarningMessage(`Shadow commit failed: ${e?.message ?? String(e)}`);
+    vscode8.window.showWarningMessage(`Shadow commit failed: ${e?.message ?? String(e)}`);
   }
   panelInstance2.dispose();
 }
@@ -6235,7 +6179,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   const existingPanel = getPanel();
   const userPreferences = await getUserPreferences(context);
   if (existingPanel) {
-    existingPanel.reveal(vscode11.ViewColumn.Beside);
+    existingPanel.reveal(vscode9.ViewColumn.Beside);
     existingPanel.webview.html = getWebviewContent(
       existingPanel.webview,
       context.extensionUri,
@@ -6244,17 +6188,17 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
     );
     return existingPanel;
   }
-  const newPanel = vscode11.window.createWebviewPanel(
+  const newPanel = vscode9.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode11.ViewColumn.Beside,
+    vscode9.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [
-        vscode11.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
-        vscode11.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
-        vscode11.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
+        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+        vscode9.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
+        vscode9.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
       ]
     }
   );
@@ -6274,23 +6218,23 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 
 // src/commands/showSuggestion.ts
 function registerShowSuggestion(context) {
-  return vscode12.commands.registerCommand("extension.showSuggestion", async () => {
-    vscode12.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode12.window.activeTextEditor;
+  return vscode10.commands.registerCommand("extension.showSuggestion", async () => {
+    vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode10.window.activeTextEditor;
     if (!editor) {
-      vscode12.window.showErrorMessage("No active F# editor found.");
+      vscode10.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode12.window.showErrorMessage("This command only works on F# files.");
+      vscode10.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
     const selection = editor.selection;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty || !selectedCode.trim()) {
-      vscode12.window.showWarningMessage("Please select some F# code to review.");
+      vscode10.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const wholeFileContent = document2.getText();
@@ -6303,18 +6247,13 @@ function registerShowSuggestion(context) {
       context
     );
     console.log(prompt);
-    const git = getGitClient();
-    if (!git) {
-      vscode12.window.showErrorMessage("Git client not available.");
-      return;
-    }
     const suggestionPanel = await showSuggestionWebview(
       "",
       context,
       fileName
     );
     if (!suggestionPanel) {
-      vscode12.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     const userPreferences = await getUserPreferences(context);
@@ -6362,46 +6301,46 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/undoLastSuggestion.ts
-var vscode13 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 function registerUndoLastSuggestion(context) {
-  return vscode13.commands.registerCommand("extension.undoLastSuggestion", async () => {
-    const ok = await vscode13.window.showInformationMessage("Revert last AI change (shadow)?", "Yes", "Cancel");
+  return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
+    const ok = await vscode11.window.showInformationMessage("Revert last AI change (shadow)?", "Yes", "Cancel");
     if (ok !== "Yes") {
       return;
     }
-    await vscode13.workspace.saveAll();
+    await vscode11.workspace.saveAll();
     await shadowRevertLast(context);
   });
 }
 
 // src/commands/aiPreferences.ts
-var vscode14 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
-  return vscode14.commands.registerCommand(
+  return vscode12.commands.registerCommand(
     "extension.setAIPreferences",
     (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {
-  return vscode14.commands.registerCommand(
+  return vscode12.commands.registerCommand(
     "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
-  return vscode14.commands.registerCommand(
+  return vscode12.commands.registerCommand(
     "extension.clearAIPreferences",
     (documentUri) => clearUserPreferences(context, documentUri)
   );
 }
 
 // src/commands/changeOllamaModel.ts
-var vscode15 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var CMD_CHANGE_MODEL = "extension.changeOllamaModel";
 var CMD_SHOW_SUGGESTION = "extension.showSuggestion";
 var DEFAULT_API = "http://localhost:11434/api/generate";
 function registerChangeOllamaModel(context) {
-  return vscode15.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     CMD_CHANGE_MODEL,
     async (documentUri) => {
       try {
@@ -6415,12 +6354,12 @@ function registerChangeOllamaModel(context) {
           return;
         }
         await setCurrentModel(context, model);
-        vscode15.window.showInformationMessage(`Ollama model set to: ${model}`);
+        vscode13.window.showInformationMessage(`Ollama model set to: ${model}`);
         if (documentUri) {
           await promptAndShowSuggestion(documentUri);
         }
       } catch (err) {
-        vscode15.window.showErrorMessage(
+        vscode13.window.showErrorMessage(
           `Failed to change Ollama model: ${err?.message ?? String(err)}`
         );
       }
@@ -6428,25 +6367,25 @@ function registerChangeOllamaModel(context) {
   );
 }
 async function promptAndShowSuggestion(documentUri) {
-  const go = await vscode15.window.showInformationMessage(
+  const go = await vscode13.window.showInformationMessage(
     `Run "Show Suggestion" now with the new model?`,
     "Yes",
     "No"
   );
   if (go === "Yes") {
-    const doc = await vscode15.workspace.openTextDocument(
-      vscode15.Uri.parse(documentUri)
+    const doc = await vscode13.workspace.openTextDocument(
+      vscode13.Uri.parse(documentUri)
     );
-    await vscode15.window.showTextDocument(doc, {
+    await vscode13.window.showTextDocument(doc, {
       preserveFocus: false,
-      viewColumn: vscode15.ViewColumn.One
+      viewColumn: vscode13.ViewColumn.One
     });
-    await vscode15.commands.executeCommand(CMD_SHOW_SUGGESTION);
+    await vscode13.commands.executeCommand(CMD_SHOW_SUGGESTION);
   }
 }
 async function pickEndpoint(context) {
   const current = getCurrentApi(context) || DEFAULT_API;
-  const choice = await vscode15.window.showQuickPick(
+  const choice = await vscode13.window.showQuickPick(
     [
       { label: "Use current endpoint", description: current, value: current },
       {
@@ -6460,7 +6399,7 @@ async function pickEndpoint(context) {
     return;
   }
   if (!choice.value) {
-    const entered = await vscode15.window.showInputBox({
+    const entered = await vscode13.window.showInputBox({
       prompt: "Ollama Generate API endpoint",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Endpoint is required"
@@ -6482,7 +6421,7 @@ async function pickModel(context) {
       description: "Type any local Ollama model tag"
     }
   ];
-  const picked = await vscode15.window.showQuickPick(items, {
+  const picked = await vscode13.window.showQuickPick(items, {
     placeHolder: models.length ? `Select model (current: ${current})` : `No models found. Enter a custom model (current: ${current}).`,
     matchOnDescription: true
   });
@@ -6490,7 +6429,7 @@ async function pickModel(context) {
     return;
   }
   if (!picked.value) {
-    const manual = await vscode15.window.showInputBox({
+    const manual = await vscode13.window.showInputBox({
       prompt: "Enter the Ollama model tag",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Model is required"
@@ -6507,7 +6446,6 @@ function activate(context) {
     registerSetAIPreferences(context),
     registerShowAIPreferences(context),
     registerClearAIPreferences(context),
-    registerCheckGitStatus(),
     registerUndoLastSuggestion(context),
     registerChangeOllamaModel(context)
   );
