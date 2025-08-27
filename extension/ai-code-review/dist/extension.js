@@ -5970,74 +5970,90 @@ init_git_response_error();
 var esm_default = gitInstanceFactory;
 
 // src/utils/git/shadowRepo.ts
-var LAST_AI_COMMIT_KEY = "ai.shadow.lastCommit";
 var AI_COMMIT_PREFIX = "chore(ai): apply suggestion";
-function getWorkTree() {
-  const wt = vscode7.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  if (!wt) {
-    throw new Error("No workspace folder found.");
+function convertToPosix(p) {
+  return p.replace(/\\/g, "/");
+}
+function getWorkspaceRootForUri(docUri) {
+  const workspaceFolder = vscode7.workspace.getWorkspaceFolder(docUri);
+  if (workspaceFolder?.uri?.fsPath) {
+    return workspaceFolder.uri.fsPath;
   }
-  return wt;
+  const firstFolderUri = vscode7.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (firstFolderUri) {
+    return firstFolderUri;
+  }
+  throw new Error("No workspace folder found for this document.");
+}
+function slugWorkTree(fsPath) {
+  return fsPath.replace(/[:\\\/]/g, "_").slice(-120);
 }
 async function ensureDir(fsPath) {
   await vscode7.workspace.fs.createDirectory(vscode7.Uri.file(fsPath));
 }
-async function openShadowRepo(context) {
-  const workTree = getWorkTree();
-  const repoRoot = path.join(context.globalStorageUri.fsPath, "shadow");
+async function openShadowRepoForDocument(context, docUri) {
+  const workTree = getWorkspaceRootForUri(docUri);
+  const slug = slugWorkTree(workTree);
+  const repoRoot = path.join(context.globalStorageUri.fsPath, "shadow", slug);
   const gitDir = path.join(repoRoot, ".git");
+  const lastKey = `ai.shadow.lastCommit.${slug}`;
   await ensureDir(context.globalStorageUri.fsPath);
   await ensureDir(repoRoot);
   const git = esm_default({ baseDir: workTree });
   try {
-    await git.raw(["-C", repoRoot, "rev-parse", "--git-dir"]);
+    await git.raw(["--git-dir", gitDir, "rev-parse", "--git-dir"]);
   } catch {
     await git.raw(["-C", repoRoot, "init"]);
-    await git.raw(["-C", repoRoot, "config", "user.name", "AI Reviewer"]);
-    await git.raw(["-C", repoRoot, "config", "user.email", "ai@example.local"]);
-    await git.raw(["-C", repoRoot, "config", "core.worktree", workTree]);
+    await git.raw(["--git-dir", gitDir, "config", "user.name", "AI Reviewer"]);
+    await git.raw(["--git-dir", gitDir, "config", "user.email", "ai@example.local"]);
+    await git.raw(["--git-dir", gitDir, "config", "core.worktree", workTree]);
   }
-  return { git, gitDir, workTree, repoRoot };
+  return { git, gitDir, workTree, repoRoot, lastKey };
 }
-async function shadowCommit(shadow, files, aiExplanation, context) {
-  const { git, gitDir, workTree } = shadow;
-  const rels = files.map((f) => path.relative(workTree, f));
-  await git.raw(["--git-dir", gitDir, "-C", workTree, "add", "--", ...rels]);
-  const msg = `${AI_COMMIT_PREFIX} (${aiExplanation})`;
-  await git.raw(["--git-dir", gitDir, "-C", workTree, "commit", "-m", msg]);
-  const head = (await git.raw(["--git-dir", gitDir, "rev-parse", "HEAD"])).trim();
-  if (context) {
-    await context.globalState.update(LAST_AI_COMMIT_KEY, head);
+async function shadowCommitFiles(context, shadow, absFiles, aiExplanation) {
+  const relativeFilePaths = absFiles.map((f) => convertToPosix(path.relative(shadow.workTree, f)));
+  for (const relativeFilePath of relativeFilePaths) {
+    if (relativeFilePath.startsWith("..")) {
+      throw new Error(`File is outside the workspace root tracked by shadow Git: ${relativeFilePath}`);
+    }
   }
+  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "add", "--", ...relativeFilePaths]);
+  const commitMessage = `${AI_COMMIT_PREFIX} (${aiExplanation})`;
+  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "commit", "-m", commitMessage]);
+  const head = (await shadow.git.raw(["--git-dir", shadow.gitDir, "rev-parse", "HEAD"])).trim();
+  await context.globalState.update(shadow.lastKey, head);
   return head;
 }
-async function shadowRevertLast(context) {
-  const shadow = await openShadowRepo(context);
-  const { git, gitDir, workTree } = shadow;
-  const last2 = context.globalState.get(LAST_AI_COMMIT_KEY);
+async function shadowRevertLast(context, docUri) {
+  const workspaceRoot = docUri ? getWorkspaceRootForUri(docUri) : vscode7.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
+  if (!workspaceRoot) {
+    throw new Error("No workspace to revert in.");
+  }
+  const shadowRepo = await openShadowRepoForDocument(context, vscode7.Uri.file(path.join(workspaceRoot, ".__anchor__")));
+  const last2 = context.globalState.get(shadowRepo.lastKey);
   if (!last2) {
-    vscode7.window.showWarningMessage("No AI commit to revert.");
+    vscode7.window.showWarningMessage("No AI commit to revert (shadow).");
     return;
   }
-  await git.raw(["--git-dir", gitDir, "-C", workTree, "revert", "--no-edit", last2]);
-  await context.globalState.update(LAST_AI_COMMIT_KEY, void 0);
+  await shadowRepo.git.raw(["--git-dir", shadowRepo.gitDir, "-C", shadowRepo.workTree, "revert", "--no-edit", last2]);
+  await context.globalState.update(shadowRepo.lastKey, void 0);
   vscode7.window.showInformationMessage(`Reverted AI commit ${last2.slice(0, 7)} (shadow).`);
 }
-async function isTrackedFile(shadow, relPath) {
+async function shadowIsTracked(shadow, relPosixPath) {
   try {
-    await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "ls-files", "--error-unmatch", "--", relPath]);
+    await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "ls-files", "--error-unmatch", "--", relPosixPath]);
     return true;
   } catch {
     return false;
   }
 }
-async function ensureBaselineForFile(shadow, absPath) {
-  const rel = path.relative(shadow.workTree, absPath);
-  if (await isTrackedFile(shadow, rel)) {
+async function shadowEnsureBaseline(shadow, absPath) {
+  const rel = convertToPosix(path.relative(shadow.workTree, absPath));
+  if (await shadowIsTracked(shadow, rel)) {
     return;
   }
   await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "add", "--", rel]);
-  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "commit", "-m", `chore(ai): baseline snapshot ${rel}`]);
+  await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "commit", "-m", `chore(ai): baseline ${rel}`]);
 }
 
 // src/utils/webview/webviewMessageHandler.ts
@@ -6135,31 +6151,30 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
     return;
   }
   const docUri = vscode8.Uri.parse(message.documentUri);
-  const docBefore = await vscode8.workspace.openTextDocument(docUri);
-  const cfg = vscode8.workspace.getConfiguration("aiCodeReview");
-  const enableShadow = cfg.get("git.enable", false);
-  const autoSave = true;
+  const workspaceConfig = vscode8.workspace.getConfiguration("aiCodeReview");
+  const enableShadow = workspaceConfig.get("git.enable", false);
   try {
+    let doc = await vscode8.workspace.openTextDocument(docUri);
+    if (enableShadow && doc.isDirty) {
+      await doc.save();
+    }
+    let shadow;
     if (enableShadow) {
-      if (docBefore.isDirty && autoSave) {
-        await docBefore.save();
-      }
-      const shadow = await openShadowRepo(context);
-      await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
+      shadow = await openShadowRepoForDocument(context, docUri);
+      await shadowEnsureBaseline(shadow, docUri.fsPath);
     }
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
-    const docAfter = await vscode8.workspace.openTextDocument(docUri);
-    if (autoSave) {
-      await docAfter.save();
-    }
+    doc = await vscode8.workspace.openTextDocument(docUri);
     if (enableShadow) {
-      const shadow = await openShadowRepo(context);
-      const aiExplanation = message.aiExplanation;
-      const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], aiExplanation, context);
-      vscode8.window.setStatusBarMessage(`\u2705 AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
+      await doc.save();
     }
-  } catch (e) {
-    vscode8.window.showWarningMessage(`Shadow commit failed: ${e?.message ?? String(e)}`);
+    if (enableShadow && shadow) {
+      const hash = await shadowCommitFiles(context, shadow, [docUri.fsPath], message.aiExplanation);
+      vscode8.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
+    }
+  } catch (error) {
+    console.error(`Shadow commit failed: ${error?.message ?? String(error)}`);
+    vscode8.window.showWarningMessage("Shadow commit failed");
   }
   panelInstance2.dispose();
 }
@@ -6294,12 +6309,13 @@ function registerShowSuggestion(context) {
 var vscode11 = __toESM(require("vscode"));
 function registerUndoLastSuggestion(context) {
   return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
+    await vscode11.workspace.saveAll();
     const ok = await vscode11.window.showInformationMessage("Revert last AI change (shadow)?", "Yes", "Cancel");
     if (ok !== "Yes") {
       return;
     }
-    await vscode11.workspace.saveAll();
-    await shadowRevertLast(context);
+    const activeDocUri = vscode11.window.activeTextEditor?.document?.uri;
+    await shadowRevertLast(context, activeDocUri);
   });
 }
 

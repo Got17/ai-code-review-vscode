@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
 import { promptAndShowSuggestion } from '../../commands';
-import { openShadowRepo, shadowCommit, ensureBaselineForFile  } from '../git/shadowRepo';
+import {
+    openShadowRepoForDocument,
+    shadowEnsureBaseline,
+    shadowCommitFiles
+} from '../git/shadowRepo';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel,
@@ -111,43 +115,51 @@ async function handleAccept(
     originalSelection: vscode.Selection,
     panelInstance: vscode.WebviewPanel
 ) {
-    if (!message.aiSuggestedCode) { vscode.window.showErrorMessage('AI did not provide improved code to apply.'); return; }
-    if (!message.selection || !message.documentUri) { vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.'); return; }
+    if (!message.aiSuggestedCode) {
+        vscode.window.showErrorMessage('AI did not provide improved code to apply.');
+        return;
+    }
+    if (!message.selection || !message.documentUri) {
+        vscode.window.showErrorMessage('Missing selection or document URI for applying suggestion.');
+        return;
+    }
 
     const docUri = vscode.Uri.parse(message.documentUri);
-    const docBefore = await vscode.workspace.openTextDocument(docUri);
 
-    const cfg = vscode.workspace.getConfiguration('aiCodeReview');
-    const enableShadow = cfg.get<boolean>('git.enable', false);
-    const autoSave = true;
+    const workspaceConfig = vscode.workspace.getConfiguration('aiCodeReview');
+    const enableShadow = workspaceConfig.get<boolean>('git.enable', false);
 
     try {
-        if (enableShadow) {
-        // ensure disk matches current buffer before baseline
-        if (docBefore.isDirty && autoSave) { await docBefore.save(); }
-            const shadow = await openShadowRepo(context);
-
-            // baseline once per file (prevents "revert = delete")
-            await ensureBaselineForFile(shadow, docBefore.uri.fsPath);
+        // Save current state to disk
+        let doc = await vscode.workspace.openTextDocument(docUri);
+        if (enableShadow && doc.isDirty) { 
+            await doc.save(); 
         }
 
-        // apply new content in editor
+        // Prepare shadow repo 
+        let shadow: Awaited<ReturnType<typeof openShadowRepoForDocument>> | undefined;
+        if (enableShadow) {
+            shadow = await openShadowRepoForDocument(context, docUri);
+            await shadowEnsureBaseline(shadow, docUri.fsPath);
+        }
+
+        // Apply AI suggestion to editor
         await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
 
-        // persist to disk so commit matches the change
-        const docAfter = await vscode.workspace.openTextDocument(docUri);
-        if (autoSave) { await docAfter.save(); }
-
-        // shadow commit
-        if (enableShadow) {
-            const shadow = await openShadowRepo(context);
-            const aiExplanation =  message.aiExplanation;
-
-            const hash = await shadowCommit(shadow, [docAfter.uri.fsPath], aiExplanation, context);
-            vscode.window.setStatusBarMessage(`✅ AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
+        // Save new content so commit captures it
+        doc = await vscode.workspace.openTextDocument(docUri);
+        if (enableShadow) { 
+            await doc.save(); 
         }
-    } catch (e: any) {
-        vscode.window.showWarningMessage(`Shadow commit failed: ${e?.message ?? String(e)}`);
+
+        // Commit in shadow
+        if (enableShadow && shadow) {
+            const hash = await shadowCommitFiles(context, shadow, [docUri.fsPath], message.aiExplanation);
+            vscode.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
+        }
+    } catch (error: any) {
+        console.error(`Shadow commit failed: ${error?.message ?? String(error)}`);
+        vscode.window.showWarningMessage('Shadow commit failed');
     }
 
     panelInstance.dispose();
