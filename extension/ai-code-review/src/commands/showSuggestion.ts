@@ -117,7 +117,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
 
             suggestionPanel.webview.postMessage({
                 command: 'aiError',
-                error: 'Failed to get full response from AI. (Make sure Ollama is running)',
+                error: 'Failed to get full response from Ollama. (Make sure Ollama is running)',
             });
         }
     });
