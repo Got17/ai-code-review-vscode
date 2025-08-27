@@ -6,7 +6,8 @@ import { Uri } from 'vscode';
 type Shadow = { 
     git: SimpleGit; 
     gitDir: string; 
-    workTree: string 
+    workTree: string;
+    repoRoot: string
 };
 
 export type CommitMessage = {
@@ -15,18 +16,18 @@ export type CommitMessage = {
 }
 
 const LAST_AI_COMMIT_KEY = 'ai.shadow.lastCommit';
-const AI_COMMIT_PREFIX   = 'chore(ai): apply suggestion';
+const AI_COMMIT_PREFIX = 'chore(ai): apply suggestion';
 
-function workspaceFolder(): string {
-    const p = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!p) {
+function getWorkTree(): string {
+    const wt = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!wt) {
         throw new Error('No workspace folder found.');
     }
-    return p;
+    return wt;
 }
 
-async function ensureDir(uri: Uri) {
-    await vscode.workspace.fs.createDirectory(uri);
+async function ensureDir(fsPath: string) {
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(fsPath));
 }
 
 /** Open (or init) a shadow repo:
@@ -35,23 +36,26 @@ async function ensureDir(uri: Uri) {
  *  so we can add/commit without touching user's .git
  */
 export async function openShadowRepo(context: vscode.ExtensionContext): Promise<Shadow> {
-    const workTree = workspaceFolder();
-    const gitDir   = path.join(context.globalStorageUri.fsPath, 'shadow.git');
+    const workTree = getWorkTree();
+    const repoRoot = path.join(context.globalStorageUri.fsPath, 'shadow');
+    const gitDir   = path.join(repoRoot, '.git');
 
-    await ensureDir(context.globalStorageUri);
+    await ensureDir(context.globalStorageUri.fsPath);
+    await ensureDir(repoRoot);
 
     const git = simpleGit({ baseDir: workTree });
 
-    // Does shadow.git exist / initialized?
+    // Probe repo; init if missing
     try {
-        await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'rev-parse', '--git-dir']);
+        await git.raw(['-C', repoRoot, 'rev-parse', '--git-dir']);
     } catch {
-        // Init bare repo + identity
-        await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'init', '--bare']);
-        await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'config', 'user.name', 'AI Reviewer']);
-        await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'config', 'user.email', 'ai@example.local']);
+        await git.raw(['-C', repoRoot, 'init']);                                 // non-bare
+        await git.raw(['-C', repoRoot, 'config', 'user.name', 'AI Reviewer']);
+        await git.raw(['-C', repoRoot, 'config', 'user.email', 'ai@example.local']);
+        await git.raw(['-C', repoRoot, 'config', 'core.worktree', workTree]);    // key line
     }
-    return { git, gitDir, workTree };
+
+    return { git, gitDir, workTree, repoRoot };
 }
 
 /** Stage + commit only specific files; returns HEAD hash */
@@ -64,16 +68,14 @@ export async function shadowCommit(
 ): Promise<string> {
     const { git, gitDir, workTree } = shadow;
 
-    // Stage file(s)
-    await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'add', ...files]);
+    // Make paths relative to the workTree; add with a path separator marker
+    const rels = files.map(f => path.relative(workTree, f));
+    await git.raw(['--git-dir', gitDir, '-C', workTree, 'add', '--', ...rels]);
 
-    const msg = body && body.trim()
-        ? `${subject}\n\n${body.trim()}`
-        : subject;
+    const msg = body && body.trim() ? `${subject}\n\n${body.trim()}` : subject;
+    await git.raw(['--git-dir', gitDir, '-C', workTree, 'commit', '-m', msg]);
 
-    await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'commit', '-m', msg]);
-
-    const head = (await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'rev-parse', 'HEAD'])).trim();
+    const head = (await git.raw(['--git-dir', gitDir, 'rev-parse', 'HEAD'])).trim();
     if (context) {
         await context.globalState.update(LAST_AI_COMMIT_KEY, head);
     }
@@ -89,7 +91,7 @@ export async function shadowRevertLast(context: vscode.ExtensionContext) {
         vscode.window.showWarningMessage('No AI commit to revert.');
         return;
     }
-    await git.raw(['--git-dir', gitDir, '--work-tree', workTree, 'revert', '--no-edit', last]);
+    await git.raw(['--git-dir', gitDir, '-C', workTree, 'revert', '--no-edit', last]);
     await context.globalState.update(LAST_AI_COMMIT_KEY, undefined);
     vscode.window.showInformationMessage(`Reverted AI commit ${last.slice(0,7)} (shadow).`);
 }
@@ -99,7 +101,7 @@ export function formatAiCommitMessage(
     bullets?: string[]
 ): CommitMessage {
     // Subject (<=50 chars, imperative). Keep it short & meaningful.
-    const base    = subjectHint && subjectHint.trim().length > 0
+    const base = subjectHint && subjectHint.trim().length > 0
         ? subjectHint.trim()
         : 'apply suggested changes';
 
