@@ -138,8 +138,10 @@ button:disabled {
 
 #jump-to-latest {
     position: fixed;
-    right: 16rem;
-    bottom: 1rem;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    transform: translateX(-50%);
+    z-index: 1000;
     display: none;
     padding: 8px 10px;
     border-radius: 50%;
@@ -148,7 +150,6 @@ button:disabled {
     color: var(--vscode-button-foreground, #ddd);
     cursor: pointer;
     box-shadow: 0 2px 10px rgba(0,0,0,.25);
-    margin: auto;
 }
 #jump-to-latest:hover {
     background: var(--vscode-button-hoverBackground, #1177bb);
