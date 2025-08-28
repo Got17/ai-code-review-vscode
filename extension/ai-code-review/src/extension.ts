@@ -1,5 +1,13 @@
 import * as vscode from 'vscode';
-import { registerShowSuggestion, registerUndoLastSuggestion, registerSetAIPreferences, registerShowAIPreferences, registerClearAIPreferences, registerChangeOllamaModel } from './commands';
+import { 
+	registerShowSuggestion, 
+	registerUndoLastSuggestion, 
+	registerSetAIPreferences, 
+	registerShowAIPreferences, 
+	registerClearAIPreferences, 
+	registerChangeOllamaModel,
+	registerShowShadowHistory
+ } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
@@ -8,7 +16,8 @@ export function activate(context: vscode.ExtensionContext) {
 		registerShowAIPreferences(context),
 		registerClearAIPreferences(context),
 		registerUndoLastSuggestion(context),
-		registerChangeOllamaModel(context)
+		registerChangeOllamaModel(context),
+		registerShowShadowHistory(context)
 	);
 }
 

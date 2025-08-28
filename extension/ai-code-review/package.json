@@ -23,6 +23,10 @@
       }
     },
     "commands": [
+      { 
+        "command": "extension.showShadowHistory", 
+        "title": "AI Code Review: Show Shadow Git History (Current File)" 
+      },
       {
         "command": "extension.showSuggestion",
         "title": "AI Code Review: Show suggestion"

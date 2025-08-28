@@ -63,7 +63,7 @@ export async function openShadowRepoForDocument(
     try {
         await git.raw(['--git-dir', gitDir, 'rev-parse', '--git-dir']);
     } catch {
-        await git.raw(['-C', repoRoot, 'init']);                             // non-bare
+        await git.raw(['-C', repoRoot, 'init']);
         await git.raw(['--git-dir', gitDir, 'config', 'user.name', 'AI Reviewer']);
         await git.raw(['--git-dir', gitDir, 'config', 'user.email', 'ai@example.local']);
         await git.raw(['--git-dir', gitDir, 'config', 'core.worktree', workTree]);
