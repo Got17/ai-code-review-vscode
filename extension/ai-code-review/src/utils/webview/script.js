@@ -24,9 +24,15 @@ let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
 let jsCurrentModel = null;
 let jsAiExplanation = null;
+let jsApplyMode = 'full';   
 
 let autoScrollEnabled = true;
 const BOTTOM_THRESH_PX = 60;
+
+let usePlainStreaming = false;
+let plainPreEl = null;
+let totalChars = 0;
+const PLAIN_THRESHOLD = 15000; 
 
 // === UTILS ===
 function escapeHtml(content) {
@@ -41,7 +47,8 @@ function buildMessagePayload(command) {
         aiSuggestedCode: extractedAISuggestedCode,
         selection: jsCurrentSelection,
         documentUri: jsCurrentDocumentUri,
-        aiExplanation: jsAiExplanation
+        aiExplanation: jsAiExplanation,
+        applyMode: jsApplyMode,
     };
 }
 
@@ -113,7 +120,7 @@ function extractExplanation(aiResponse) {
     // eslint-disable-next-line curly
     if (!aiResponse) return null;
 
-    const regex = /^### Explanation[\s\S]*?\n- ([\s\S]*?)(?=\n|$)/im;
+    const regex = /^###\s*Explanation[\s\S]*?\n- ([\s\S]*?)(?=\n###|$)/im;
 
     const match = aiResponse.match(regex);
     return match?.[1]?.trim() ?? null;
@@ -213,8 +220,22 @@ function renderPreferenceSection() {
     streamingResponseArea.append(card);
 }
 
-function renderMarkdownChunk(chunk) {
-    streamingResponseArea.innerHTML = marked.parse(chunk);
+function ensurePlainPre() {
+    if (!plainPreEl) {
+        plainPreEl = document.createElement('pre');
+        plainPreEl.className = 'prefs-pre'; // decent monospace look
+        streamingResponseArea.innerHTML = '';
+        streamingResponseArea.appendChild(plainPreEl);
+    }
+}
+
+function appendPlainChunk(raw) {
+    ensurePlainPre();
+    plainPreEl.textContent += raw;
+}
+
+function renderSmallMarkdown(all) {
+    streamingResponseArea.innerHTML = marked.parse(all);
     hljs.highlightAll();
     scrollToBottom();
 }
@@ -239,8 +260,11 @@ window.addEventListener('message', event => {
             jsCurrentDocumentUri = message.documentUri;
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
+            jsApplyMode = message.applyMode || 'full';
+
             stopButton.disabled = false;
             refreshButton.disabled = true;
+
             vscode.postMessage(buildMessagePayload('requestModels'));
             break;
 
@@ -249,30 +273,52 @@ window.addEventListener('message', event => {
             break;
 
         case 'aiChunk':
-            accumulatedRawResponse += message.chunk;
-            renderMarkdownChunk(accumulatedRawResponse);
+            const part = message.chunk || '';
+            accumulatedRawResponse += part;
+            totalChars += part.length;
+
+            // Switch to plain streaming after threshold
+            if (!usePlainStreaming && totalChars >= PLAIN_THRESHOLD) {
+                usePlainStreaming = true;
+                // seed existing content
+                appendPlainChunk(accumulatedRawResponse);
+            } else if (usePlainStreaming) {
+                appendPlainChunk(part);
+                scrollToBottom();
+            } else {
+                // small output: progressive markdown
+                // (parse once per chunk while still small)
+                renderSmallMarkdown(accumulatedRawResponse);
+            }
             break;
 
         case 'aiStreamEnd':
-            extractedAISuggestedCode = extractImprovedCode(message.fullResponse || accumulatedRawResponse);
-            
+            // Final parse once
+            streamingResponseArea.innerHTML = marked.parse(accumulatedRawResponse);
+            hljs.highlightAll();
+
+            extractedAISuggestedCode = extractImprovedCode(accumulatedRawResponse);
             jsAiExplanation = extractExplanation(accumulatedRawResponse);
 
             const improvedCode = extractedAISuggestedCode || '';
             const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
 
             const diffBlock = generateDiffHtml(jsOriginalWholeFileContent, improvedCode);
-            if (improvedCodeElement?.parentElement && diffBlock) {
+            if (improvedCodeElement?.parentElement && diffBlock && jsApplyMode === 'full') {
                 improvedCodeElement.parentElement.insertAdjacentElement('afterend', diffBlock);
                 improvedCodeElement.parentElement.remove();
             }
 
-            // eslint-disable-next-line curly
-            if (extractedAISuggestedCode) acceptButton.disabled = false;
+            if (extractedAISuggestedCode) {
+                acceptButton.disabled = false;
+            }
+
             renderPreferenceSection();
-            rejectButton.disabled = false;            
+
+            rejectButton.disabled = false;
             refreshButton.disabled = false;
             stopButton.disabled = true;
+
             break;
 
         case 'aiError':

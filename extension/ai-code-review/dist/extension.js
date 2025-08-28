@@ -1052,7 +1052,7 @@ function handleStreamError(suggestionPanel, error) {
   if (error.name === "AbortError") {
     if (abortReason === "user") {
       suggestionPanel.webview.postMessage({ command: "aiStopped" });
-      vscode.window.setStatusBarMessage("\u23F9\uFE0F Stopped AI stream", 3e3);
+      vscode.window.setStatusBarMessage("Stopped AI stream", 3e3);
       activeAbort = null;
       abortReason = null;
       throw new UserAbort();
@@ -1126,7 +1126,7 @@ function* flushRemainingBuffer(buffer) {
 
 // src/utils/ai/applySuggestion.ts
 var vscode2 = __toESM(require("vscode"));
-async function applySuggestion(aiProvidedFullFileContent, originalSelectionForContext, documentUri) {
+async function applySuggestion(aiProvidedContent, originalSelectionForContext, documentUri, applyMode = "full" /* Full */) {
   if (!documentUri) {
     vscode2.window.showWarningMessage("Cannot apply suggestion: file context is missing.");
     return;
@@ -1140,20 +1140,19 @@ async function applySuggestion(aiProvidedFullFileContent, originalSelectionForCo
     vscode2.window.showErrorMessage("Error: The active editor does not match the document URI for applying changes.");
     return;
   }
-  const fullRange = new vscode2.Range(
-    doc.lineAt(0).range.start,
-    doc.lineAt(doc.lineCount - 1).range.end
-  );
+  const targetRange = applyMode === "selection" /* Selection */ ? new vscode2.Range(originalSelectionForContext.start, originalSelectionForContext.end) : new vscode2.Range(doc.lineAt(0).range.start, doc.lineAt(doc.lineCount - 1).range.end);
   const success = await editor.edit((editBuilder) => {
-    editBuilder.replace(fullRange, aiProvidedFullFileContent);
+    editBuilder.replace(targetRange, aiProvidedContent);
   });
   if (!success) {
-    vscode2.window.showErrorMessage("Failed to apply suggestion (replacing whole file).");
+    vscode2.window.showErrorMessage("Failed to apply suggestion.");
     return;
   }
   editor.selection = originalSelectionForContext;
   editor.revealRange(originalSelectionForContext, vscode2.TextEditorRevealType.InCenterIfOutsideViewport);
-  vscode2.window.showInformationMessage("AI suggestion applied (entire file updated).");
+  vscode2.window.showInformationMessage(
+    applyMode === "selection" ? "AI suggestion applied (selected region updated)." : "AI suggestion applied (entire file updated)."
+  );
 }
 
 // src/utils/ai/preferencesManager.ts
@@ -1333,6 +1332,8 @@ async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
 }
 
 // src/utils/ai/promptBuilder.ts
+var BIG_FILE_LINE_THRESHOLD = 400;
+var CONTEXT_WINDOW_LINES = 200;
 async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
   const fileLabel = fileName || "current file";
   const selectionInfo = selectionRange ? `The user has specifically selected lines ${selectionRange.start.line + 1}-${selectionRange.end.line + 1} for review.` : "";
@@ -1341,50 +1342,68 @@ async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRa
 ---
 USER PREFERENCES:
 ${userPreferences || "No preferences set."}
----
 `;
-  const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
-  let finalPrompt = originalPrompt;
+  const allLines = wholeFileContent.split(/\r?\n/);
+  const isBig = allLines.length >= BIG_FILE_LINE_THRESHOLD;
+  let applyMode = "full" /* Full */;
+  let fullContextForPrompt = wholeFileContent;
+  if (isBig && selectionRange) {
+    applyMode = "selection" /* Selection */;
+    const start = Math.max(0, selectionRange.start.line - CONTEXT_WINDOW_LINES);
+    const end = Math.min(allLines.length, selectionRange.end.line + CONTEXT_WINDOW_LINES);
+    const header = allLines.slice(0, Math.min(200, allLines.length)).filter((line) => /^\s*(namespace|module|open)\b/.test(line)).join("\n");
+    const surroundingCode = allLines.slice(start, end).join("\n");
+    fullContextForPrompt = `${header}
+...
+${surroundingCode}
+...`;
+  }
+  const baseTemplate = generatePromptTemplate(
+    fileLabel,
+    fullContextForPrompt,
+    selectedCode,
+    selectionInfo,
+    preferencesBlock,
+    applyMode
+  );
+  let finalPrompt = baseTemplate;
   try {
-    const ragCtx = await getRagContext(context, originalPrompt, 5);
-    console.log("[RAG] ctx length:", ragCtx?.length ?? 0);
-    console.log("[RAG] ctx preview:", (ragCtx || "").slice(0, 160));
+    const ragCtx = await getRagContext(context, selectedCode, 5);
     if (ragCtx && ragCtx.trim().length > 0) {
-      finalPrompt = `You are an AI assistant for F# and WebSharper code review.
-Use ONLY the context below where applicable.
+      finalPrompt = `You are a code review assistant specialized in F# and WebSharper.
+Improve ONLY the SELECTED CODE using the provided context.
 
 RAG CONTEXT:
 ${ragCtx}
 
 === ORIGINAL TASK ===
-${originalPrompt}`;
+${baseTemplate}`;
     }
   } catch (e) {
     console.warn("[RAG] disabled or failed:", e);
   }
-  return finalPrompt;
+  return { prompt: finalPrompt, applyMode };
 }
-function generatePromptTemplate(fileLabel, fullContent, selectedSnippet, selectionContextInfo, preferencesBlock) {
+function generatePromptTemplate(fileLabel, fullContextOrWindow, selectedSnippet, selectionContextInfo, preferencesBlock, applyMode) {
+  const outputSpec = applyMode === "full" /* Full */ ? `- ### Improved Code (entire file)` : `- ### Improved Code (only the SELECTED region; do NOT output the whole file)`;
+  const reminder = applyMode === "full" /* Full */ ? `REMINDER: You must output the entire file content with ONLY the selected region changed.` : `REMINDER: Output ONLY the selected region's new code. Do not include any other file content.`;
   return `
 ${preferencesBlock}
-You are a code review assistant specialized in F# and WebSharper.
-Improve ONLY the SELECTED CODE within the full file context.
 
 ---
 INSTRUCTIONS:
 1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
-2. Preserve all other code in the file unless absolutely necessary for correctness.
-3. Do NOT reorder or reformat the rest of the file.
-4. Avoid unnecessary renames unless the user's preferences ask for it.
-5. If removing code, be sure it's entirely unused.
-6. You MUST format your response as:
+2. Preserve other code in the file; do not change it unless strictly required for correctness.
+3. Avoid unnecessary renames unless the user's preferences ask for it.
+4. If removing code, ensure it's entirely unused.
+5. You MUST format your response as:
    - ### Summary of Issues (bullet list)
-   - ### Improved Code (entire file)
+   ${outputSpec}
    - ### Explanation (bullet list)
 
-**Full File \`${fileLabel}\`:**
+**File Context Window \`${fileLabel}\`:**
 \`\`\`fsharp
-${fullContent}
+${fullContextOrWindow}
 \`\`\`
 
 **Selected Code \`${fileLabel}\`**:
@@ -1393,8 +1412,8 @@ ${selectionContextInfo}
 ${selectedSnippet}
 \`\`\`
 
-REMINDER: You must output the entire file content with ONLY the selected region changed.
-    `.trim();
+${reminder}
+`.trim();
 }
 
 // src/utils/ui/outputChannel.ts
@@ -6149,7 +6168,7 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
       shadow = await openShadowRepoForDocument(context, docUri);
       await shadowEnsureBaseline(shadow, docUri.fsPath);
     }
-    await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+    await applySuggestion(message.aiSuggestedCode, originalSelection, docUri, message.applyMode || "full" /* Full */);
     doc = await vscode8.workspace.openTextDocument(docUri);
     if (enableShadow) {
       await doc.save();
@@ -6159,8 +6178,7 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
       vscode8.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
     }
   } catch (error) {
-    console.error(`Shadow commit failed: ${error?.message ?? String(error)}`);
-    vscode8.window.showWarningMessage("Shadow commit failed");
+    vscode8.window.showWarningMessage(`Shadow commit failed: ${error?.message ?? String(error)}`);
   }
   panelInstance2.dispose();
 }
@@ -6230,7 +6248,7 @@ function registerShowSuggestion(context) {
     }
     const wholeFileContent = document2.getText();
     const documentUri = document2.uri;
-    const prompt = await buildPrompt(
+    const { prompt, applyMode } = await buildPrompt(
       selectedCode,
       wholeFileContent,
       fileName,
@@ -6238,11 +6256,7 @@ function registerShowSuggestion(context) {
       context
     );
     console.log(prompt);
-    const suggestionPanel = await showSuggestionWebview(
-      "",
-      context,
-      fileName
-    );
+    const suggestionPanel = await showSuggestionWebview("", context, fileName);
     if (!suggestionPanel) {
       vscode10.window.showErrorMessage("Failed to open suggestion panel.");
       return;
@@ -6258,23 +6272,18 @@ function registerShowSuggestion(context) {
       } : null,
       documentUri: documentUri?.toString() || null,
       userPreferences,
-      currentModel
+      currentModel,
+      applyMode
     });
     let accumulatedResponse = "";
     let hadStreamError = false;
     try {
       for await (const chunk of queryAIStream(suggestionPanel, prompt, context)) {
         accumulatedResponse += chunk;
-        suggestionPanel.webview.postMessage({
-          command: "aiChunk",
-          chunk
-        });
+        suggestionPanel.webview.postMessage({ command: "aiChunk", chunk });
       }
       if (!hadStreamError) {
-        suggestionPanel.webview.postMessage({
-          command: "aiStreamEnd",
-          fullResponse: accumulatedResponse
-        });
+        suggestionPanel.webview.postMessage({ command: "aiStreamEnd", fullResponse: accumulatedResponse });
         showOutput(fileName, accumulatedResponse);
       }
     } catch (error) {

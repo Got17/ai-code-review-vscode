@@ -1,6 +1,15 @@
 import * as vscode from 'vscode';
 import { getUserPreferences } from './preferencesManager';
 import { getRagContext } from './ragContext';
+import { ApplyMode } from '../constants';
+
+export type BuiltPrompt = {
+	prompt: string;
+	applyMode: ApplyMode;
+};
+
+const BIG_FILE_LINE_THRESHOLD = 400;
+const CONTEXT_WINDOW_LINES = 200;        // lines before/after selection
 
 export async function buildPrompt(
 	selectedCode: string,
@@ -19,63 +28,96 @@ export async function buildPrompt(
 ---
 USER PREFERENCES:
 ${userPreferences || 'No preferences set.'}
----
 `;
 
-	const originalPrompt = generatePromptTemplate(fileLabel, wholeFileContent, selectedCode, selectionInfo, preferencesBlock);
-	let finalPrompt = originalPrompt;
+	const allLines = wholeFileContent.split(/\r?\n/);
+	const isBig = allLines.length >= BIG_FILE_LINE_THRESHOLD;
+
+	let applyMode: ApplyMode = ApplyMode.Full;
+	let fullContextForPrompt = wholeFileContent;
+
+	if (isBig && selectionRange) {
+		// Build a light context window around the selection + header directives
+		applyMode = ApplyMode.Selection;
+
+		const start = Math.max(0, selectionRange.start.line - CONTEXT_WINDOW_LINES);
+		const end = Math.min(allLines.length, selectionRange.end.line + CONTEXT_WINDOW_LINES);
+
+		const header = allLines
+			.slice(0, Math.min(200, allLines.length))
+			.filter(line => /^\s*(namespace|module|open)\b/.test(line))
+			.join('\n');
+
+		const surroundingCode = allLines.slice(start, end).join('\n');
+
+		fullContextForPrompt = `${header}\n...\n${surroundingCode}\n...`;
+	}
+
+	const baseTemplate = generatePromptTemplate(
+		fileLabel,
+		fullContextForPrompt,
+		selectedCode,
+		selectionInfo,
+		preferencesBlock,
+		applyMode
+	);
+
+	let finalPrompt = baseTemplate;
 
 	try {
-		const ragCtx = await getRagContext(context, originalPrompt, 5);
-		console.log('[RAG] ctx length:', ragCtx?.length ?? 0);
-		console.log('[RAG] ctx preview:', (ragCtx || '').slice(0, 160));
+		const ragCtx = await getRagContext(context, selectedCode, 5);
 
 		if (ragCtx && ragCtx.trim().length > 0) {
 		finalPrompt =
-`You are an AI assistant for F# and WebSharper code review.
-Use ONLY the context below where applicable.
+`You are a code review assistant specialized in F# and WebSharper.
+Improve ONLY the SELECTED CODE using the provided context.
 
 RAG CONTEXT:
 ${ragCtx}
 
 === ORIGINAL TASK ===
-${originalPrompt}`;
+${baseTemplate}`;
 		}
 	} catch (e) {
 		console.warn('[RAG] disabled or failed:', e);
 	}
 
-  	return finalPrompt;
-
+  	return { prompt: finalPrompt, applyMode };
 }
 
 function generatePromptTemplate(
 	fileLabel: string,
-	fullContent: string,
+	fullContextOrWindow: string,
 	selectedSnippet: string,
 	selectionContextInfo: string,
-	preferencesBlock: string
+	preferencesBlock: string,
+	applyMode: ApplyMode
 ): string {
+	const outputSpec = applyMode === ApplyMode.Full
+		? `- ### Improved Code (entire file)`
+		: `- ### Improved Code (only the SELECTED region; do NOT output the whole file)`;
+
+	const reminder = applyMode === ApplyMode.Full
+		? `REMINDER: You must output the entire file content with ONLY the selected region changed.`
+		: `REMINDER: Output ONLY the selected region's new code. Do not include any other file content.`;
+ 
 	return `
 ${preferencesBlock}
-You are a code review assistant specialized in F# and WebSharper.
-Improve ONLY the SELECTED CODE within the full file context.
 
 ---
 INSTRUCTIONS:
 1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
-2. Preserve all other code in the file unless absolutely necessary for correctness.
-3. Do NOT reorder or reformat the rest of the file.
-4. Avoid unnecessary renames unless the user's preferences ask for it.
-5. If removing code, be sure it's entirely unused.
-6. You MUST format your response as:
+2. Preserve other code in the file; do not change it unless strictly required for correctness.
+3. Avoid unnecessary renames unless the user's preferences ask for it.
+4. If removing code, ensure it's entirely unused.
+5. You MUST format your response as:
    - ### Summary of Issues (bullet list)
-   - ### Improved Code (entire file)
+   ${outputSpec}
    - ### Explanation (bullet list)
 
-**Full File \`${fileLabel}\`:**
+**File Context Window \`${fileLabel}\`:**
 \`\`\`fsharp
-${fullContent}
+${fullContextOrWindow}
 \`\`\`
 
 **Selected Code \`${fileLabel}\`**:
@@ -84,6 +126,6 @@ ${selectionContextInfo}
 ${selectedSnippet}
 \`\`\`
 
-REMINDER: You must output the entire file content with ONLY the selected region changed.
-    `.trim();
+${reminder}
+`.trim();
 }
