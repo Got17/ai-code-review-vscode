@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { 
-	registerShowSuggestion, 
-	registerUndoLastSuggestion, 
+	registerShowSuggestion,
 	registerSetAIPreferences, 
 	registerShowAIPreferences, 
 	registerClearAIPreferences, 
@@ -15,7 +14,6 @@ export function activate(context: vscode.ExtensionContext) {
 		registerSetAIPreferences(context),
 		registerShowAIPreferences(context),
 		registerClearAIPreferences(context),
-		registerUndoLastSuggestion(context),
 		registerChangeOllamaModel(context),
 		registerShowShadowHistory(context)
 	);

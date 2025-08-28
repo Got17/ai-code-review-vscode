@@ -46,10 +46,6 @@
       {
         "command": "extension.clearAIPreferences",
         "title": "AI Code Review: Clear AI Preferences"
-      },
-      {
-        "command": "extension.undoLastSuggestion",
-        "title": "AI Code Review: Undo Last Suggestion"
       }
     ]
   },

@@ -1808,9 +1808,9 @@ var init_simple_git_options = __esm2({
     };
   }
 });
-function appendTaskOptions(options, commands8 = []) {
+function appendTaskOptions(options, commands7 = []) {
   if (!filterPlainObject(options)) {
-    return commands8;
+    return commands7;
   }
   return Object.keys(options).reduce((commands22, key) => {
     const value = options[key];
@@ -1828,7 +1828,7 @@ function appendTaskOptions(options, commands8 = []) {
       commands22.push(key);
     }
     return commands22;
-  }, commands8);
+  }, commands7);
 }
 function getTrailingOptions(args, initialPrimitive = 0, objectOnly = false) {
   const command = [];
@@ -1959,18 +1959,18 @@ function checkIsRepoTask(action) {
     case "root":
       return checkIsRepoRootTask();
   }
-  const commands8 = ["rev-parse", "--is-inside-work-tree"];
+  const commands7 = ["rev-parse", "--is-inside-work-tree"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
   };
 }
 function checkIsRepoRootTask() {
-  const commands8 = ["rev-parse", "--git-dir"];
+  const commands7 = ["rev-parse", "--git-dir"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser(path3) {
@@ -1979,9 +1979,9 @@ function checkIsRepoRootTask() {
   };
 }
 function checkIsBareRepoTask() {
-  const commands8 = ["rev-parse", "--is-bare-repository"];
+  const commands7 = ["rev-parse", "--is-bare-repository"];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     onError,
     parser
@@ -2071,18 +2071,18 @@ function configurationErrorTask(error) {
     }
   };
 }
-function straightThroughStringTask(commands8, trimmed2 = false) {
+function straightThroughStringTask(commands7, trimmed2 = false) {
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return trimmed2 ? String(text).trim() : text;
     }
   };
 }
-function straightThroughBufferTask(commands8) {
+function straightThroughBufferTask(commands7) {
   return {
-    commands: commands8,
+    commands: commands7,
     format: "buffer",
     parser(buffer) {
       return buffer;
@@ -2128,9 +2128,9 @@ function cleanWithOptionsTask(mode, customArgs) {
   return cleanTask(cleanMode, options);
 }
 function cleanTask(mode, customArgs) {
-  const commands8 = ["clean", `-${mode}`, ...customArgs];
+  const commands7 = ["clean", `-${mode}`, ...customArgs];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return cleanSummaryParser(mode === "n", text);
@@ -2293,13 +2293,13 @@ function asConfigScope(scope, fallback) {
   return fallback;
 }
 function addConfigTask(key, value, append2, scope) {
-  const commands8 = ["config", `--${scope}`];
+  const commands7 = ["config", `--${scope}`];
   if (append2) {
-    commands8.push("--add");
+    commands7.push("--add");
   }
-  commands8.push(key, value);
+  commands7.push(key, value);
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return text;
@@ -2307,12 +2307,12 @@ function addConfigTask(key, value, append2, scope) {
   };
 }
 function getConfigTask(key, scope) {
-  const commands8 = ["config", "--null", "--show-origin", "--get-all", key];
+  const commands7 = ["config", "--null", "--show-origin", "--get-all", key];
   if (scope) {
-    commands8.splice(1, 0, `--${scope}`);
+    commands7.splice(1, 0, `--${scope}`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configGetParser(text, key);
@@ -2320,12 +2320,12 @@ function getConfigTask(key, scope) {
   };
 }
 function listConfigTask(scope) {
-  const commands8 = ["config", "--list", "--show-origin", "--null"];
+  const commands7 = ["config", "--list", "--show-origin", "--null"];
   if (scope) {
-    commands8.push(`--${scope}`);
+    commands7.push(`--${scope}`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
       return configListParser(text);
@@ -2437,10 +2437,10 @@ function grep_default() {
       if (typeof searchTerm === "string") {
         searchTerm = grepQueryBuilder().param(searchTerm);
       }
-      const commands8 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
+      const commands7 = ["grep", "--null", "-n", "--full-name", ...options, ...searchTerm];
       return this._runTask(
         {
-          commands: commands8,
+          commands: commands7,
           format: "utf-8",
           parser(stdOut) {
             return parseGrep(stdOut);
@@ -2489,12 +2489,12 @@ __export2(reset_exports, {
   resetTask: () => resetTask
 });
 function resetTask(mode, customArgs) {
-  const commands8 = ["reset"];
+  const commands7 = ["reset"];
   if (isValidResetMode(mode)) {
-    commands8.push(`--${mode}`);
+    commands7.push(`--${mode}`);
   }
-  commands8.push(...customArgs);
-  return straightThroughStringTask(commands8);
+  commands7.push(...customArgs);
+  return straightThroughStringTask(commands7);
 }
 function getResetMode(mode) {
   if (isValidResetMode(mode)) {
@@ -2662,10 +2662,10 @@ var init_tasks_pending_queue = __esm2({
     };
   }
 });
-function pluginContext(task, commands8) {
+function pluginContext(task, commands7) {
   return {
     method: first(task.commands) || "",
-    commands: commands8
+    commands: commands7
   };
 }
 function onErrorReceived(target, logger) {
@@ -2967,11 +2967,11 @@ var init_change_working_directory = __esm2({
   }
 });
 function checkoutTask(args) {
-  const commands8 = ["checkout", ...args];
-  if (commands8[1] === "-b" && commands8.includes("-B")) {
-    commands8[1] = remove(commands8, "-B");
+  const commands7 = ["checkout", ...args];
+  if (commands7[1] === "-b" && commands7.includes("-B")) {
+    commands7[1] = remove(commands7, "-B");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function checkout_default() {
   return {
@@ -3103,7 +3103,7 @@ var init_parse_commit = __esm2({
   }
 });
 function commitTask(message, files, customArgs) {
-  const commands8 = [
+  const commands7 = [
     "-c",
     "core.abbrev=40",
     "commit",
@@ -3112,7 +3112,7 @@ function commitTask(message, files, customArgs) {
     ...customArgs
   ];
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parseCommitResult
   };
@@ -3161,11 +3161,11 @@ var init_first_commit = __esm2({
   }
 });
 function hashObjectTask(filePath, write) {
-  const commands8 = ["hash-object", filePath];
+  const commands7 = ["hash-object", filePath];
   if (write) {
-    commands8.push("-w");
+    commands7.push("-w");
   }
-  return straightThroughStringTask(commands8, true);
+  return straightThroughStringTask(commands7, true);
 }
 var init_hash_object = __esm2({
   "src/lib/tasks/hash-object.ts"() {
@@ -3215,15 +3215,15 @@ function hasBareCommand(command) {
   return command.includes(bareCommand);
 }
 function initTask(bare = false, path3, customArgs) {
-  const commands8 = ["init", ...customArgs];
-  if (bare && !hasBareCommand(commands8)) {
-    commands8.splice(1, 0, bareCommand);
+  const commands7 = ["init", ...customArgs];
+  if (bare && !hasBareCommand(commands7)) {
+    commands7.splice(1, 0, bareCommand);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(text) {
-      return parseInit(commands8.includes("--bare"), path3, text);
+      return parseInit(commands7.includes("--bare"), path3, text);
     }
   };
 }
@@ -3455,14 +3455,14 @@ __export2(diff_exports, {
 });
 function diffSummaryTask(customArgs) {
   let logFormat = logFormatFromCommand(customArgs);
-  const commands8 = ["diff"];
+  const commands7 = ["diff"];
   if (logFormat === "") {
     logFormat = "--stat";
-    commands8.push("--stat=4096");
+    commands7.push("--stat=4096");
   }
-  commands8.push(...customArgs);
-  return validateLogFormatConfig(commands8) || {
-    commands: commands8,
+  commands7.push(...customArgs);
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: getDiffParser(logFormat)
   };
@@ -3981,18 +3981,18 @@ function pushTagsTask(ref = {}, customArgs) {
   return pushTask(ref, customArgs);
 }
 function pushTask(ref = {}, customArgs) {
-  const commands8 = ["push", ...customArgs];
+  const commands7 = ["push", ...customArgs];
   if (ref.branch) {
-    commands8.splice(1, 0, ref.branch);
+    commands7.splice(1, 0, ref.branch);
   }
   if (ref.remote) {
-    commands8.splice(1, 0, ref.remote);
+    commands7.splice(1, 0, ref.remote);
   }
-  remove(commands8, "-v");
-  append(commands8, "--verbose");
-  append(commands8, "--porcelain");
+  remove(commands7, "-v");
+  append(commands7, "--verbose");
+  append(commands7, "--porcelain");
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parsePushResult
   };
@@ -4007,19 +4007,19 @@ var init_push = __esm2({
 function show_default() {
   return {
     showBuffer() {
-      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
-      if (!commands8.includes("--binary")) {
-        commands8.splice(1, 0, "--binary");
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
+      if (!commands7.includes("--binary")) {
+        commands7.splice(1, 0, "--binary");
       }
       return this._runTask(
-        straightThroughBufferTask(commands8),
+        straightThroughBufferTask(commands7),
         trailingFunctionArgument(arguments)
       );
     },
     show() {
-      const commands8 = ["show", ...getTrailingOptions(arguments, 1)];
+      const commands7 = ["show", ...getTrailingOptions(arguments, 1)];
       return this._runTask(
-        straightThroughStringTask(commands8),
+        straightThroughStringTask(commands7),
         trailingFunctionArgument(arguments)
       );
     }
@@ -4232,7 +4232,7 @@ var init_StatusSummary = __esm2({
   }
 });
 function statusTask(customArgs) {
-  const commands8 = [
+  const commands7 = [
     "status",
     "--porcelain",
     "-b",
@@ -4242,7 +4242,7 @@ function statusTask(customArgs) {
   ];
   return {
     format: "utf-8",
-    commands: commands8,
+    commands: commands7,
     parser(text) {
       return parseStatusSummary(text);
     }
@@ -4663,22 +4663,22 @@ __export2(branch_exports, {
   deleteBranchTask: () => deleteBranchTask,
   deleteBranchesTask: () => deleteBranchesTask
 });
-function containsDeleteBranchCommand(commands8) {
+function containsDeleteBranchCommand(commands7) {
   const deleteCommands = ["-d", "-D", "--delete"];
-  return commands8.some((command) => deleteCommands.includes(command));
+  return commands7.some((command) => deleteCommands.includes(command));
 }
 function branchTask(customArgs) {
   const isDelete = containsDeleteBranchCommand(customArgs);
-  const commands8 = ["branch", ...customArgs];
-  if (commands8.length === 1) {
-    commands8.push("-a");
+  const commands7 = ["branch", ...customArgs];
+  if (commands7.length === 1) {
+    commands7.push("-a");
   }
-  if (!commands8.includes("-v")) {
-    commands8.splice(1, 0, "-v");
+  if (!commands7.includes("-v")) {
+    commands7.splice(1, 0, "-v");
   }
   return {
     format: "utf-8",
-    commands: commands8,
+    commands: commands7,
     parser(stdOut, stdErr) {
       if (isDelete) {
         return parseBranchDeletions(stdOut, stdErr).all[0];
@@ -4773,14 +4773,14 @@ function disallowedCommand(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function cloneTask(repo, directory, customArgs) {
-  const commands8 = ["clone", ...customArgs];
-  filterString(repo) && commands8.push(repo);
-  filterString(directory) && commands8.push(directory);
-  const banned = commands8.find(disallowedCommand);
+  const commands7 = ["clone", ...customArgs];
+  filterString(repo) && commands7.push(repo);
+  filterString(directory) && commands7.push(directory);
+  const banned = commands7.find(disallowedCommand);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function cloneMirrorTask(repo, directory, customArgs) {
   append(customArgs, "--mirror");
@@ -4852,16 +4852,16 @@ function disallowedCommand2(command) {
   return /^--upload-pack(=|$)/.test(command);
 }
 function fetchTask(remote, branch, customArgs) {
-  const commands8 = ["fetch", ...customArgs];
+  const commands7 = ["fetch", ...customArgs];
   if (remote && branch) {
-    commands8.push(remote, branch);
+    commands7.push(remote, branch);
   }
-  const banned = commands8.find(disallowedCommand2);
+  const banned = commands7.find(disallowedCommand2);
   if (banned) {
     return configurationErrorTask(`git.fetch: potential exploit argument blocked.`);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: parseFetchResult
   };
@@ -4911,12 +4911,12 @@ __export2(pull_exports, {
   pullTask: () => pullTask
 });
 function pullTask(remote, branch, customArgs) {
-  const commands8 = ["pull", ...customArgs];
+  const commands7 = ["pull", ...customArgs];
   if (remote && branch) {
-    commands8.splice(1, 0, remote, branch);
+    commands7.splice(1, 0, remote, branch);
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser(stdOut, stdErr) {
       return parsePullResult(stdOut, stdErr);
@@ -4982,29 +4982,29 @@ function addRemoteTask(remoteName, remoteRepo, customArgs) {
   return straightThroughStringTask(["remote", "add", ...customArgs, remoteName, remoteRepo]);
 }
 function getRemotesTask(verbose) {
-  const commands8 = ["remote"];
+  const commands7 = ["remote"];
   if (verbose) {
-    commands8.push("-v");
+    commands7.push("-v");
   }
   return {
-    commands: commands8,
+    commands: commands7,
     format: "utf-8",
     parser: verbose ? parseGetRemotesVerbose : parseGetRemotes
   };
 }
 function listRemotesTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "ls-remote") {
-    commands8.unshift("ls-remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "ls-remote") {
+    commands7.unshift("ls-remote");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function remoteTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "remote") {
-    commands8.unshift("remote");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "remote") {
+    commands7.unshift("remote");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function removeRemoteTask(remoteName) {
   return straightThroughStringTask(["remote", "remove", remoteName]);
@@ -5022,14 +5022,14 @@ __export2(stash_list_exports, {
 });
 function stashListTask(opt = {}, customArgs) {
   const options = parseLogOptions(opt);
-  const commands8 = ["stash", "list", ...options.commands, ...customArgs];
+  const commands7 = ["stash", "list", ...options.commands, ...customArgs];
   const parser4 = createListLogSummaryParser(
     options.splitter,
     options.fields,
-    logFormatFromCommand(commands8)
+    logFormatFromCommand(commands7)
   );
-  return validateLogFormatConfig(commands8) || {
-    commands: commands8,
+  return validateLogFormatConfig(commands7) || {
+    commands: commands7,
     format: "utf-8",
     parser: parser4
   };
@@ -5057,11 +5057,11 @@ function initSubModuleTask(customArgs) {
   return subModuleTask(["init", ...customArgs]);
 }
 function subModuleTask(customArgs) {
-  const commands8 = [...customArgs];
-  if (commands8[0] !== "submodule") {
-    commands8.unshift("submodule");
+  const commands7 = [...customArgs];
+  if (commands7[0] !== "submodule") {
+    commands7.unshift("submodule");
   }
-  return straightThroughStringTask(commands8);
+  return straightThroughStringTask(commands7);
 }
 function updateSubModuleTask(customArgs) {
   return subModuleTask(["update", ...customArgs]);
@@ -5362,9 +5362,9 @@ var require_git = __commonJS2({
     Git2.prototype.branchLocal = function(then) {
       return this._runTask(branchLocalTask2(), trailingFunctionArgument2(arguments));
     };
-    Git2.prototype.raw = function(commands8) {
-      const createRestCommands = !Array.isArray(commands8);
-      const command = [].slice.call(createRestCommands ? arguments : commands8, 0);
+    Git2.prototype.raw = function(commands7) {
+      const createRestCommands = !Array.isArray(commands7);
+      const command = [].slice.call(createRestCommands ? arguments : commands7, 0);
       for (let i = 0; i < command.length && createRestCommands; i++) {
         if (!filterPrimitives2(command[i])) {
           command.splice(i, command.length - i);
@@ -5499,9 +5499,9 @@ var require_git = __commonJS2({
       return this._runTask(task, trailingFunctionArgument2(arguments));
     };
     Git2.prototype.revparse = function() {
-      const commands8 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
+      const commands7 = ["rev-parse", ...getTrailingOptions2(arguments, true)];
       return this._runTask(
-        straightThroughStringTask2(commands8, true),
+        straightThroughStringTask2(commands7, true),
         trailingFunctionArgument2(arguments)
       );
     };
@@ -6024,21 +6024,6 @@ async function shadowCommitFiles(context, shadow, absFiles, aiExplanation) {
   await context.globalState.update(shadow.lastKey, head);
   return head;
 }
-async function shadowRevertLast(context, docUri) {
-  const workspaceRoot = docUri ? getWorkspaceRootForUri(docUri) : vscode7.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "";
-  if (!workspaceRoot) {
-    throw new Error("No workspace to revert in.");
-  }
-  const shadowRepo = await openShadowRepoForDocument(context, vscode7.Uri.file(path.join(workspaceRoot, ".__anchor__")));
-  const last2 = context.globalState.get(shadowRepo.lastKey);
-  if (!last2) {
-    vscode7.window.showWarningMessage("No AI commit to revert (shadow).");
-    return;
-  }
-  await shadowRepo.git.raw(["--git-dir", shadowRepo.gitDir, "-C", shadowRepo.workTree, "revert", "--no-edit", last2]);
-  await context.globalState.update(shadowRepo.lastKey, void 0);
-  vscode7.window.showInformationMessage(`Reverted AI commit ${last2.slice(0, 7)} (shadow).`);
-}
 async function shadowIsTracked(shadow, relPosixPath) {
   try {
     await shadow.git.raw(["--git-dir", shadow.gitDir, "-C", shadow.workTree, "ls-files", "--error-unmatch", "--", relPosixPath]);
@@ -6305,48 +6290,34 @@ function registerShowSuggestion(context) {
   });
 }
 
-// src/commands/undoLastSuggestion.ts
-var vscode11 = __toESM(require("vscode"));
-function registerUndoLastSuggestion(context) {
-  return vscode11.commands.registerCommand("extension.undoLastSuggestion", async () => {
-    await vscode11.workspace.saveAll();
-    const ok = await vscode11.window.showInformationMessage("Revert last AI change (shadow)?", "Yes", "Cancel");
-    if (ok !== "Yes") {
-      return;
-    }
-    const activeDocUri = vscode11.window.activeTextEditor?.document?.uri;
-    await shadowRevertLast(context, activeDocUri);
-  });
-}
-
 // src/commands/aiPreferences.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode11.commands.registerCommand(
     "extension.setAIPreferences",
     (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode11.commands.registerCommand(
     "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode11.commands.registerCommand(
     "extension.clearAIPreferences",
     (documentUri) => clearUserPreferences(context, documentUri)
   );
 }
 
 // src/commands/changeOllamaModel.ts
-var vscode13 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var CMD_CHANGE_MODEL = "extension.changeOllamaModel";
 var CMD_SHOW_SUGGESTION = "extension.showSuggestion";
 var DEFAULT_API = "http://localhost:11434/api/generate";
 function registerChangeOllamaModel(context) {
-  return vscode13.commands.registerCommand(
+  return vscode12.commands.registerCommand(
     CMD_CHANGE_MODEL,
     async (documentUri) => {
       try {
@@ -6360,12 +6331,12 @@ function registerChangeOllamaModel(context) {
           return;
         }
         await setCurrentModel(context, model);
-        vscode13.window.showInformationMessage(`Ollama model set to: ${model}`);
+        vscode12.window.showInformationMessage(`Ollama model set to: ${model}`);
         if (documentUri) {
           await promptAndShowSuggestion(documentUri);
         }
       } catch (err) {
-        vscode13.window.showErrorMessage(
+        vscode12.window.showErrorMessage(
           `Failed to change Ollama model: ${err?.message ?? String(err)}`
         );
       }
@@ -6373,25 +6344,25 @@ function registerChangeOllamaModel(context) {
   );
 }
 async function promptAndShowSuggestion(documentUri) {
-  const go = await vscode13.window.showInformationMessage(
+  const go = await vscode12.window.showInformationMessage(
     `Run "Show Suggestion" now with the new model?`,
     "Yes",
     "No"
   );
   if (go === "Yes") {
-    const doc = await vscode13.workspace.openTextDocument(
-      vscode13.Uri.parse(documentUri)
+    const doc = await vscode12.workspace.openTextDocument(
+      vscode12.Uri.parse(documentUri)
     );
-    await vscode13.window.showTextDocument(doc, {
+    await vscode12.window.showTextDocument(doc, {
       preserveFocus: false,
-      viewColumn: vscode13.ViewColumn.One
+      viewColumn: vscode12.ViewColumn.One
     });
-    await vscode13.commands.executeCommand(CMD_SHOW_SUGGESTION);
+    await vscode12.commands.executeCommand(CMD_SHOW_SUGGESTION);
   }
 }
 async function pickEndpoint(context) {
   const current = getCurrentApi(context) || DEFAULT_API;
-  const choice = await vscode13.window.showQuickPick(
+  const choice = await vscode12.window.showQuickPick(
     [
       { label: "Use current endpoint", description: current, value: current },
       {
@@ -6405,7 +6376,7 @@ async function pickEndpoint(context) {
     return;
   }
   if (!choice.value) {
-    const entered = await vscode13.window.showInputBox({
+    const entered = await vscode12.window.showInputBox({
       prompt: "Ollama Generate API endpoint",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Endpoint is required"
@@ -6427,7 +6398,7 @@ async function pickModel(context) {
       description: "Type any local Ollama model tag"
     }
   ];
-  const picked = await vscode13.window.showQuickPick(items, {
+  const picked = await vscode12.window.showQuickPick(items, {
     placeHolder: models.length ? `Select model (current: ${current})` : `No models found. Enter a custom model (current: ${current}).`,
     matchOnDescription: true
   });
@@ -6435,7 +6406,7 @@ async function pickModel(context) {
     return;
   }
   if (!picked.value) {
-    const manual = await vscode13.window.showInputBox({
+    const manual = await vscode12.window.showInputBox({
       prompt: "Enter the Ollama model tag",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Model is required"
@@ -6446,16 +6417,16 @@ async function pickModel(context) {
 }
 
 // src/commands/showShadowHistory.ts
-var vscode14 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 var path2 = __toESM(require("node:path"));
 function relPosix(from, abs) {
   return path2.relative(from, abs).split(path2.sep).join("/");
 }
 function registerShowShadowHistory(context) {
-  return vscode14.commands.registerCommand("extension.showShadowHistory", async () => {
-    const editor = vscode14.window.activeTextEditor;
+  return vscode13.commands.registerCommand("extension.showShadowHistory", async () => {
+    const editor = vscode13.window.activeTextEditor;
     if (!editor) {
-      vscode14.window.showWarningMessage("No active editor.");
+      vscode13.window.showWarningMessage("No active editor.");
       return;
     }
     const docUri = editor.document.uri;
@@ -6476,10 +6447,10 @@ function registerShowShadowHistory(context) {
       ]);
       const lines = log.split(/\r?\n/).filter(Boolean);
       if (!lines.length) {
-        vscode14.window.showInformationMessage("No shadow commits for this file yet.");
+        vscode13.window.showInformationMessage("No shadow commits for this file yet.");
         return;
       }
-      const pick2 = await vscode14.window.showQuickPick(
+      const pick2 = await vscode13.window.showQuickPick(
         lines.map((line) => ({ label: line, description: relativePath })),
         { placeHolder: "Select a commit to view details" }
       );
@@ -6500,16 +6471,16 @@ function registerShowShadowHistory(context) {
         "--",
         relativePath
       ]);
-      const doc = await vscode14.workspace.openTextDocument({
+      const doc = await vscode13.workspace.openTextDocument({
         content: detail,
         language: "diff"
       });
-      await vscode14.window.showTextDocument(doc, {
+      await vscode13.window.showTextDocument(doc, {
         preview: true,
-        viewColumn: vscode14.ViewColumn.Beside
+        viewColumn: vscode13.ViewColumn.Beside
       });
     } catch (e) {
-      vscode14.window.showErrorMessage(`Shadow history error: ${e?.message ?? e}`);
+      vscode13.window.showErrorMessage(`Shadow history error: ${e?.message ?? e}`);
     }
   });
 }
@@ -6521,7 +6492,6 @@ function activate(context) {
     registerSetAIPreferences(context),
     registerShowAIPreferences(context),
     registerClearAIPreferences(context),
-    registerUndoLastSuggestion(context),
     registerChangeOllamaModel(context),
     registerShowShadowHistory(context)
   );
