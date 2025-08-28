@@ -5,7 +5,8 @@ import {
 	registerShowAIPreferences, 
 	registerClearAIPreferences, 
 	registerChangeOllamaModel,
-	registerShowShadowHistory
+	registerShowShadowHistory,
+	registerClearShadowHistory
  } from './commands';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -15,7 +16,8 @@ export function activate(context: vscode.ExtensionContext) {
 		registerShowAIPreferences(context),
 		registerClearAIPreferences(context),
 		registerChangeOllamaModel(context),
-		registerShowShadowHistory(context)
+		registerShowShadowHistory(context),
+		registerClearShadowHistory(context),
 	);
 }
 

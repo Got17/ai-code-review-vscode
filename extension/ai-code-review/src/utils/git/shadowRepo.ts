@@ -11,13 +11,14 @@ type Shadow = {
 };
 
 const AI_COMMIT_PREFIX = 'chore(ai): apply suggestion';
+export const LAST_COMMIT_PREFIX_KEY = 'ai.shadow.lastCommit';
 
 // --- utils ---
 function convertToPosix(p: string) { 
     return p.replace(/\\/g, '/'); 
 }
 
-function getWorkspaceRootForUri(docUri: vscode.Uri): string {
+export function getWorkspaceRootForUri(docUri: vscode.Uri): string {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(docUri);
     if (workspaceFolder?.uri?.fsPath) {
         return workspaceFolder.uri.fsPath;
@@ -32,7 +33,7 @@ function getWorkspaceRootForUri(docUri: vscode.Uri): string {
     throw new Error('No workspace folder found for this document.');
 }
 
-function slugWorkTree(fsPath: string): string {
+export function slugWorkTree(fsPath: string): string {
     // Make a stable folder name for this worktree under globalStorage
     // Keep it simple + safe for Windows paths:
     return fsPath.replace(/[:\\\/]/g, '_').slice(-120);
@@ -51,7 +52,7 @@ export async function openShadowRepoForDocument(
     const slug = slugWorkTree(workTree);
     const repoRoot = path.join(context.globalStorageUri.fsPath, 'shadow', slug);
     const gitDir = path.join(repoRoot, '.git');
-    const lastKey = `ai.shadow.lastCommit.${slug}`;
+    const lastKey = `${LAST_COMMIT_PREFIX_KEY}.${slug}`;
 
     await ensureDir(context.globalStorageUri.fsPath);
     await ensureDir(repoRoot);
