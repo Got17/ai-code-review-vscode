@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { getUserPreferences } from './preferencesManager';
-import { getRagContext } from './ragContext';
 import { ApplyMode, BIG_FILE_LINE_THRESHOLD } from '../constants';
 
 export type BuiltPrompt = {
@@ -62,23 +61,24 @@ ${userPreferences || 'No preferences set.'}
 	);
 
 	let finalPrompt = baseTemplate;
+	const useRag = vscode.workspace.getConfiguration().get<boolean>('aiCodeReview.rag.enable', false);
 
-	try {
-		const ragCtx = await getRagContext(context, selectedCode, 5);
+	if (useRag) {
+		try {
+			const { getRagContext } = await import('./ragContext.js'); // lazy import
+			const ragCtx = await getRagContext(context, selectedCode, 5);
 
-		if (ragCtx && ragCtx.trim().length > 0) {
-		finalPrompt =
-`You are a code review assistant specialized in F# and WebSharper.
-Improve ONLY the SELECTED CODE using the provided context.
-
-RAG CONTEXT:
+			if (ragCtx && ragCtx.trim().length > 0) {
+			finalPrompt =
+`RAG CONTEXT:
 ${ragCtx}
 
 === ORIGINAL TASK ===
 ${baseTemplate}`;
+			}
+		} catch (error) {
+			console.warn('[RAG] skipped:', error);
 		}
-	} catch (e) {
-		console.warn('[RAG] disabled or failed:', e);
 	}
 
   	return { prompt: finalPrompt, applyMode };
@@ -100,9 +100,9 @@ function generatePromptTemplate(
 		? `REMINDER: You must output the entire file content with ONLY the selected region changed.`
 		: `REMINDER: Output ONLY the selected region's new code. Do not include any other file content.`;
  
-	return `
+	return `You are a code review assistant specialized in F# and WebSharper.
+Improve ONLY the SELECTED CODE using the provided context.
 ${preferencesBlock}
-
 ---
 INSTRUCTIONS:
 1. Focus ONLY on improving the SELECTED CODE (clarity, performance, maintainability).
