@@ -136,7 +136,7 @@ function extractImprovedCode(aiResponse) {
     const fallback = /```fsharp\n([\s\S]*?)\n```/i;
 
     const match = aiResponse.match(regex) || aiResponse.match(fallback);
-    return match?.[1]?.trim() ?? null;
+    return match?.[1] ?? null;
 }
 
 function extractExplanation(aiResponse) {
