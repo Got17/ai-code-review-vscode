@@ -109,7 +109,6 @@ async function sendModelsList(context: vscode.ExtensionContext, panelInstance: v
     });
 }
 
-
 async function handleAccept(
     context: vscode.ExtensionContext,
     message: any,

@@ -8,7 +8,7 @@ const STORAGE_KEYS = {
 
 type StringPrefKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS];
 
-/** Shape returned by Ollama `/api/tags` (minimal fields we care about). */
+// Shape returned by Ollama `/api/tags` (minimal fields we care about).
 interface OllamaTagsResponse {
     models?: Array<{ 
         name?: string; 
@@ -16,19 +16,19 @@ interface OllamaTagsResponse {
     } & Record<string, unknown>>;
 }
 
-/** Get a trimmed string from globalState (or undefined). */
+// Get a trimmed string from globalState (or undefined).
 function getStringPref(context: vscode.ExtensionContext, key: StringPrefKey): string | undefined {
     const value = context.globalState.get<string>(key);
     const trimmed = value?.trim();
     return trimmed ? trimmed : undefined;
 }
 
-/** Set a trimmed string into globalState. */
+// Set a trimmed string into globalState.
 async function setStringPref(context: vscode.ExtensionContext, key: StringPrefKey, value: string) {
     await context.globalState.update(key, value.trim());
 }
 
-/** Basic timeout wrapper for fetch to avoid hanging forever. */
+// Basic timeout wrapper for fetch to avoid hanging forever.
 async function fetchWithTimeout(
     url: string,
     opts: RequestInit = {},
@@ -43,12 +43,7 @@ async function fetchWithTimeout(
     }
 }
 
-/** 
- * Derive Ollama base URL from a full API endpoint.
- * Examples:
- *   - http://localhost:11434/api/generate  -> http://localhost:11434
- *   - http://host:11434/                   -> http://host:11434
- */
+// Derive Ollama base URL from a full API endpoint.
 function deriveOllamaBaseUrl(apiEndpoint: string): string {
     const trimmed = apiEndpoint.trim();
 
@@ -58,30 +53,27 @@ function deriveOllamaBaseUrl(apiEndpoint: string): string {
     return withoutTrailing.length > 0 ? withoutTrailing : trimmed;
 }
 
-/** Resolve current API endpoint (globalState override -> constant). */
+// Resolve current API endpoint (globalState override -> constant).
 export function getCurrentApi(context: vscode.ExtensionContext): string {
     return getStringPref(context, STORAGE_KEYS.api) ?? AI_API;
 }
 
-/** Save custom API endpoint. */
+// Save custom API endpoint.
 export async function setCurrentApi(context: vscode.ExtensionContext, value: string) {
     await setStringPref(context, STORAGE_KEYS.api, value);
 }
 
-/** Resolve current model (globalState override -> constant). */
+// Resolve current model (globalState override -> constant).
 export function getCurrentModel(context: vscode.ExtensionContext): string {
     return getStringPref(context, STORAGE_KEYS.model) ?? AI_MODEL;
 }
 
-/** Save selected model. */
+// Save selected model.
 export async function setCurrentModel(context: vscode.ExtensionContext, value: string) {
     await setStringPref(context, STORAGE_KEYS.model, value);
 }
 
-/**
- * Try to list available Ollama models via /api/tags.
- * Works with default Ollama; safely returns [] on any failure.
- */
+// Try to list available Ollama models via /api/tags.
 export async function listOllamaModels(context: vscode.ExtensionContext): Promise<string[]> {
     const apiEndpoint = getCurrentApi(context);
     const baseUrl = deriveOllamaBaseUrl(apiEndpoint);

@@ -61,12 +61,7 @@ const cache = new Map<
 
 /* ===== UTILS ===== */
 
-/** 
- * L2-normalize a Float32Array.
- * 
- * Normalization rescales the vector so that its magnitude (length) = 1. 
- * This is often used before cosine similarity or dot-product similarity.
- */
+// L2-normalize a Float32Array.
 function l2Normalize(vector: Float32Array): Float32Array {
     // Compute the sum of squared components (||v||²).
     let sumOfSquares = 0;
@@ -86,12 +81,7 @@ function l2Normalize(vector: Float32Array): Float32Array {
     return normalizedVector;
 }
 
-/**
- * Read a file from VS Code's workspace file system and parse it as JSON.
- * 
- * @param uri - The VS Code URI of the file to read.
- * @param resourceName - A human-readable label for error messages (e.g., "metadata.json").
- */
+// Read a file from VS Code's workspace file system and parse it as JSON.
 async function readJson<T>(uri: vscode.Uri, resourceName: string): Promise<T> {
     try {
         // Read raw bytes from the file
@@ -108,24 +98,14 @@ async function readJson<T>(uri: vscode.Uri, resourceName: string): Promise<T> {
     }
 }
 
-/**
- * Join additional path segments onto a base VS Code extension URI.
- */
+// Join additional path segments onto a base VS Code extension URI.
 function joinExtensionPath(baseUri: vscode.Uri, ...relativeSegments: string[]): vscode.Uri {
     return vscode.Uri.joinPath(baseUri, ...relativeSegments);
 }
 
 /* ===== LOADERS ===== */
 
-/**
- * Configure and load the Hugging Face Transformers pipeline.
- * 
- * - Sets the local model storage directory inside the extension.
- * - Disables remote model downloads (strict offline mode).
- * 
- * @param context - The VS Code extension context.
- * @returns An object exposing the `pipeline` factory function.
- */
+// Configure and load the Hugging Face Transformers pipeline.
 async function loadTransformers(
   context: vscode.ExtensionContext
 ): Promise<{ pipeline: (task: string, model: string) => Promise<FeatureExtractionPipeline> }> {
@@ -147,13 +127,7 @@ async function loadTransformers(
   };
 }
 
-/**
- * Load FAISS index and metadata.json from the extension's resources/rag-artifacts folder.
- * Ensures that the index size matches the metadata length for consistency.
- *
- * @param context - The VS Code extension context.
- * @returns The loaded FAISS index and metadata records.
- */
+// Load FAISS index and metadata.json from the extension's resources/rag-artifacts folder.
 async function loadArtifacts(
     context: vscode.ExtensionContext
 ): Promise<{ index: FaissIndexFlatIP; meta: Meta }> {
@@ -181,17 +155,7 @@ async function loadArtifacts(
 
 /* ===== CORE OPS ===== */
 
-/**
- * Generate an embedding for a natural-language query.
- *
- * - Calls the Hugging Face feature-extraction pipeline.
- * - Uses pooling="mean" (average over token embeddings).
- * - Manually L2-normalizes the vector for cosine similarity (dot product).
- *
- * @param queryText - The input question or query.
- * @param extractor - The Hugging Face feature-extraction pipeline.
- * @returns A normalized embedding vector (unit-length Float32Array).
- */
+// Generate an embedding for a query.
 async function embed(
     queryText: string,
     extractor: FeatureExtractionPipeline
@@ -220,19 +184,7 @@ async function embed(
     return l2Normalize(unnormalizedEmbedding);
 }
 
-/**
- * Perform a nearest-neighbor search in FAISS.
- *
- * - Takes a normalized query embedding.
- * - Searches the FAISS index for the top-k most similar vectors.
- * - Returns pairs of [similarityScore, metadataRecord].
- *
- * @param faissIndex - The FAISS index containing document embeddings.
- * @param metadataRecords - The associated metadata (must align 1-to-1 with index entries).
- * @param queryEmbedding - The normalized embedding of the input query.
- * @param topK - Number of neighbors to retrieve (default = DEFAULT_TOP_K).
- * @returns Array of [score, metadataRecord] hits.
- */
+// Perform a nearest-neighbor search in FAISS.
 function retrieve(
     faissIndex: FaissIndexFlatIP,
     metadataRecords: Meta,
@@ -265,19 +217,7 @@ function retrieve(
     return hits;
 }
 
-/**
- * Format retrieval hits into a human-friendly context block string.
- *
- * Each block includes:
- *   - The source identifier
- *   - The similarity score (3 decimal places)
- *   - The original text
- *
- * Blocks are separated by "\n\n---\n\n".
- *
- * @param hits - Array of [similarityScore, metadataRecord].
- * @returns A formatted string for LLM context injection.
- */
+// Format retrieval hits into a human-friendly context block string.
 function formatContext(hits: ReadonlyArray<Hit>): string {
     const contextBlocks = hits.map(([similarityScore, metadataRecord]) =>
         `[source: ${metadataRecord.source} | score: ${similarityScore.toFixed(3)}]\n${metadataRecord.text}`
@@ -288,21 +228,7 @@ function formatContext(hits: ReadonlyArray<Hit>): string {
 
 /* ===== PUBLIC API ===== */
 
-/**
- * Build RAG (Retrieval-Augmented Generation) context text for a natural-language query.
- *
- * Workflow:
- *  1. Load (and cache) the Hugging Face embedding model.
- *  2. Load (and cache) the FAISS index + metadata artifacts.
- *  3. Embed the query text into a normalized vector.
- *  4. Retrieve the top-K nearest neighbors from FAISS.
- *  5. Format them into a human-readable context string.
- *
- * @param context   VS Code extension context
- * @param queryText Natural language query to embed & retrieve against
- * @param topK      Number of chunks to retrieve (default = DEFAULT_TOP_K)
- * @returns Formatted context string for LLM prompt injection
- */
+// Build RAG (Retrieval-Augmented Generation) context text.
 export async function getRagContext(
     context: vscode.ExtensionContext,
     queryText: string,
@@ -311,7 +237,7 @@ export async function getRagContext(
     const cacheKey = context.extensionUri.toString();
     const cacheEntry = cache.get(cacheKey) ?? {};
 
-    /** Load / cache the embedding extractor */
+    // Load / cache the embedding extractor
     if (!cacheEntry.extractor) {
         const { pipeline } = await loadTransformers(context);
         cacheEntry.extractor = (await pipeline(
@@ -320,7 +246,7 @@ export async function getRagContext(
         )) as FeatureExtractionPipeline;
     }
 
-    /** Load / cache FAISS index + metadata */
+    // Load / cache FAISS index + metadata
     if (!cacheEntry.index || !cacheEntry.meta) {
         const { index: faissIndex, meta: metadataRecords } = await loadArtifacts(context);
         cacheEntry.index = faissIndex;
@@ -329,12 +255,12 @@ export async function getRagContext(
 
     cache.set(cacheKey, cacheEntry);
 
-    /** Embed the query */
+    // Embed the query
     const queryEmbedding = await embed(queryText, cacheEntry.extractor);
 
-    /** Retrieve nearest neighbors */
+    // Retrieve nearest neighbors
     const retrievalHits = retrieve(cacheEntry.index, cacheEntry.meta, queryEmbedding, topK);
 
-    /** Format context */
+    // Format context
     return formatContext(retrievalHits);
 }

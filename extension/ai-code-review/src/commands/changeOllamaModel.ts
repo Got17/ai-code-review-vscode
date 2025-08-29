@@ -45,7 +45,7 @@ export function registerChangeOllamaModel(context: vscode.ExtensionContext) {
     );
 }
 
-/** Ask user if they want to run the "Show Suggestion" command */
+// Ask user if they want to run the "Show Suggestion" command
 export async function promptAndShowSuggestion(documentUri: string) {
     const go = await vscode.window.showInformationMessage(
         `Run "Show Suggestion" now with the new model?`,
@@ -67,7 +67,7 @@ export async function promptAndShowSuggestion(documentUri: string) {
     }
 }
 
-/** Ask user to keep or enter endpoint */
+// Ask user to keep or enter endpoint
 async function pickEndpoint(context: vscode.ExtensionContext): Promise<string | undefined> {
     const current = getCurrentApi(context) || DEFAULT_API;
 
@@ -97,7 +97,7 @@ async function pickEndpoint(context: vscode.ExtensionContext): Promise<string | 
     return choice.value;
 }
 
-/** List models or let user enter one */
+// List models or let user enter one
 async function pickModel(context: vscode.ExtensionContext): Promise<string | undefined> {
     const [current, models] = await Promise.all([
         getCurrentModel(context),

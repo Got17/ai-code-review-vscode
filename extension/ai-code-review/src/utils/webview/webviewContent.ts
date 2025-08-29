@@ -29,7 +29,6 @@ export function getWebviewContent(
 
 	htmlContent = htmlContent
 		.replace('{{fileName}}', escapeHtml(fileName || 'N/A'))
-		.replace('{{userPreferences}}', escapeHtml(userPreferences || 'None set.'))
 		.replace('{{styleUri}}', cssUri.toString())
 		.replace('{{scriptUri}}', jsUri.toString())
 		.replace('{{diffJsSrc}}', diffJsSrcUri.toString())
