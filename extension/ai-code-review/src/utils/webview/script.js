@@ -27,7 +27,7 @@ let jsAiExplanation = null;
 let jsApplyMode = 'full';   
 
 let autoScrollEnabled = true;
-const BOTTOM_THRESH_PX = 60;
+const BOTTOM_THRESH_PX = 30;
 
 let usePlainStreaming = false;
 let plainPreEl = null;
@@ -55,7 +55,7 @@ function buildMessagePayload(command) {
 function scrollToBottom() {
     if (autoScrollEnabled) {
         setTimeout(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }, 0);
     } else {
         // show the button if user scrolled up

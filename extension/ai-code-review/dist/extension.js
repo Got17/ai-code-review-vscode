@@ -1332,7 +1332,7 @@ async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
 }
 
 // src/utils/ai/promptBuilder.ts
-var BIG_FILE_LINE_THRESHOLD = 400;
+var BIG_FILE_LINE_THRESHOLD = 600;
 var CONTEXT_WINDOW_LINES = 200;
 async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
   const fileLabel = fileName || "current file";

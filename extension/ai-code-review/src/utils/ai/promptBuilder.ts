@@ -8,7 +8,7 @@ export type BuiltPrompt = {
 	applyMode: ApplyMode;
 };
 
-const BIG_FILE_LINE_THRESHOLD = 400;
+const BIG_FILE_LINE_THRESHOLD = 600;
 const CONTEXT_WINDOW_LINES = 200;        // lines before/after selection
 
 export async function buildPrompt(
