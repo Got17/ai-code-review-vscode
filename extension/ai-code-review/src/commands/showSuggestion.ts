@@ -2,6 +2,14 @@ import * as vscode from 'vscode';
 import { queryAIStream, buildPrompt, getUserPreferences, UserAbort } from '../utils/ai';
 import { showSuggestionWebview, showOutput } from '../utils/ui';
 import { getCurrentModel } from '../utils/ai/modelManager';
+import { BIG_FILE_LINE_THRESHOLD } from '../utils/constants';
+
+function expandToWholeLines(doc: vscode.TextDocument, selection: vscode.Selection) {
+    const start = new vscode.Position(selection.start.line, 0);
+    const endLineText = doc.lineAt(selection.end.line).text;
+    const end = new vscode.Position(selection.end.line, endLineText.length);
+    return new vscode.Selection(start, end);
+}
 
 export function registerShowSuggestion(context: vscode.ExtensionContext) {
     return vscode.commands.registerCommand('extension.showSuggestion', async () => {
@@ -25,17 +33,17 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         }
 
         const fileName = document.fileName;
-        const selection = editor.selection;
-        const selectedCode = document.getText(selection);
-
-        // Ensure the user has selected some code
-        if (selection.isEmpty || !selectedCode.trim()) {
-            vscode.window.showWarningMessage('Please select some F# code to review.');
-            return;
-        }
-
+        const rawSel = editor.selection;
         const wholeFileContent = document.getText();
-        const documentUri = document.uri;
+        const lineCount = wholeFileContent.split(/\r?\n/).length;
+        const isBig = lineCount >= BIG_FILE_LINE_THRESHOLD;
+
+        const selection = isBig ? expandToWholeLines(document, rawSel) : rawSel;
+        const selectedCode = document.getText(selection);
+        if (selection.isEmpty || !selectedCode.trim()) {
+        vscode.window.showWarningMessage('Please select some F# code to review.');
+        return;
+        }
 
         // Build prompt for AI
         const { prompt, applyMode } = await buildPrompt(
@@ -66,7 +74,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
                 start: { line: selection.start.line, character: selection.start.character },
                 end: { line: selection.end.line, character: selection.end.character }
             } : null,
-            documentUri: documentUri?.toString() || null,
+            documentUri: document.uri?.toString() || null,
             userPreferences,
             currentModel,
             applyMode,

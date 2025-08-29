@@ -1,14 +1,13 @@
 import * as vscode from 'vscode';
 import { getUserPreferences } from './preferencesManager';
 import { getRagContext } from './ragContext';
-import { ApplyMode } from '../constants';
+import { ApplyMode, BIG_FILE_LINE_THRESHOLD } from '../constants';
 
 export type BuiltPrompt = {
 	prompt: string;
 	applyMode: ApplyMode;
 };
-
-const BIG_FILE_LINE_THRESHOLD = 600;
+ 
 const CONTEXT_WINDOW_LINES = 200;        // lines before/after selection
 
 export async function buildPrompt(

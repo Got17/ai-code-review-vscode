@@ -932,6 +932,7 @@ var vscode = __toESM(require("vscode"));
 var WEBVIEW_LIBRARY_DIR = "webview-lib";
 var AI_MODEL = "qwen2.5-coder:7b-instruct";
 var AI_API = "http://localhost:11434/api/generate";
+var BIG_FILE_LINE_THRESHOLD = 600;
 
 // src/utils/ai/modelManager.ts
 var STORAGE_KEYS = {
@@ -1332,7 +1333,6 @@ async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
 }
 
 // src/utils/ai/promptBuilder.ts
-var BIG_FILE_LINE_THRESHOLD = 600;
 var CONTEXT_WINDOW_LINES = 200;
 async function buildPrompt(selectedCode, wholeFileContent, fileName, selectionRange, context) {
   const fileLabel = fileName || "current file";
@@ -6226,6 +6226,12 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 }
 
 // src/commands/showSuggestion.ts
+function expandToWholeLines(doc, selection) {
+  const start = new vscode10.Position(selection.start.line, 0);
+  const endLineText = doc.lineAt(selection.end.line).text;
+  const end = new vscode10.Position(selection.end.line, endLineText.length);
+  return new vscode10.Selection(start, end);
+}
 function registerShowSuggestion(context) {
   return vscode10.commands.registerCommand("extension.showSuggestion", async () => {
     vscode10.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
@@ -6240,14 +6246,16 @@ function registerShowSuggestion(context) {
       return;
     }
     const fileName = document2.fileName;
-    const selection = editor.selection;
+    const rawSel = editor.selection;
+    const wholeFileContent = document2.getText();
+    const lineCount = wholeFileContent.split(/\r?\n/).length;
+    const isBig = lineCount >= BIG_FILE_LINE_THRESHOLD;
+    const selection = isBig ? expandToWholeLines(document2, rawSel) : rawSel;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty || !selectedCode.trim()) {
       vscode10.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
-    const wholeFileContent = document2.getText();
-    const documentUri = document2.uri;
     const { prompt, applyMode } = await buildPrompt(
       selectedCode,
       wholeFileContent,
@@ -6270,7 +6278,7 @@ function registerShowSuggestion(context) {
         start: { line: selection.start.line, character: selection.start.character },
         end: { line: selection.end.line, character: selection.end.character }
       } : null,
-      documentUri: documentUri?.toString() || null,
+      documentUri: document2.uri?.toString() || null,
       userPreferences,
       currentModel,
       applyMode
