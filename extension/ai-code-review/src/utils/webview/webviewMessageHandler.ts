@@ -7,6 +7,7 @@ import {
     shadowEnsureBaseline,
     shadowCommitFiles
 } from '../git/shadowRepo';
+import { ApplyMode } from '../constants';
 
 export function handleWebviewMessage(
 	panelInstance: vscode.WebviewPanel,
@@ -125,7 +126,6 @@ async function handleAccept(
     }
 
     const docUri = vscode.Uri.parse(message.documentUri);
-
     const workspaceConfig = vscode.workspace.getConfiguration('aiCodeReview');
     const enableShadow = workspaceConfig.get<boolean>('git.enable', false);
 
@@ -144,7 +144,7 @@ async function handleAccept(
         }
 
         // Apply AI suggestion to editor
-        await applySuggestion(message.aiSuggestedCode, originalSelection, docUri);
+        await applySuggestion(message.aiSuggestedCode, originalSelection, docUri, message.applyMode || ApplyMode.Full);
 
         // Save new content so commit captures it
         doc = await vscode.workspace.openTextDocument(docUri);
@@ -158,8 +158,7 @@ async function handleAccept(
             vscode.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0,7)}`, 4000);
         }
     } catch (error: any) {
-        console.error(`Shadow commit failed: ${error?.message ?? String(error)}`);
-        vscode.window.showWarningMessage('Shadow commit failed');
+        vscode.window.showWarningMessage(`Shadow commit failed: ${error?.message ?? String(error)}`);
     }
 
     panelInstance.dispose();

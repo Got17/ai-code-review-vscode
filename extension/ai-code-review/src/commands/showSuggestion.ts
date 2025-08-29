@@ -38,7 +38,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         const documentUri = document.uri;
 
         // Build prompt for AI
-        const prompt = await buildPrompt(
+        const { prompt, applyMode } = await buildPrompt(
             selectedCode,
             wholeFileContent,
             fileName,
@@ -49,12 +49,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         console.log(prompt);
 
         // Open the suggestion webview panel
-        const suggestionPanel = await showSuggestionWebview(
-            '',
-            context,
-            fileName,
-        );
-
+        const suggestionPanel = await showSuggestionWebview('', context, fileName);
         if (!suggestionPanel) {
             vscode.window.showErrorMessage('Failed to open suggestion panel.');
             return;
@@ -73,7 +68,8 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             } : null,
             documentUri: documentUri?.toString() || null,
             userPreferences,
-            currentModel
+            currentModel,
+            applyMode,
         });
 
         let accumulatedResponse = '';
@@ -83,19 +79,11 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         try {
             for await (const chunk of queryAIStream(suggestionPanel, prompt, context)) {
                 accumulatedResponse += chunk;
-                suggestionPanel.webview.postMessage({
-                    command: 'aiChunk',
-                    chunk,
-                });
+                suggestionPanel.webview.postMessage({ command: 'aiChunk', chunk });
             }
 
             if (!hadStreamError) {
-                suggestionPanel.webview.postMessage({
-                    command: 'aiStreamEnd',
-                    fullResponse: accumulatedResponse,
-                });
-
-                // Show full AI output
+                suggestionPanel.webview.postMessage({ command: 'aiStreamEnd', fullResponse: accumulatedResponse });
                 showOutput(fileName, accumulatedResponse);
             }
 

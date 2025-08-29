@@ -75,8 +75,9 @@ function handleStreamError(suggestionPanel: vscode.WebviewPanel, error: any) {
 		if (abortReason === 'user') {
 			// tell the webview and throw a recognizable error that the caller can ignore
 			suggestionPanel.webview.postMessage({ command: 'aiStopped' });
-			vscode.window.setStatusBarMessage('⏹️ Stopped AI stream', 3000);
-			activeAbort = null; abortReason = null;
+			vscode.window.setStatusBarMessage('Stopped AI stream', 3000);
+			activeAbort = null; 
+			abortReason = null;
 			throw new UserAbort();
 		} else {
 			// timeout

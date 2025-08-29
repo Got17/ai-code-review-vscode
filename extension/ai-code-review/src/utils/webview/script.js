@@ -24,9 +24,15 @@ let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
 let jsCurrentModel = null;
 let jsAiExplanation = null;
+let jsApplyMode = 'full';   
 
 let autoScrollEnabled = true;
-const BOTTOM_THRESH_PX = 60;
+const BOTTOM_THRESH_PX = 30;
+
+let usePlainStreaming = false;
+let plainPreEl = null;
+let totalChars = 0;
+const PLAIN_THRESHOLD = 15000; 
 
 // === UTILS ===
 function escapeHtml(content) {
@@ -41,14 +47,15 @@ function buildMessagePayload(command) {
         aiSuggestedCode: extractedAISuggestedCode,
         selection: jsCurrentSelection,
         documentUri: jsCurrentDocumentUri,
-        aiExplanation: jsAiExplanation
+        aiExplanation: jsAiExplanation,
+        applyMode: jsApplyMode,
     };
 }
 
 function scrollToBottom() {
     if (autoScrollEnabled) {
         setTimeout(() => {
-        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }, 0);
     } else {
         // show the button if user scrolled up
@@ -97,6 +104,29 @@ function isAtBottom() {
     return (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - BOTTOM_THRESH_PX);
 }
 
+function getSelectedTextFromWholeFile(wholeFileContent, codeSelection) {
+    if (!wholeFileContent || !codeSelection) {
+        return '';
+    }
+    const text = wholeFileContent.replace(/\r\n/g, '\n');
+    const lines = text.split('\n');
+
+    const selectionStartLine = codeSelection.start.line, 
+          selectionStartChar = codeSelection.start.character;
+    const selectionEndLine = codeSelection.end.line,   
+          selectionEndChar = codeSelection.end.character;
+
+    if (selectionStartLine === selectionEndLine) {
+        return (lines[selectionStartLine] || '').slice(selectionStartChar, selectionEndChar);
+    }
+
+    const extractedLines = lines.slice(selectionStartLine, selectionEndLine + 1);
+    extractedLines[0] = (extractedLines[0] || '').slice(selectionStartChar);
+    extractedLines[extractedLines.length - 1] = (extractedLines[extractedLines.length - 1] || '').slice(0, selectionEndChar);
+
+    return extractedLines.join('\n');
+}
+
 // === CODE EXTRACTION & DIFF ===
 function extractImprovedCode(aiResponse) {
     // eslint-disable-next-line curly
@@ -106,14 +136,14 @@ function extractImprovedCode(aiResponse) {
     const fallback = /```fsharp\n([\s\S]*?)\n```/i;
 
     const match = aiResponse.match(regex) || aiResponse.match(fallback);
-    return match?.[1]?.trim() ?? null;
+    return match?.[1] ?? null;
 }
 
 function extractExplanation(aiResponse) {
     // eslint-disable-next-line curly
     if (!aiResponse) return null;
 
-    const regex = /^### Explanation[\s\S]*?\n- ([\s\S]*?)(?=\n|$)/im;
+    const regex = /^###\s*Explanation[\s\S]*?\n- ([\s\S]*?)(?=\n###|$)/im;
 
     const match = aiResponse.match(regex);
     return match?.[1]?.trim() ?? null;
@@ -213,8 +243,22 @@ function renderPreferenceSection() {
     streamingResponseArea.append(card);
 }
 
-function renderMarkdownChunk(chunk) {
-    streamingResponseArea.innerHTML = marked.parse(chunk);
+function ensurePlainPre() {
+    if (!plainPreEl) {
+        plainPreEl = document.createElement('pre');
+        plainPreEl.className = 'prefs-pre'; // decent monospace look
+        streamingResponseArea.innerHTML = '';
+        streamingResponseArea.appendChild(plainPreEl);
+    }
+}
+
+function appendPlainChunk(raw) {
+    ensurePlainPre();
+    plainPreEl.textContent += raw;
+}
+
+function renderSmallMarkdown(all) {
+    streamingResponseArea.innerHTML = marked.parse(all);
     hljs.highlightAll();
     scrollToBottom();
 }
@@ -239,8 +283,11 @@ window.addEventListener('message', event => {
             jsCurrentDocumentUri = message.documentUri;
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
+            jsApplyMode = message.applyMode || 'full';
+
             stopButton.disabled = false;
             refreshButton.disabled = true;
+
             vscode.postMessage(buildMessagePayload('requestModels'));
             break;
 
@@ -249,30 +296,58 @@ window.addEventListener('message', event => {
             break;
 
         case 'aiChunk':
-            accumulatedRawResponse += message.chunk;
-            renderMarkdownChunk(accumulatedRawResponse);
+            const part = message.chunk || '';
+            accumulatedRawResponse += part;
+            totalChars += part.length;
+
+            // Switch to plain streaming after threshold
+            if (!usePlainStreaming && totalChars >= PLAIN_THRESHOLD) {
+                usePlainStreaming = true;
+                // seed existing content
+                appendPlainChunk(accumulatedRawResponse);
+            } else if (usePlainStreaming) {
+                appendPlainChunk(part);
+                scrollToBottom();
+            } else {
+                // small output: progressive markdown
+                // (parse once per chunk while still small)
+                renderSmallMarkdown(accumulatedRawResponse);
+            }
             break;
 
         case 'aiStreamEnd':
-            extractedAISuggestedCode = extractImprovedCode(message.fullResponse || accumulatedRawResponse);
-            
+            // Final parse once
+            streamingResponseArea.innerHTML = marked.parse(accumulatedRawResponse);
+            hljs.highlightAll();
+
+            extractedAISuggestedCode = extractImprovedCode(accumulatedRawResponse);
             jsAiExplanation = extractExplanation(accumulatedRawResponse);
 
             const improvedCode = extractedAISuggestedCode || '';
             const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
 
-            const diffBlock = generateDiffHtml(jsOriginalWholeFileContent, improvedCode);
+            const originalForDiff =
+                (jsApplyMode === 'selection' && jsCurrentSelection)
+                    ? getSelectedTextFromWholeFile(jsOriginalWholeFileContent, jsCurrentSelection)
+                    : jsOriginalWholeFileContent;
+
+            const diffBlock = generateDiffHtml(originalForDiff, improvedCode);
             if (improvedCodeElement?.parentElement && diffBlock) {
                 improvedCodeElement.parentElement.insertAdjacentElement('afterend', diffBlock);
+                // Replace the raw improved-code block with the diff view (same behavior as full mode)
                 improvedCodeElement.parentElement.remove();
             }
 
-            // eslint-disable-next-line curly
-            if (extractedAISuggestedCode) acceptButton.disabled = false;
+            if (extractedAISuggestedCode) {
+                acceptButton.disabled = false;
+            }
+
             renderPreferenceSection();
-            rejectButton.disabled = false;            
+
+            rejectButton.disabled = false;
             refreshButton.disabled = false;
             stopButton.disabled = true;
+
             break;
 
         case 'aiError':

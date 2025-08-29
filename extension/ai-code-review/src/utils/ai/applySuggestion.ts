@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
+import { ApplyMode } from '../constants';
 
 export async function applySuggestion(
-    aiProvidedFullFileContent: string,
+    aiProvidedContent: string,
     originalSelectionForContext: vscode.Selection,
-    documentUri: vscode.Uri
+    documentUri: vscode.Uri,
+    applyMode: ApplyMode = ApplyMode.Full
 ): Promise<void> {
     if (!documentUri) {
         vscode.window.showWarningMessage('Cannot apply suggestion: file context is missing.');
@@ -25,18 +27,17 @@ export async function applySuggestion(
         return;
     }
 
-    // Replace the entire document content
-    const fullRange = new vscode.Range(
-        doc.lineAt(0).range.start,
-        doc.lineAt(doc.lineCount - 1).range.end
-    );
+    const targetRange =
+        applyMode === ApplyMode.Selection
+            ? new vscode.Range(originalSelectionForContext.start, originalSelectionForContext.end)
+            : new vscode.Range(doc.lineAt(0).range.start, doc.lineAt(doc.lineCount - 1).range.end);
 
     const success = await editor.edit(editBuilder => {
-        editBuilder.replace(fullRange, aiProvidedFullFileContent);
+        editBuilder.replace(targetRange, aiProvidedContent);
     });
 
     if (!success) {
-        vscode.window.showErrorMessage('Failed to apply suggestion (replacing whole file).');
+        vscode.window.showErrorMessage('Failed to apply suggestion.');
         return;
     }
 
@@ -44,5 +45,9 @@ export async function applySuggestion(
     editor.selection = originalSelectionForContext;
     editor.revealRange(originalSelectionForContext, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 
-    vscode.window.showInformationMessage('AI suggestion applied (entire file updated).');
+    vscode.window.showInformationMessage(
+        applyMode === 'selection'
+            ? 'AI suggestion applied (selected region updated).'
+            : 'AI suggestion applied (entire file updated).'
+    );
 }
