@@ -109,7 +109,8 @@ INSTRUCTIONS:
 2. Preserve other code in the file; do not change it unless strictly required for correctness.
 3. Avoid unnecessary renames unless the user's preferences ask for it.
 4. If removing code, ensure it's entirely unused.
-5. You MUST format your response as:
+5. Indentation must stay EXACTLY the same as in the original selection.
+6. You MUST format your response as:
    - ### Summary of Issues (bullet list)
    ${outputSpec}
    - ### Explanation (bullet list)
