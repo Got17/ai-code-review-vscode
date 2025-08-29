@@ -95,7 +95,7 @@ function generatePromptTemplate(
 ): string {
 	const outputSpec = applyMode === ApplyMode.Full
 		? `- ### Improved Code (entire file)`
-		: `- ### Improved Code (only the SELECTED region; do NOT output the whole file)`;
+		: `- ### Improved Code (only the SELECTED region)`;
 
 	const reminder = applyMode === ApplyMode.Full
 		? `REMINDER: You must output the entire file content with ONLY the selected region changed.`

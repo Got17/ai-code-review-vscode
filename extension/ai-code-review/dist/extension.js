@@ -1385,7 +1385,7 @@ ${baseTemplate}`;
   return { prompt: finalPrompt, applyMode };
 }
 function generatePromptTemplate(fileLabel, fullContextOrWindow, selectedSnippet, selectionContextInfo, preferencesBlock, applyMode) {
-  const outputSpec = applyMode === "full" /* Full */ ? `- ### Improved Code (entire file)` : `- ### Improved Code (only the SELECTED region; do NOT output the whole file)`;
+  const outputSpec = applyMode === "full" /* Full */ ? `- ### Improved Code (entire file)` : `- ### Improved Code (only the SELECTED region)`;
   const reminder = applyMode === "full" /* Full */ ? `REMINDER: You must output the entire file content with ONLY the selected region changed.` : `REMINDER: Output ONLY the selected region's new code. Do not include any other file content.`;
   return `
 ${preferencesBlock}

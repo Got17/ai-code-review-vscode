@@ -104,6 +104,29 @@ function isAtBottom() {
     return (window.innerHeight + window.scrollY) >= (document.body.scrollHeight - BOTTOM_THRESH_PX);
 }
 
+function getSelectedTextFromWholeFile(wholeFileContent, codeSelection) {
+    if (!wholeFileContent || !codeSelection) {
+        return '';
+    }
+    const text = wholeFileContent.replace(/\r\n/g, '\n');
+    const lines = text.split('\n');
+
+    const selectionStartLine = codeSelection.start.line, 
+          selectionStartChar = codeSelection.start.character;
+    const selectionEndLine = codeSelection.end.line,   
+          selectionEndChar = codeSelection.end.character;
+
+    if (selectionStartLine === selectionEndLine) {
+        return (lines[selectionStartLine] || '').slice(selectionStartChar, selectionEndChar);
+    }
+
+    const extractedLines = lines.slice(selectionStartLine, selectionEndLine + 1);
+    extractedLines[0] = (extractedLines[0] || '').slice(selectionStartChar);
+    extractedLines[extractedLines.length - 1] = (extractedLines[extractedLines.length - 1] || '').slice(0, selectionEndChar);
+
+    return extractedLines.join('\n');
+}
+
 // === CODE EXTRACTION & DIFF ===
 function extractImprovedCode(aiResponse) {
     // eslint-disable-next-line curly
@@ -303,9 +326,15 @@ window.addEventListener('message', event => {
             const improvedCode = extractedAISuggestedCode || '';
             const improvedCodeElement = streamingResponseArea.querySelector('pre code.language-fsharp');
 
-            const diffBlock = generateDiffHtml(jsOriginalWholeFileContent, improvedCode);
-            if (improvedCodeElement?.parentElement && diffBlock && jsApplyMode === 'full') {
+            const originalForDiff =
+                (jsApplyMode === 'selection' && jsCurrentSelection)
+                    ? getSelectedTextFromWholeFile(jsOriginalWholeFileContent, jsCurrentSelection)
+                    : jsOriginalWholeFileContent;
+
+            const diffBlock = generateDiffHtml(originalForDiff, improvedCode);
+            if (improvedCodeElement?.parentElement && diffBlock) {
                 improvedCodeElement.parentElement.insertAdjacentElement('afterend', diffBlock);
+                // Replace the raw improved-code block with the diff view (same behavior as full mode)
                 improvedCodeElement.parentElement.remove();
             }
 
