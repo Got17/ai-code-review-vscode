@@ -34,13 +34,13 @@ async function main() {
 		sourcemap: !production,
 		sourcesContent: false,
 		platform: 'node',
+		target: 'node18',
 		outfile: 'dist/extension.js',
 		external: [
 			'vscode',
 			'onnxruntime-node',
 			'@xenova/onnxruntime-node',
-			'faiss-node',
-			'@huggingface/transformers'
+			'faiss-node'
 		],
 		logLevel: 'silent',
 		plugins: [
