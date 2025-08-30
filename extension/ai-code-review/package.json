@@ -1,13 +1,19 @@
 {
   "name": "ws-code-review",
-  "displayName": "ws-code-review",
-  "description": "AI-powered code review for F# and WebSharper",
+  "icon": "resources/icon.png",
+  "publisher": "websharper",
+  "displayName": "WS Code Review",
+  "description": "Offline AI code review for F# and WebSharper",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Got17/ai-code-review-vscode.git"
+  },
   "engines": {
     "vscode": "^1.99.0"
   },
   "categories": [
-    "Other"
+    "Programming Languages"
   ],
   "activationEvents": [
     "onLanguage:fsharp"
@@ -56,7 +62,7 @@
       },
       {
         "command": "extension.showSuggestion",
-        "title": "WS Code Review: Show suggestion"
+        "title": "WS Code Review: Show Suggestion"
       },
       {
         "command": "extension.changeOllamaModel",
