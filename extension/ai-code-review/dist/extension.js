@@ -33,6 +33,26 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// src/utils/ai/transformersEnv.ts
+async function getTransformers(context, mode) {
+  const module2 = await import("@huggingface/transformers");
+  const modelsDir = vscode4.Uri.joinPath(context.extensionUri, "models").fsPath;
+  module2.env.localModelPath = modelsDir;
+  module2.env.cacheDir = modelsDir;
+  module2.env.allowRemoteModels = mode === "bootstrap";
+  return {
+    module: module2,
+    pipeline: module2.pipeline
+  };
+}
+var vscode4;
+var init_transformersEnv = __esm({
+  "src/utils/ai/transformersEnv.ts"() {
+    "use strict";
+    vscode4 = __toESM(require("vscode"));
+  }
+});
+
 // src/utils/ai/ragContext.ts
 var ragContext_exports = {};
 __export(ragContext_exports, {
@@ -56,7 +76,7 @@ function l2Normalize(vector) {
 }
 async function readJson(uri, resourceName) {
   try {
-    const fileContentsAsBytes = await vscode4.workspace.fs.readFile(uri);
+    const fileContentsAsBytes = await vscode5.workspace.fs.readFile(uri);
     const fileContentsAsString = Buffer.from(fileContentsAsBytes).toString("utf8");
     const parsedJson = JSON.parse(fileContentsAsString);
     return parsedJson;
@@ -66,10 +86,10 @@ async function readJson(uri, resourceName) {
   }
 }
 function joinExtensionPath(baseUri, ...relativeSegments) {
-  return vscode4.Uri.joinPath(baseUri, ...relativeSegments);
+  return vscode5.Uri.joinPath(baseUri, ...relativeSegments);
 }
 function exists(uri) {
-  return vscode4.workspace.fs.stat(uri).then(
+  return vscode5.workspace.fs.stat(uri).then(
     (_) => true,
     (_) => false
   );
@@ -88,27 +108,16 @@ async function hasLocalModel(context) {
   if (!await exists(onnxDir)) {
     return false;
   }
-  const entries = await vscode4.workspace.fs.readDirectory(onnxDir);
+  const entries = await vscode5.workspace.fs.readDirectory(onnxDir);
   const hasOnnx = entries.some(
-    ([name, type]) => type === vscode4.FileType.File && name.toLowerCase().endsWith(".onnx")
+    ([name, type]) => type === vscode5.FileType.File && name.toLowerCase().endsWith(".onnx")
   );
   return hasOnnx;
 }
-async function getTransformers(context, mode) {
-  const module2 = await import("@huggingface/transformers");
-  const modelsDir = vscode4.Uri.joinPath(context.extensionUri, MODELS_DIR).fsPath;
-  module2.env.localModelPath = modelsDir;
-  module2.env.cacheDir = modelsDir;
-  module2.env.allowRemoteModels = mode === "bootstrap";
-  return {
-    module: module2,
-    pipeline: module2.pipeline
-  };
-}
 async function downloadModel(context) {
-  return vscode4.window.withProgress(
+  return vscode5.window.withProgress(
     {
-      location: vscode4.ProgressLocation.Notification,
+      location: vscode5.ProgressLocation.Notification,
       title: "Downloading embedding model (Xenova/all-MiniLM-L6-v2)\u2026",
       cancellable: false
     },
@@ -124,18 +133,18 @@ async function downloadModel(context) {
         if (!ok) {
           throw new Error("Model download finished but required files were not found.");
         }
-        vscode4.window.showInformationMessage(
+        vscode5.window.showInformationMessage(
           "Embedding model downloaded. Future runs will work fully offline."
         );
         return true;
       } catch (err) {
         const msg = String(err?.message ?? err);
         if (/ENOTFOUND|ECONNREFUSED|EAI_AGAIN|ETIMEDOUT|fetch failed|network/i.test(msg)) {
-          vscode4.window.showErrorMessage(
+          vscode5.window.showErrorMessage(
             "Download failed: no internet connection. Please connect to the internet."
           );
         } else {
-          vscode4.window.showErrorMessage(`Download failed: ${msg}`);
+          vscode5.window.showErrorMessage(`Download failed: ${msg}`);
         }
         return false;
       }
@@ -146,7 +155,7 @@ async function ensureLocalModel(context) {
   if (await hasLocalModel(context)) {
     return true;
   }
-  const choice = await vscode4.window.showWarningMessage(
+  const choice = await vscode5.window.showWarningMessage(
     "Local embedding model not found. Download it now (~20-50 MB, one-time)?",
     "Download model",
     "Cancel"
@@ -240,12 +249,13 @@ async function getRagContext(context, queryText, topK = DEFAULT_TOP_K) {
     return "";
   }
 }
-var vscode4, import_node_module, requireCJS, MODEL_ID, DEFAULT_TOP_K, MODELS_DIR, MODEL_RELATIVE, REQUIRED_FILES, ONNX_DIRNAME, ARTIFACTS_DIR, INDEX_FILE, META_FILE, cache;
+var vscode5, import_node_module, requireCJS, MODEL_ID, DEFAULT_TOP_K, MODELS_DIR, MODEL_RELATIVE, REQUIRED_FILES, ONNX_DIRNAME, ARTIFACTS_DIR, INDEX_FILE, META_FILE, cache;
 var init_ragContext = __esm({
   "src/utils/ai/ragContext.ts"() {
     "use strict";
-    vscode4 = __toESM(require("vscode"));
+    vscode5 = __toESM(require("vscode"));
     import_node_module = require("node:module");
+    init_transformersEnv();
     requireCJS = (0, import_node_module.createRequire)(__filename);
     MODEL_ID = "Xenova/all-MiniLM-L6-v2";
     DEFAULT_TOP_K = 5;
@@ -1154,7 +1164,7 @@ __export(extension_exports, {
 module.exports = __toCommonJS(extension_exports);
 
 // src/commands/showSuggestion.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 
 // src/utils/ai/aiClient.ts
 var vscode = __toESM(require("vscode"));
@@ -1388,7 +1398,7 @@ async function applySuggestion(aiProvidedContent, originalSelectionForContext, d
 }
 
 // src/utils/ai/promptBuilder.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 
 // src/utils/ai/preferencesManager.ts
 var vscode3 = __toESM(require("vscode"));
@@ -1480,7 +1490,7 @@ ${surroundingCode}
     applyMode
   );
   let finalPrompt = baseTemplate;
-  const useRag = vscode5.workspace.getConfiguration().get("aiCodeReview.rag.enable", false);
+  const useRag = vscode6.workspace.getConfiguration().get("aiCodeReview.rag.enable", false);
   if (useRag) {
     try {
       const { getRagContext: getRagContext2 } = await Promise.resolve().then(() => (init_ragContext(), ragContext_exports));
@@ -1532,9 +1542,9 @@ ${reminder}
 }
 
 // src/utils/ui/outputChannel.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode6.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode7.window.createOutputChannel("AI Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -1552,22 +1562,22 @@ function setPanel(panel) {
 }
 
 // src/utils/ui/suggestionWebview.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/utils/webview/webviewContent.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 var fs = __toESM(require("fs"));
 function getWebviewContent(webview, extensionUri, fileName, userPreferences) {
   const nonce = (/* @__PURE__ */ new Date()).getTime() + "" + (/* @__PURE__ */ new Date()).getMilliseconds();
-  const htmlPath = vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
+  const htmlPath = vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "index.html");
   let htmlContent = fs.readFileSync(htmlPath.fsPath, "utf8");
-  const diffJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
-  const markedJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
-  const githubDarkStyleUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
-  const highlightJsSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
-  const fSharpSrcUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
-  const cssUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
-  const jsUri = webview.asWebviewUri(vscode7.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
+  const diffJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "diff.min.js"));
+  const markedJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "marked.min.js"));
+  const githubDarkStyleUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "github-dark.min.css"));
+  const highlightJsSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "highlight.min.js"));
+  const fSharpSrcUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs", "fsharp.min.js"));
+  const cssUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "style.css"));
+  const jsUri = webview.asWebviewUri(vscode8.Uri.joinPath(extensionUri, "src", "utils", "webview", "script.js"));
   htmlContent = htmlContent.replace("{{fileName}}", escapeHtml(fileName || "N/A")).replace("{{styleUri}}", cssUri.toString()).replace("{{scriptUri}}", jsUri.toString()).replace("{{diffJsSrc}}", diffJsSrcUri.toString()).replace("{{markedJsSrc}}", markedJsSrcUri.toString()).replace("{{githubDarkStyle}}", githubDarkStyleUri.toString()).replace("{{highlightJsSrc}}", highlightJsSrcUri.toString()).replace("{{fSharpSrc}}", fSharpSrcUri.toString()).replace(/{{cspSource}}/g, webview.cspSource).replace(/{{nonce}}/g, nonce);
   return htmlContent;
 }
@@ -1576,10 +1586,10 @@ function escapeHtml(raw) {
 }
 
 // src/utils/webview/webviewMessageHandler.ts
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/utils/git/shadowRepo.ts
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 var path = __toESM(require("node:path"));
 
 // node_modules/simple-git/dist/esm/index.js
@@ -6110,11 +6120,11 @@ function convertToPosix(p) {
   return p.replace(/\\/g, "/");
 }
 function getWorkspaceRootForUri(docUri) {
-  const workspaceFolder = vscode8.workspace.getWorkspaceFolder(docUri);
+  const workspaceFolder = vscode9.workspace.getWorkspaceFolder(docUri);
   if (workspaceFolder?.uri?.fsPath) {
     return workspaceFolder.uri.fsPath;
   }
-  const firstFolderUri = vscode8.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const firstFolderUri = vscode9.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (firstFolderUri) {
     return firstFolderUri;
   }
@@ -6124,7 +6134,7 @@ function slugWorkTree(fsPath) {
   return fsPath.replace(/[:\\\/]/g, "_").slice(-120);
 }
 async function ensureDir(fsPath) {
-  await vscode8.workspace.fs.createDirectory(vscode8.Uri.file(fsPath));
+  await vscode9.workspace.fs.createDirectory(vscode9.Uri.file(fsPath));
 }
 async function openShadowRepoForDocument(context, docUri) {
   const workTree = getWorkspaceRootForUri(docUri);
@@ -6181,26 +6191,26 @@ function handleWebviewMessage(panelInstance2, context) {
   panelInstance2.webview.onDidReceiveMessage(
     async (message) => {
       try {
-        const originalSelection = new vscode9.Selection(
-          new vscode9.Position(message.selection.start.line, message.selection.start.character),
-          new vscode9.Position(message.selection.end.line, message.selection.end.character)
+        const originalSelection = new vscode10.Selection(
+          new vscode10.Position(message.selection.start.line, message.selection.start.character),
+          new vscode10.Position(message.selection.end.line, message.selection.end.character)
         );
         switch (message.command) {
           case "accept":
             await handleAccept(context, message, originalSelection, panelInstance2);
             break;
           case "reject":
-            vscode9.window.showInformationMessage("AI suggestion rejected.");
+            vscode10.window.showInformationMessage("AI suggestion rejected.");
             panelInstance2.dispose();
             break;
           case "editPreferences":
-            vscode9.commands.executeCommand("extension.setAIPreferences", message.documentUri);
+            vscode10.commands.executeCommand("extension.setAIPreferences", message.documentUri);
             break;
           case "clearPreferences":
-            vscode9.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
+            vscode10.commands.executeCommand("extension.clearAIPreferences", message.documentUri);
             break;
           case "changeModel":
-            vscode9.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
+            vscode10.commands.executeCommand("extension.changeOllamaModel", message.documentUri);
             break;
           case "requestModels":
             await sendModelsList(context, panelInstance2);
@@ -6211,7 +6221,7 @@ function handleWebviewMessage(panelInstance2, context) {
               break;
             }
             await setCurrentModel(context, picked);
-            vscode9.window.showInformationMessage(`Ollama model set to: ${picked}`);
+            vscode10.window.showInformationMessage(`Ollama model set to: ${picked}`);
             await sendModelsList(context, panelInstance2);
             await promptAndShowSuggestion(message.documentUri);
             break;
@@ -6219,24 +6229,24 @@ function handleWebviewMessage(panelInstance2, context) {
             abortActiveRequest();
             break;
           case "refresh":
-            const docUri = vscode9.Uri.parse(message.documentUri);
-            const doc = await vscode9.workspace.openTextDocument(docUri);
-            const editor = await vscode9.window.showTextDocument(doc, {
+            const docUri = vscode10.Uri.parse(message.documentUri);
+            const doc = await vscode10.workspace.openTextDocument(docUri);
+            const editor = await vscode10.window.showTextDocument(doc, {
               preserveFocus: false,
-              viewColumn: vscode9.ViewColumn.One
+              viewColumn: vscode10.ViewColumn.One
             });
             if (message.selection) {
-              const selection = new vscode9.Selection(
-                new vscode9.Position(message.selection.start.line, message.selection.start.character),
-                new vscode9.Position(message.selection.end.line, message.selection.end.character)
+              const selection = new vscode10.Selection(
+                new vscode10.Position(message.selection.start.line, message.selection.start.character),
+                new vscode10.Position(message.selection.end.line, message.selection.end.character)
               );
               editor.selection = selection;
               editor.revealRange(
-                new vscode9.Range(selection.start, selection.end),
-                vscode9.TextEditorRevealType.InCenterIfOutsideViewport
+                new vscode10.Range(selection.start, selection.end),
+                vscode10.TextEditorRevealType.InCenterIfOutsideViewport
               );
             }
-            await vscode9.commands.executeCommand("extension.showSuggestion");
+            await vscode10.commands.executeCommand("extension.showSuggestion");
             break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
@@ -6244,7 +6254,7 @@ function handleWebviewMessage(panelInstance2, context) {
         }
       } catch (err) {
         console.error(`Error handling message from webview: ${err}`);
-        vscode9.window.showErrorMessage("An error occurred while processing the suggestion.");
+        vscode10.window.showErrorMessage("An error occurred while processing the suggestion.");
       }
     },
     void 0
@@ -6263,18 +6273,18 @@ async function sendModelsList(context, panelInstance2) {
 }
 async function handleAccept(context, message, originalSelection, panelInstance2) {
   if (!message.aiSuggestedCode) {
-    vscode9.window.showErrorMessage("AI did not provide improved code to apply.");
+    vscode10.window.showErrorMessage("AI did not provide improved code to apply.");
     return;
   }
   if (!message.selection || !message.documentUri) {
-    vscode9.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
+    vscode10.window.showErrorMessage("Missing selection or document URI for applying suggestion.");
     return;
   }
-  const docUri = vscode9.Uri.parse(message.documentUri);
-  const workspaceConfig = vscode9.workspace.getConfiguration("aiCodeReview");
+  const docUri = vscode10.Uri.parse(message.documentUri);
+  const workspaceConfig = vscode10.workspace.getConfiguration("aiCodeReview");
   const enableShadow = workspaceConfig.get("git.enable", false);
   try {
-    let doc = await vscode9.workspace.openTextDocument(docUri);
+    let doc = await vscode10.workspace.openTextDocument(docUri);
     if (enableShadow && doc.isDirty) {
       await doc.save();
     }
@@ -6284,16 +6294,16 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
       await shadowEnsureBaseline(shadow, docUri.fsPath);
     }
     await applySuggestion(message.aiSuggestedCode, originalSelection, docUri, message.applyMode || "full" /* Full */);
-    doc = await vscode9.workspace.openTextDocument(docUri);
+    doc = await vscode10.workspace.openTextDocument(docUri);
     if (enableShadow) {
       await doc.save();
     }
     if (enableShadow && shadow) {
       const hash = await shadowCommitFiles(context, shadow, [docUri.fsPath], message.aiExplanation);
-      vscode9.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
+      vscode10.window.setStatusBarMessage(`AI snapshot (shadow): ${hash.slice(0, 7)}`, 4e3);
     }
   } catch (error) {
-    vscode9.window.showWarningMessage(`Shadow commit failed: ${error?.message ?? String(error)}`);
+    vscode10.window.showWarningMessage(`Shadow commit failed: ${error?.message ?? String(error)}`);
   }
   panelInstance2.dispose();
 }
@@ -6303,7 +6313,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   const existingPanel = getPanel();
   const userPreferences = await getUserPreferences(context);
   if (existingPanel) {
-    existingPanel.reveal(vscode10.ViewColumn.Beside);
+    existingPanel.reveal(vscode11.ViewColumn.Beside);
     existingPanel.webview.html = getWebviewContent(
       existingPanel.webview,
       context.extensionUri,
@@ -6312,17 +6322,17 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
     );
     return existingPanel;
   }
-  const newPanel = vscode10.window.createWebviewPanel(
+  const newPanel = vscode11.window.createWebviewPanel(
     "aiSuggestionPanel",
     "AI Code Review Suggestion for WebSharper",
-    vscode10.ViewColumn.Beside,
+    vscode11.ViewColumn.Beside,
     {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [
-        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
-        vscode10.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
-        vscode10.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
+        vscode11.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR),
+        vscode11.Uri.joinPath(context.extensionUri, WEBVIEW_LIBRARY_DIR, "highlightjs"),
+        vscode11.Uri.joinPath(context.extensionUri, "src", "utils", "webview")
       ]
     }
   );
@@ -6342,22 +6352,22 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
 
 // src/commands/showSuggestion.ts
 function expandToWholeLines(doc, selection) {
-  const start = new vscode11.Position(selection.start.line, 0);
+  const start = new vscode12.Position(selection.start.line, 0);
   const endLineText = doc.lineAt(selection.end.line).text;
-  const end = new vscode11.Position(selection.end.line, endLineText.length);
-  return new vscode11.Selection(start, end);
+  const end = new vscode12.Position(selection.end.line, endLineText.length);
+  return new vscode12.Selection(start, end);
 }
 function registerShowSuggestion(context) {
-  return vscode11.commands.registerCommand("extension.showSuggestion", async () => {
-    vscode11.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
-    const editor = vscode11.window.activeTextEditor;
+  return vscode12.commands.registerCommand("extension.showSuggestion", async () => {
+    vscode12.window.setStatusBarMessage("\u{1F916} Analyzing F# code...", 5e3);
+    const editor = vscode12.window.activeTextEditor;
     if (!editor) {
-      vscode11.window.showErrorMessage("No active F# editor found.");
+      vscode12.window.showErrorMessage("No active F# editor found.");
       return;
     }
     const document2 = editor.document;
     if (document2.languageId !== "fsharp") {
-      vscode11.window.showErrorMessage("This command only works on F# files.");
+      vscode12.window.showErrorMessage("This command only works on F# files.");
       return;
     }
     const fileName = document2.fileName;
@@ -6368,7 +6378,7 @@ function registerShowSuggestion(context) {
     const selection = isBig ? expandToWholeLines(document2, rawSel) : rawSel;
     const selectedCode = document2.getText(selection);
     if (selection.isEmpty || !selectedCode.trim()) {
-      vscode11.window.showWarningMessage("Please select some F# code to review.");
+      vscode12.window.showWarningMessage("Please select some F# code to review.");
       return;
     }
     const { prompt, applyMode } = await buildPrompt(
@@ -6381,7 +6391,7 @@ function registerShowSuggestion(context) {
     console.log(prompt);
     const suggestionPanel = await showSuggestionWebview("", context, fileName);
     if (!suggestionPanel) {
-      vscode11.window.showErrorMessage("Failed to open suggestion panel.");
+      vscode12.window.showErrorMessage("Failed to open suggestion panel.");
       return;
     }
     const userPreferences = await getUserPreferences(context);
@@ -6424,33 +6434,33 @@ function registerShowSuggestion(context) {
 }
 
 // src/commands/aiPreferences.ts
-var vscode12 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 function registerSetAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.setAIPreferences",
     (documentUri) => setUserPreferences(context, documentUri)
   );
 }
 function registerShowAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.showAIPreferences",
     () => showUserPreferences(context)
   );
 }
 function registerClearAIPreferences(context) {
-  return vscode12.commands.registerCommand(
+  return vscode13.commands.registerCommand(
     "extension.clearAIPreferences",
     (documentUri) => clearUserPreferences(context, documentUri)
   );
 }
 
 // src/commands/changeOllamaModel.ts
-var vscode13 = __toESM(require("vscode"));
+var vscode14 = __toESM(require("vscode"));
 var CMD_CHANGE_MODEL = "extension.changeOllamaModel";
 var CMD_SHOW_SUGGESTION = "extension.showSuggestion";
 var DEFAULT_API = "http://localhost:11434/api/generate";
 function registerChangeOllamaModel(context) {
-  return vscode13.commands.registerCommand(
+  return vscode14.commands.registerCommand(
     CMD_CHANGE_MODEL,
     async (documentUri) => {
       try {
@@ -6464,12 +6474,12 @@ function registerChangeOllamaModel(context) {
           return;
         }
         await setCurrentModel(context, model);
-        vscode13.window.showInformationMessage(`Ollama model set to: ${model}`);
+        vscode14.window.showInformationMessage(`Ollama model set to: ${model}`);
         if (documentUri) {
           await promptAndShowSuggestion(documentUri);
         }
       } catch (err) {
-        vscode13.window.showErrorMessage(
+        vscode14.window.showErrorMessage(
           `Failed to change Ollama model: ${err?.message ?? String(err)}`
         );
       }
@@ -6477,25 +6487,25 @@ function registerChangeOllamaModel(context) {
   );
 }
 async function promptAndShowSuggestion(documentUri) {
-  const go = await vscode13.window.showInformationMessage(
+  const go = await vscode14.window.showInformationMessage(
     `Run "Show Suggestion" now with the new model?`,
     "Yes",
     "No"
   );
   if (go === "Yes") {
-    const doc = await vscode13.workspace.openTextDocument(
-      vscode13.Uri.parse(documentUri)
+    const doc = await vscode14.workspace.openTextDocument(
+      vscode14.Uri.parse(documentUri)
     );
-    await vscode13.window.showTextDocument(doc, {
+    await vscode14.window.showTextDocument(doc, {
       preserveFocus: false,
-      viewColumn: vscode13.ViewColumn.One
+      viewColumn: vscode14.ViewColumn.One
     });
-    await vscode13.commands.executeCommand(CMD_SHOW_SUGGESTION);
+    await vscode14.commands.executeCommand(CMD_SHOW_SUGGESTION);
   }
 }
 async function pickEndpoint(context) {
   const current = getCurrentApi(context) || DEFAULT_API;
-  const choice = await vscode13.window.showQuickPick(
+  const choice = await vscode14.window.showQuickPick(
     [
       { label: "Use current endpoint", description: current, value: current },
       {
@@ -6509,7 +6519,7 @@ async function pickEndpoint(context) {
     return;
   }
   if (!choice.value) {
-    const entered = await vscode13.window.showInputBox({
+    const entered = await vscode14.window.showInputBox({
       prompt: "Ollama Generate API endpoint",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Endpoint is required"
@@ -6531,7 +6541,7 @@ async function pickModel(context) {
       description: "Type any local Ollama model tag"
     }
   ];
-  const picked = await vscode13.window.showQuickPick(items, {
+  const picked = await vscode14.window.showQuickPick(items, {
     placeHolder: models.length ? `Select model (current: ${current})` : `No models found. Enter a custom model (current: ${current}).`,
     matchOnDescription: true
   });
@@ -6539,7 +6549,7 @@ async function pickModel(context) {
     return;
   }
   if (!picked.value) {
-    const manual = await vscode13.window.showInputBox({
+    const manual = await vscode14.window.showInputBox({
       prompt: "Enter the Ollama model tag",
       value: current,
       validateInput: (v) => v.trim() ? void 0 : "Model is required"
@@ -6550,16 +6560,16 @@ async function pickModel(context) {
 }
 
 // src/commands/showShadowHistory.ts
-var vscode14 = __toESM(require("vscode"));
+var vscode15 = __toESM(require("vscode"));
 var path2 = __toESM(require("node:path"));
 function relPosix(from, abs) {
   return path2.relative(from, abs).split(path2.sep).join("/");
 }
 function registerShowShadowHistory(context) {
-  return vscode14.commands.registerCommand("extension.showShadowHistory", async () => {
-    const editor = vscode14.window.activeTextEditor;
+  return vscode15.commands.registerCommand("extension.showShadowHistory", async () => {
+    const editor = vscode15.window.activeTextEditor;
     if (!editor) {
-      vscode14.window.showWarningMessage("No active editor.");
+      vscode15.window.showWarningMessage("No active editor.");
       return;
     }
     const docUri = editor.document.uri;
@@ -6580,10 +6590,10 @@ function registerShowShadowHistory(context) {
       ]);
       const lines = log.split(/\r?\n/).filter(Boolean);
       if (!lines.length) {
-        vscode14.window.showInformationMessage("No shadow commits for this file yet.");
+        vscode15.window.showInformationMessage("No shadow commits for this file yet.");
         return;
       }
-      const pick2 = await vscode14.window.showQuickPick(
+      const pick2 = await vscode15.window.showQuickPick(
         lines.map((line) => ({ label: line, description: relativePath })),
         { placeHolder: "Select a commit to view details" }
       );
@@ -6604,28 +6614,28 @@ function registerShowShadowHistory(context) {
         "--",
         relativePath
       ]);
-      const doc = await vscode14.workspace.openTextDocument({
+      const doc = await vscode15.workspace.openTextDocument({
         content: detail,
         language: "diff"
       });
-      await vscode14.window.showTextDocument(doc, {
+      await vscode15.window.showTextDocument(doc, {
         preview: true,
-        viewColumn: vscode14.ViewColumn.Beside
+        viewColumn: vscode15.ViewColumn.Beside
       });
     } catch (e) {
-      vscode14.window.showErrorMessage(`Shadow history error: ${e?.message ?? e}`);
+      vscode15.window.showErrorMessage(`Shadow history error: ${e?.message ?? e}`);
     }
   });
 }
 
 // src/commands/clearShadowHistory.ts
-var vscode15 = __toESM(require("vscode"));
+var vscode16 = __toESM(require("vscode"));
 async function deleteUri(uri) {
-  await vscode15.workspace.fs.delete(uri, { recursive: true, useTrash: true });
+  await vscode16.workspace.fs.delete(uri, { recursive: true, useTrash: true });
 }
 function registerClearShadowHistory(context) {
-  return vscode15.commands.registerCommand("extension.clearShadowHistory", async () => {
-    const pick2 = await vscode15.window.showQuickPick(
+  return vscode16.commands.registerCommand("extension.clearShadowHistory", async () => {
+    const pick2 = await vscode16.window.showQuickPick(
       [
         { label: "Clear current workspace shadow Git history", action: "current" },
         { label: "Clear ALL shadow Git histories", action: "all" },
@@ -6638,21 +6648,21 @@ function registerClearShadowHistory(context) {
     }
     try {
       if (pick2.action === "current") {
-        const editor = vscode15.window.activeTextEditor;
+        const editor = vscode16.window.activeTextEditor;
         if (!editor) {
-          vscode15.window.showWarningMessage("No active editor.");
+          vscode16.window.showWarningMessage("No active editor.");
           return;
         }
         const activeUri = editor.document.uri;
         const workTree = getWorkspaceRootForUri(activeUri);
         if (!workTree) {
-          vscode15.window.showWarningMessage("No workspace folder found.");
+          vscode16.window.showWarningMessage("No workspace folder found.");
           return;
         }
         const slug = slugWorkTree(workTree);
-        const shadowDir = vscode15.Uri.joinPath(context.globalStorageUri, "shadow", slug);
+        const shadowDir = vscode16.Uri.joinPath(context.globalStorageUri, "shadow", slug);
         const lastKey = `${LAST_COMMIT_PREFIX_KEY}.${slug}`;
-        const confirm = await vscode15.window.showWarningMessage(
+        const confirm = await vscode16.window.showWarningMessage(
           `Delete shadow history for this workspace?
 ${shadowDir.fsPath}`,
           { modal: true },
@@ -6663,10 +6673,10 @@ ${shadowDir.fsPath}`,
         }
         await deleteUri(shadowDir);
         await context.globalState.update(lastKey, void 0);
-        vscode15.window.showInformationMessage("Shadow history cleared for current workspace.");
+        vscode16.window.showInformationMessage("Shadow history cleared for current workspace.");
       } else if (pick2.action === "all") {
-        const root = vscode15.Uri.joinPath(context.globalStorageUri, "shadow");
-        const confirm = await vscode15.window.showWarningMessage(
+        const root = vscode16.Uri.joinPath(context.globalStorageUri, "shadow");
+        const confirm = await vscode16.window.showWarningMessage(
           `Delete ALL shadow histories?
 ${root.fsPath}`,
           { modal: true },
@@ -6677,10 +6687,10 @@ ${root.fsPath}`,
         }
         await deleteUri(root);
         await context.globalState.update("ai.shadow.lastCommit", void 0);
-        vscode15.window.showInformationMessage("All shadow histories cleared.");
+        vscode16.window.showInformationMessage("All shadow histories cleared.");
       }
     } catch (e) {
-      vscode15.window.showErrorMessage(`Failed to clear shadow history: ${e?.message ?? e}`);
+      vscode16.window.showErrorMessage(`Failed to clear shadow history: ${e?.message ?? e}`);
     }
   });
 }

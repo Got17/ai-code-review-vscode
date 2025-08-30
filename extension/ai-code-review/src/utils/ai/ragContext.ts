@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { createRequire } from "node:module";
+import { getTransformers, FeatureExtractionPipeline } from "./transformersEnv";
 
 const requireCJS = createRequire(__filename);
 
@@ -30,13 +31,6 @@ export type MetaRec = {
     title: string 
 };
 type Meta = MetaRec[];
-
-export type FeatureExtractionPipeline = (
-    x: string | string[],
-    options?: { pooling?: "mean" | "none"; normalize?: boolean }
-) => Promise<any>;
-
-type TransformersMode = "bootstrap" | "local";
 
 type Tensor = { dims?: number[]; data: Float32Array };
 
@@ -148,26 +142,6 @@ async function hasLocalModel(context: vscode.ExtensionContext): Promise<boolean>
         ([name, type]) => type === vscode.FileType.File && name.toLowerCase().endsWith(".onnx")
     );
     return hasOnnx;
-}
-
-async function getTransformers(
-    context: vscode.ExtensionContext,
-    mode: TransformersMode
-): Promise<{
-    module: any,
-    pipeline: (task: string, model: string) => Promise<FeatureExtractionPipeline>
-}> {
-    const module: any = await import("@huggingface/transformers");
-    const modelsDir = vscode.Uri.joinPath(context.extensionUri, MODELS_DIR).fsPath;
-
-    module.env.localModelPath = modelsDir;
-    module.env.cacheDir = modelsDir;
-    module.env.allowRemoteModels = (mode === "bootstrap");
-
-    return {
-        module,
-        pipeline: module.pipeline as any,
-    };
 }
 
 // Download the embedding model into <ext>/models/... (one-time).
