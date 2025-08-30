@@ -63,7 +63,7 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 
 ## Settings
 
-All settings live under **WS Code Review**:
+All settings live under **WS Code Review** (Workspace Settings):
 
 * `wsCodeReview.git.enable` (boolean, default `false`)
   Snapshot accepted suggestions into a **Shadow Git** repo (separate from your real repo).
