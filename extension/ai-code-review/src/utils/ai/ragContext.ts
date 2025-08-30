@@ -331,6 +331,11 @@ export async function getRagContext(
     queryText: string,
     topK: number = DEFAULT_TOP_K
 ): Promise<string> {
+    const ragEnabled = vscode.workspace.getConfiguration('wsCodeReview').get<boolean>('rag.enable', false);
+    if (!ragEnabled) {
+        return "";
+    }
+
     try {
         // Ensure model exists locally; if not, offer a one-time download
         const modelOk = await ensureLocalModel(context);

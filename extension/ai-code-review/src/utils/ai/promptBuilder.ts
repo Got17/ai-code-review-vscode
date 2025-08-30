@@ -61,7 +61,7 @@ ${userPreferences || 'No preferences set.'}
 	);
 
 	let finalPrompt = baseTemplate;
-	const useRag = vscode.workspace.getConfiguration().get<boolean>('wsCodeReview.rag.enable', false);
+	const useRag = vscode.workspace.getConfiguration('wsCodeReview').get<boolean>('rag.enable', false);
 
 	if (useRag) {
 		try {
