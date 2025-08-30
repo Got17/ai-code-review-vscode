@@ -25,7 +25,6 @@ from sentence_transformers import SentenceTransformer
 # ------------------------------- CONFIG ------------------------------------ #
 
 FOLDERS: List[str] = [
-    "rag-knowledge-base/fsharp",
     "rag-knowledge-base/websharper",
 ]
 

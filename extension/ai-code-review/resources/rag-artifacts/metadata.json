@@ -259,343 +259,349 @@
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-0",
-    "text": "---\ntitle: WebSharper Interface Generator\n---\n\nThe WebSharper Interface Generator (WIG) is a tool (build task) for generating\nWebSharper bindings to JavaScript libraries.  Bindings allow\ndevelopers to access these libraries from typed F# code that gets\ncompiled to JavaScript by WebSharper.  While it is possible to create\nbindings manually, WIG allows to write the binding definitions in F#,\nmaking full use of the language to streamline repetitive tasks.\n\nSimply put, WIG takes an F# value\nrepresenting a set of classes, interfaces, and members together with\ntheir documentation and mappings to JavaScript, and generates a\nbinding assembly from that definition.  The binding is a .NET assembly\ncontaining the generated types and method stubs annotated with raw\nJavaScript code using the `Inline` custom attribute.",
+    "text": "# WebSharper Interface Generator\nThe WebSharper Interface Generator (WIG) is a tool (build task) for generating WebSharper bindings to JavaScript libraries. Bindings allow developers to access these libraries from typed F# code that gets compiled to JavaScript by WebSharper. While it is possible to create bindings manually, WIG allows to write the binding definitions in F#, making full use of the language to streamline repetitive tasks.\n\nSimply put, WIG takes an F# value representing a set of classes, interfaces, and members together with their documentation and mappings to JavaScript, and generates a binding assembly from that definition. The binding is a .NET assembly containing the generated types and method stubs annotated with raw JavaScript code using the `Inline` custom attribute.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-1",
-    "text": "## Getting Started\nWIG is included with the WebSharper installer.\nTo create a new project select the \"Extension\" template from WebSharper templates.\nThis project file contains the line required for the WIG build task to run in `wsconfig.json`.\n\n    \"project\": \"binding\"\n\nYou get a small example in the `Main.fs` file, which ends in this:\n\n    [<Sealed>]\n    type Extension() =\n        interface IExtension with\n            member ext.Assembly =\n                Definition.Assembly\n\n    [<assembly: Extension(typeof<Extension>)>]\n    do ()\n\nThis exposes the value defined by `Definition.Assembly` to the WIG compiler.\nThe library that you write is used just as a generator for this value,\nany other code that it has will have no effect on the final assembly produced by the\nWIG build task.",
+    "text": "## Getting Started\nWIG is included with the WebSharper installer. To create a new project select the \"Extension\" template from WebSharper templates. This project file contains the line required for the WIG build task to run in `wsconfig.json`.\n\n    \"project\": \"binding\"    \n\nYou get a small example in the `Main.fs` file, which ends in this:\n\n```fsharp\n[<Sealed>]\ntype Extension() =\n    interface IExtension with\n        member ext.Assembly =\n            Definition.Assembly\n\n[<assembly: Extension(typeof<Extension>)>]\ndo ()\n```    \n\nThis exposes the value defined by `Definition.Assembly` to the WIG compiler. The library that you write is used just as a generator for this value, any other code that it has will have no effect on the final assembly produced by the WIG build task.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-2",
-    "text": "## Constructing Types\nDefining classes, interfaces and member signatures requires an\nabstraction for types.  Types are represented as\n`WebSharper.InterfaceGenerator.Type.IType` values.\nThese values can describe both types from other assemblies (external) or\ntype definitions in current WIG project.",
+    "text": "## Constructing Types\nDefining classes, interfaces and member signatures requires an abstraction for types. Types are represented as `WebSharper.InterfaceGenerator.Type.IType` values. These values can describe both types from other assemblies (external) or type definitions in current WIG project.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-3",
-    "text": "### Immutability and Identity\nAdding members or attributes to a type declaration is mutable and returns the\ntype declaration for chaining.\nHowever, all operators and helper functions work non-desctructively on member,\nattribute, and resource definitions.\nThis allows mutual recursion between types:\n\n    let A = Class \"A\"\n    let B = Class \"B\"\n\n    A |+> Instance [\n        \"getB\" => T<unit> ^-> B\n    ] |> ignore // \"GetB\" method was addded to method list of A\n\n    B |+> Instance [\n        \"getA\" => T<unit> ^-> A\n    ] |> ignore // \"GetA\" method was addded to method list of B\n\nExample for immutability of members:\n\n    let GetCount = Method \"getCount\" (T<unit> ^-> T<int>)\n    let GetCountObs = GetCount |> Obsolete\n\n    A |+> Instance [ GetCount ]\n    |> ignore // A will have \"GetCount\" without the Obsolete attribute\n\n    B |+> Instance [ GetCountObs ]\n    |> ignore // B will have \"GetCount\" with the Obsolete attribute",
+    "text": "### Immutability and Identity\nAdding members or attributes to a type declaration is mutable and returns the type declaration for chaining. However, all operators and helper functions work non-desctructively on member, attribute and resource definitions. This allows mutual recursion between types:\n\n```fsharp\nlet A = Class \"A\"\nlet B = Class \"B\"\n\nA |+> Instance [\n    \"getB\" => T<unit> ^-> B\n] |> ignore // \"GetB\" method was addded to method list of A\n\nB |+> Instance [\n    \"getA\" => T<unit> ^-> A\n] |> ignore // \"GetA\" method was addded to method list of B\n```\n\nExample for immutability of members:\n\n```fsharp\nlet GetCount = Method \"getCount\" (T<unit> ^-> T<int>)\nlet GetCountObs = GetCount |> Obsolete\n\nA |+> Instance [ GetCount ]\n|> ignore // A will have \"GetCount\" without the Obsolete attribute\n\nB |+> Instance [ GetCountObs ]\n|> ignore // B will have \"GetCount\" with the Obsolete attribute\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-4",
-    "text": "### Operator Reference\n| Function           | Operator   | Description                                                           |\n|--------------------|------------|-----------------------------------------------------------------------|\n| `Method`           | `=>`       | Defines a method from name and signature                              |\n| `Property`         | `=@`       | Defines a property with a getter and setter                           |\n| `Getter`           | `=?`       | Defines a read-only property                                          |\n| `Setter`           | `=!`       | Defines a write-only property                                         |\n|                    | `?`        | Defines a named parameter                                             |\n|                    | `^->`      | Defines a function type                                               |\n|                    | `-*`       | Defines the type of the `this` parameter on a function                |\n|                    | `*+`       | Defines the `rest` parameter (ParamArray in .NET)                     |\n| `Type.ArrayOf`     | `!&#124;`  | Defines an array type from its element type                           |\n|                    | `!+`       | Defines `arguments` parameter (single ParamArray in .NET)             |\n|                    | `!?`       | Defines an optional parameter, property or return type                |\n|                    | `*`        | Defines a tuple type or joins parameters                              |\n|                    | `+`        | Defines an overloaded parameter or a `Choice` property or return type |\n|                    | `&#124;=>` | Copies type definition identifier or applies attributes               |\n|                    | `&#124;+>` | Adds members",
+    "text": "### Operator Reference\n| **Function**     | **Operator** | **Description**                                                      |\n|------------------|--------------|----------------------------------------------------------------------|\n| `Method`         | `=>`         | Defines a method from name and signature                            |\n| `Property`       | `=@`         | Defines a property with a getter and setter                         |\n| `Getter`         | `=?`         | Defines a read-only property                                        |\n| `Setter`         | `=!`         | Defines a write-only property                                       |\n| —                | `?`          | Defines a named parameter                                           |\n| —                | `^->`        | Defines a function type                                             |\n| —                | `-*`         | Defines the type of the `this` parameter on a function              |\n| —                | `*+`         | Defines the `rest` parameter (ParamArray in .NET)                   |\n| `Type.ArrayOf`   | `!\\|`         | Defines an array type from its element type                         |\n| —                | `!+`         | Defines `arguments` parameter (single ParamArray in .NET)           |\n| —                | `!?`         | Defines an optional parameter, property or return type              |\n| —                | `*`          | Defines a tuple type or joins parameters                            |\n| —                | `+`          | Defines an overloaded parameter or a `Choice` property/return type |\n| —                | `\\|=>`        | Copies type definition identifier or applies attributes             |\n| —                | `\\|+>`        | Adds members to a type definition",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-5",
-    "text": "to a type definition                                     |",
+    "text": "### Side cases\n*   When defining tuples, `*` expands the tuple if the left hand argument is already a tuple. If you want to define the type `(A * B) * C`, you must use `Type.Tuple [ A * B; C ]`.\n    \n*   When defining functions like `A * B ^-> C`, the tuple on the left hand side is automatically converted to a `Type.Parameters` which creates multiple arguments from the tuple elements. If you want to describe a JavaScript function that do take a single 2-length array as argument, you must convert it to a single parameter explicitly: `(A * B).Parameter ^-> C`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-6",
-    "text": "### Side cases\n* When defining tuples, `*` expands the tuple if the left hand argument is already a tuple.\nIf you want to define the type `(A * B) * C`, you must use `Type.Tuple [ A * B; C ]`.\n\n* When defining functions like `A * B ^-> C`, the tuple on the left hand side is\nautomatically converted to a `Type.Parameters` which creates multiple arguments\nfrom the tuple elements.\nIf you want to describe a JavaScript function that do take a single 2-length array\nas argument, you must convert it to a single parameter explicitly:\n`(A * B).Parameter ^-> C`.",
+    "text": "### External Types\nExternal types can be defined by using the `T` type function, for example `T<int>`, `<int>`, `T<list<string>>`, `<list<string>>`, `T<MyOtherLibrary.SomeType>`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-7",
-    "text": "### External Types\nExternal types can be defined by using the `T` type function, for example\n`T<int>`, `<int>`, `T<list<string>>`, `<list<string>>`, `T<MyOtherLibrary.SomeType>`.",
+    "text": "### Type Combinators\nSimpler types can be combined to form more complex types, including arrays, tuples, function types, and generic instantiations.\n\n```fsharp\nType.ArrayOf T<int>\n    // array, equivalent to T<int[]>\n    // alternate syntax: !| T<int>\n\nT<int> * T<float> * T<string>\n    // tuple, equivalent to T<int * float * string>\n    // alternate syntax: Type.Tuple [T<int>; T<float>; T<string>]\n\nT<int> ^-> T<unit>\n    // function, equivalent to T<int -> unit>\n\nT<System.Collections.Generic.Dictionary<_,_>>.[T<int>, MyTypeDef]\n    // adding type parameters to a generic type\n    // compile-time error if number of parameters do not match\n```    \n\nIn addition, delegate types can be formed. WebSharper treats delegate types specially: their are compiled to JavaScript functions accepting the first argument through the implicit `this` parameter. For example when this can be helpful, consider following JavaScript function:\n\n```fsharp\nfunction iterate(callback, array) {\n    for (var i = 0; i < array.length; i++) {\n        callback.call(array[i], i);\n    }\n}\n```    \n\nTo bind this function to WebSharper one needs to provide a type for the `callback` parameter, which is a function called with an element of the array passed through the `this` implicit parameter and the array index passed through the first parameter. This can be achieved thus:\n\n```fsharp\nlet callbackType = T<obj> -* T<int> ^-> T<unit>\nlet iterateType  = callbackType * Type.ArrayOf T<obj> ^-> T<unit>\n```\n\nThe type of the callback is then compiled to a delegate type in F#, `Func<obj,int,unit>`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-8",
-    "text": "### Type Combinators\nSimpler types can be combined to form more complex types, including\narrays, tuples, function types, and generic instantiations.\n\n    Type.ArrayOf T<int>\n        // array, equivalent to T<int[]>\n        // alternate syntax: !| T<int>\n\n    T<int> * T<float> * T<string>\n        // tuple, equivalent to T<int * float * string>\n        // alternate syntax: Type.Tuple [T<int>; T<float>; T<string>]\n\n    T<int> ^-> T<unit>\n        // function, equivalent to T<int -> unit>\n\n    T<System.Collections.Generic.Dictionary<_,_>>.[T<int>, MyTypeDef]\n        // adding type parameters to a generic type\n        // compile-time error if number of parameters do not match\n\nIn addition, delegate types can be formed.  WebSharper treats delegate\ntypes specially: their are compiled to JavaScript functions accepting\nthe first argument through the implicit `this` parameter. For example\nwhen this can be helpful, consider following JavaScript function:\n\n    function iterate(callback, array) {\n        for (var i = 0; i < array.length; i++) {\n            callback.call(array[i], i);\n        }\n    }\n\nTo bind this function to WebSharper one needs to provide a type for\nthe `callback` parameter, which is a function called with an element\nof the array passed through the `this` implicit parameter and the\narray index passed through the first parameter.  This can be achieved\nthus:\n\n    let callbackType = T<obj> -* T<int> ^-> T<unit>\n    let iterateType  = callbackType * Type.ArrayOf T<obj> ^-> T<unit>\n\nThe type of the callback is then compiled to a delegate type in F#,\n`Func<obj,int,unit>`.",
+    "text": "### Self Placeholder\nThe `TSelf` type value will be evaluated to the type the defined member is added to. This allows creating a member, list of members or `ClassMembers` value (list of members marked with `Instance` or `Static`) and reuse it by adding it to multiple type declarations.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-9",
-    "text": "### Self Placeholder\nThe `TSelf` type value will be evaluated to the type the defined member is added to.\nThis allows creating a member, list of members or `ClassMembers` value (list of members\nmarked with `Instance` or `Static`) and reuse it by adding it to multiple type declarations.",
+    "text": "## Defining Members\nThe primary use of type values is the definition of member signatures, methods, constructors, properties and fields.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-10",
-    "text": "## Defining Members\nThe primary use of type values is the definition of member signatures,\nmethods, constructors, properties and fields.",
+    "text": "### Methods\nMethod representations are constructed using the `Method` (short form: `=>`) combinator that takes the name of the method and the corresponding functional type. Some examples:\n\n```fsharp\nlet methods =\n    [\n        Method \"dispose\" T<unit -> unit>\n        Method \"increment\" (T<int> ^-> T<int>)\n        \"add\" => T<int> * T<int> ^-> T<int>\n    ]\n```    \n\nVoid return types and empty parameter lists are indicated by the `unit` type, multiple parameters are indicated by tuple types. It is an error to define a method with a non-functional type.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-11",
-    "text": "### Methods\nMethod representations are constructed using the `Method` (short form:\n`=>`) combinator that takes the name of the method and the\ncorresponding functional type.  Some examples:\n\n    let methods =\n        [\n            Method \"dispose\" T<unit -> unit>\n            Method \"increment\" (T<int> ^-> T<int>)\n            \"add\" => T<int> * T<int> ^-> T<int>\n        ]\n\nVoid return types and empty parameter lists are indicated by the\n`unit` type, multiple parameters are indicated by tuple types.  It is\nan error to define a method with a non-functional type.",
+    "text": "### Parameter Names\nBy default, method parameters get autogenerated names. You can customize parameter names as follows:\n\n```fsharp\nlet methods =\n    [\n        Method \"dispose\" (T<unit>?object ^-> T<unit>)\n        Method \"increment\" (T<int>?value ^-> T<int>)\n        \"add\" => T<int>?x * T<int>?y ^-> T<int>\n    ]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-12",
-    "text": "### Parameter Names\nBy default, method parameters get autogenerated names.  You can\ncustomize parameter names as follows:\n\n    let methods =\n        [\n            Method \"dispose\" (T<unit>?object ^-> T<unit>)\n            Method \"increment\" (T<int>?value ^-> T<int>)\n            \"add\" => T<int>?x * T<int>?y ^-> T<int>\n        ]",
+    "text": "### Variable-Argument Signatures\nF# supports variable-argument methods via the `System.ParamArrayAttribute` annotation. WebSharper understands this annotation and compiles such methods and delegates to variable-argument accepting functions in JavaScript. Here is the syntax to define a variable-argument signature:\n\n```fsharp\nlet methods =\n    [\n        \"t1\" => !+ T<obj> ^-> T<unit>\n        \"t2\" => T<string> *+ T<obj> ^-> T<unit>\n    ]\n```\n\nWhen compiled to F#, these methods will have the following signatures:\n\n```fsharp\nval t1 : ([<System.ParamArray>] args: obj []) -> unit\nval t2 : string * ([<System.ParamArray>] args: obj []) -> unit\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-13",
-    "text": "### Variable-Argument Signatures\nF# supports variable-argument methods via the\n`System.ParamArrayAttribute` annotation. WebSharper understands this\nannotation and compiles such methods and delegates to\nvariable-argument accepting functions in JavaScript.  Here is the\nsyntax to define a variable-argument signature:\n\n    let methods =\n        [\n            \"t1\" => !+ T<obj> ^-> T<unit>\n            \"t2\" => T<string> *+ T<obj> ^-> T<unit>\n        ]\n\nWhen compiled to F#, these methods will have the following signatures:\n\n    val t1 : ([<System.ParamArray>] args: obj []) -> unit\n    val t2 : string * ([<System.ParamArray>] args: obj []) -> unit",
+    "text": "### Optional Parameters\nParameters can be made optional:\n\n```fsharp\nMethod \"exit\" (!? T<string>?reason ^-> T<unit>)\n```\n\nSignatures such as the one above generate multiple members by implicit overloading (see below).",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-14",
-    "text": "### Optional Parameters\nParameters can be made optional:\n\n    Method \"exit\" (!? T<string>?reason ^-> T<unit>)\n\nSignatures such as the one above generate multiple members by implicit\noverloading (see below).",
+    "text": "### Implicit Overloads\nType unions facilitate describing JavaScript methods that accept arguments of either-or types. Type unions are implemented by implicit overloading of generated members. For example:\n\n```fsharp\n\"add\" => (T<int> + T<string>) * (T<obj> + T<string>) ^-> T<unit>\n```   \n\nThis method can accept either `string` or an `int` as the first argument, and either an `obj` value or a `string` as the second. Four overloads are generated for this signature.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-15",
-    "text": "### Implicit Overloads\nType unions facilitate describing JavaScript methods that accept\narguments of either-or types.  Type unions are implemented by implicit\noverloading of generated members.  For example:\n\n    \"add\" => (T<int> + T<string>) * (T<obj> + T<string>) ^-> T<unit>\n\nThis method can accept either `string` or an `int` as the first\nargument, and either an `obj` value or a `string` as the second.  Four\noverloads are generated for this signature.",
+    "text": "### Properties\nProperties can be generated with a getter, a setter or both. Below are the full and abbreviated syntax forms:\n\n```fsharp\nlet properties =\n    [\n        Getter \"ReadOnly\" T<int>\n        Setter \"WriteOnly\" T<int>\n        Property \"Mutable\" T<int>\n    ]\n\nlet shorthand =\n    [\n        \"ReadOnly\"  =? T<int>\n        \"WriteOnly\" =! T<int>\n        \"Mutable\"   =@ T<int>\n    ]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-16",
-    "text": "### Properties\nProperties can be generated with a getter, a setter or both.  Below\nare the full and abbreviated syntax forms:\n\n    let properties =\n        [\n            Getter \"ReadOnly\" T<int>\n            Setter \"WriteOnly\" T<int>\n            Property \"Mutable\" T<int>\n        ]\n\n    let shorthand =\n        [\n            \"ReadOnly\"  =? T<int>\n            \"WriteOnly\" =! T<int>\n            \"Mutable\"   =@ T<int>\n        ]",
+    "text": "#### Indexed properties\nProperties can have indexers. `\"\" =@ T<string> |> Indexed T<int>` creates an indexed property where `x.[n] : string` translates to `x[n]`. If the property name is not empty: `\"Lines\" =@ T<string> |> Indexed T<int>` creates an indexed property where `x.Lines.[n]` translates to `x.Lines[n]`.\n\nIf you define a custom inline, use `$index` to refer to the index parameter.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-17",
-    "text": "#### Indexed properties\nProperties can have indexers. `\"\" =@ T<string> |> Indexed T<int>` creates\nan indexed property where `x.[n] : string` translates to `x[n]`.\nIf the property name is not empty:\n`\"Lines\" =@ T<string> |> Indexed T<int>` creates an indexed property where\n`x.Lines.[n]` translates to `x.Lines[n]`.\n\nIf you define a custom inline, use `$index` to refer to the index parameter.",
+    "text": "### Constructors\nConstructors definitions are similar to methods but do not carry a return type. Examples:\n\n```fsharp\nlet constructors =\n    [\n        Constructor T<unit>\n        Constructor (T<int>?width * T<int>?height)\n    ]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-18",
-    "text": "### Constructors\nConstructors definitions are similar to methods but do not carry a\nreturn type.  Examples:\n\n    let constructors =\n        [\n            Constructor T<unit>\n            Constructor (T<int>?width * T<int>?height)\n        ]",
+    "text": "#### JavaScript Object Expression\n`ObjectConstructor (T<int>?x * T<int>?y)` defines a .NET constructor with JavaScript inline `{ x = $x, y = $y }`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-19",
-    "text": "#### JavaScript Object Expression\n`ObjectConstructor (T<int>?x * T<int>?y)` defines a .NET constructor with\nJavaScript inline `{ x = $x, y = $y }`.",
+    "text": "### Interfaces\nInterfaces are defined using the `Interface` keyword and then extended with members.\n\n```fsharp\nInterface \"IAccessible\"\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-20",
-    "text": "### Interfaces\nInterfaces are defined using the `Interface` keyword and then extended\nwith members.\n\n    Interface \"IAccessible\"",
+    "text": "### Member Definitions\nMember definitions are appended using the `|+>` combinator, for example:\n\n```fsharp\nInterface \"IAccessible\"\n|+> [\n    \"Access\" => T<unit->unit>\n    \"LastAccessTime\" =? T<System.DateTime>\n]\n```\n\nInterface definitions take a `list<CodeModel.IInterfaceMember>`. Class definitions take a `CodeModel.ClassMembers` value, which can be constructed from a `list<CodeModel.IClassMember>` using the `Instance` and `Static` functions.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-21",
-    "text": "### Member Definitions\nMember definitions are appended using the `|+>` combinator, for\nexample:\n\n    Interface \"IAccessible\"\n    |+> [\n        \"Access\" => T<unit->unit>\n        \"LastAccessTime\" =? T<System.DateTime>\n    ]\n\nInterface definitions take a `list<CodeModel.IInterfaceMember>`.\nClass definitions take a `CodeModel.ClassMembers` value, which can be\nconstructed from a `list<CodeModel.IClassMember>` using the `Instance`\nand `Static` functions.",
+    "text": "### Inheritance\nInterfaces can inherit or extend multiple other interfaces. The syntax is as follows:\n\n```fsharp\nInterface \"IAccessible\"\n|=> Extends [T<System.IComparable>; T<System.IEnumerable<int>>]\n|+> [\n    \"Access\"         => T<unit->unit>\n    \"LastAccessTime\" =? T<System.DateTime>\n]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-22",
-    "text": "### Inheritance\nInterfaces can inherit or extend multiple other interfaces.  The\nsyntax is as follows:\n\n    Interface \"IAccessible\"\n    |=> Extends [T<System.IComparable>; T<System.IEnumerable<int>>]\n    |+> [\n        \"Access\"         => T<unit->unit>\n        \"LastAccessTime\" =? T<System.DateTime>\n    ]",
+    "text": "### Classes\nClass definition is very similar to interface definition. It starts with the `Class` keyword:\n\n```fsharp\nlet Pear =\n    Class \"Pear\"\n    |+> Static [\n        \"Create\" => T<unit> ^-> TSelf\n    ]\n    |+> Instance [\n        \"Eat\"     => T<unit->unit>\n        \"IsEaten\" =? T<bool>\n    ]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-23",
-    "text": "### Classes\nClass definition is very similar to interface definition.  It starts\nwith the `Class` keyword:\n\n    let Pear =\n        Class \"Pear\"\n        |+> Static [\n            \"Create\" => T<unit> ^-> TSelf\n        ]\n        |+> Instance [\n            \"Eat\"     => T<unit->unit>\n            \"IsEaten\" =? T<bool>\n        ]",
+    "text": "### Class Inheritance\nThe syntax for class inheritance is as follows:\n\n```fsharp\nClass \"ChildClass\"\n|=> Inherits BaseClass\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-24",
-    "text": "### Class Inheritance\nThe syntax for class inheritance is as follows:\n\n    Class \"ChildClass\"\n    |=> Inherits BaseClass",
+    "text": "### Interface Implementation\nThe syntax for interface implementation is as follows:\n\n```fsharp\nClass \"MyClass\"\n|=> Implements [T<System.IComparable>]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-25",
-    "text": "### Interface Implementation\nThe syntax for interface implementation is as follows:\n\n    Class \"MyClass\"\n    |=> Implements [T<System.IComparable>]",
+    "text": "### Nested Classes\nClass nesting is allowed:\n\n```fsharp\nClass \"MyClass\"\n|=> Nested [\n    Class \"SubClass\"\n]\n```",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-26",
-    "text": "### Nested Classes\nClass nesting is allowed:\n\n    Class \"MyClass\"\n    |=> Nested [\n        Class \"SubClass\"\n    ]",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-27",
     "text": "### Generics",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-27",
+    "text": "#### Generic Types\nGeneric types and interfaces are defined by prefixing the definition with the code of the form `Generic --- fun t1 t2 t3 ->`. The `t1..t3` parameters can be used as types in the definition and represent the generic parameters. The length of the operator should be equal to the number of parameters (up to 4).\n\nFor example:\n\n```fsharp\nGeneric -- fun t1 t2 ->\n    Interface \"IDictionary\"\n    |+> [\n        \"Lookup\"      => t1 ^-> t2\n        \"ContainsKey\" => t1 ^-> T<bool>\n        \"Add\"         => t1 * t2 ^-> T<unit>\n        \"Remove\"      => t1 ^-> T<unit>\n    ]\n```\n\nThis compiles to the following signature:\n\n```fsharp\ntype IDictionary<'T1,'T2> =\n    abstract member Lookup : 'T1 -> 'T2\n    abstract member ContainsKey : 'T1 -> bool\n    abstract member Add : 'T1 * 'T2 -> unit\n    abstract member Remove : 'T1 -> unit\n```    \n\nThis syntax can produce up to 4 type parameters. To have more, the `Generic -` helper can be nested, or use `GenericN n - fun [t1; t2; .. tN] ->`. Although this gives an incomplete pattern match warning, there will be no runtime errors if the matching the list for the provided length `n`.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-28",
-    "text": "#### Generic Types\nGeneric types and interfaces are defined by prefixing the definition\nwith the code of the form `Generic --- fun t1 t2 t3 ->`. The\n`t1..t3` parameters can be used as types in the definition and\nrepresent the generic parameters. The length of the operator should\nbe equal to the number of parameters (up to 4).\n\nFor example:\n\n    Generic -- fun t1 t2 ->\n        Interface \"IDictionary\"\n        |+> [\n            \"Lookup\"      => t1 ^-> t2\n            \"ContainsKey\" => t1 ^-> T<bool>\n            \"Add\"         => t1 * t2 ^-> T<unit>\n            \"Remove\"      => t1 ^-> T<unit>\n        ]\n\nThis compiles to the following signature:\n\n    type IDictionary<'T1,'T2> =\n        abstract member Lookup : 'T1 -> 'T2\n        abstract member ContainsKey : 'T1 -> bool\n        abstract member Add : 'T1 * 'T2 -> unit\n        abstract member Remove : 'T1 -> unit\n\nThis syntax can produce up to 4 type parameters.\nTo have more, the `Generic -` helper can be nested, or\nuse `GenericN n - fun [t1; t2; .. tN] ->`.\nAlthough this gives an incomplete pattern match warning, there will be no\nruntime errors if the matching the list for the provided length `n`.",
+    "text": "#### Generic Methods\nSimilarly, generic methods are generated using lambda expressions, for example:\n\n```fsharp\nGeneric - fun t ->\n    \"length\" => T<list<_>>.[t] ^-> T<int>\n```\n\nThis code would generate the following F# signature:\n\n```fsharp\nval Length<'T> : list<'T> -> int\n```\n\nYou can use `Generic %` to add the same generics to a list of members, `Generic *` to add the same generics to a `ClassMembers` value. Also `Generic + [\"a\"; \"b\"; ...] --- ...` specifies the names of the type parameters.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-29",
-    "text": "#### Generic Methods\nSimilarly, generic methods are generated using lambda expressions, for example:\n\n    Generic - fun t ->\n        \"length\" => T<list<_>>.[t] ^-> T<int>\n\nThis code would generate the following F# signature:\n\n    val Length<'T> : list<'T> -> int\n\nYou can use `Generic %` to add the same generics to a list of members,\n`Generic *` to add the same generics to a `ClassMembers` value.\nAlso `Generic + [\"a\"; \"b\"; ...] --- ...` specifies the names of the type parameters.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-30",
     "text": "#### Type Constraints\nYou can now set type constraints on parameters using `p.Constraints <- [...]` inside the lambda passed to `Generic -`. Previous `WithConstraints` helper is removed as we want to have all helper functions named `With...` to be non-destructive.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-31",
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-30",
     "text": "## Modifiers",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-32",
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-31",
     "text": "### Documentation Comments\nDocumentation comments can be added using the `WithComment` function.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-32",
+    "text": "## Customizing JavaScript\nBy default, inline JavaScript definitions are inferred for all methods and properties from their names. This is intuitive and convenient but not fully general. Therefore it is possible to bypass the inferred inlines and customize the generated bindings.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-33",
-    "text": "## Customizing JavaScript\nBy default, inline JavaScript definitions are inferred for all methods\nand properties from their names.  This is intuitive and convenient but\nnot fully general. Therefore it is possible to bypass the inferred\ninlines and customize the generated bindings.",
+    "text": "### Default Inline Generation\nDefault bindings are name-based. For example, a static function called `foo` with three arguments on a class called `Bar`, produces the JavaScript inline `Bar.foo($0,$1,$2)`.\n\nGenerated .NET names are automatically capitalized, so that this function is accessible as `Bar.Foo` from F#.\n\nQualified names can be used on classes that are accessible in JavaScript with a qualified name, for example:\n\n```fsharp\nClass \"geometry.Point\"\n```\n\nThis generates a .NET class `Point` which binds all static members as `geometry.Point.foo()` in JavaScript.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-34",
-    "text": "### Default Inline Generation\nDefault bindings are name-based.  For example, a static function\ncalled `foo` with three arguments on a class called `Bar`, produces\nthe JavaScript inline `Bar.foo($0,$1,$2)`.\n\nGenerated .NET names are automatically capitalized, so that this\nfunction is accessible as `Bar.Foo` from F#.\n\nQualified names can be used on classes that are accessible in\nJavaScript with a qualified name, for example:\n\n    Class \"geometry.Point\"\n\nThis generates a .NET class `Point` which binds all static members as\n`geometry.Point.foo()` in JavaScript.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-35",
-    "text": "### Importing from a JS module\nUse the `Import` helper to mark a type or member as a named import from a module.\nYou can use `$import` in inlines to refer to the imported value to further customize its use.\n\nThe `ImportDefault` helper is an alias for `Import \"default\"`, and will use the default export of the module.\n\nThe `ImportFile` helper marks a file as a sideeffecting import, for including resources like css.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-36",
     "text": "### Inline Transformations",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-35",
+    "text": "#### Functions\nThe `FSharpFunc<'TArg, 'TRes>` type (which is used for lambdas by the F# compiler) always take one parameter (which can be a tuple). In WebSharper translation, these become JavaScript functions taking a single fixed-length array (although curried functions only used in local scope are optimized). However, it is often required that we pass functions defined in F# to a JavaScript library (for example event handlers, callbacks, functional-style libraries). WIG automatically converts between these function calling conventions.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-36",
+    "text": "#### Erased unions\nUnion types (for example `T<int> + T<string>`) can create method overloads, but also `Union` typed properties or method return types when the cases can be distinguished in JavaScript using the `typeof`, `Array.isArray` and the `arr.length` functions. In F# this means either at most one array case or possibly multiple tuple cases with all different length, at most one number type (including `DateTime` and `TimeSpan`, which are proxied as a Number), `string`, `bool`, and at most one other object type. If there are cases which can't be separated, the type will default to `obj`.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-37",
-    "text": "#### Functions\nThe `FSharpFunc<'TArg, 'TRes>` type (which is used for lambdas by the F# compiler)\nalways take one parameter (which can be a tuple).\nIn WebSharper translation, these become JavaScript functions taking a single\nfixed-length array (although curried functions only used in local scope are optimized).\nHowever, it is often required that we pass functions defined in F# to a JavaScript\nlibrary (for example event handlers, callbacks, functional-style libraries).\nWIG automatically converts between these function calling conventions.",
+    "text": "#### Option\nBy using the `!?` operator on the type of a property, it will be an option type in F# which is converted to and from an existing or missing field on a JavaScript object. On method returns, undefined is converted to `None`, all other values (including `null`) to `Some ...`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-38",
-    "text": "#### Erased unions\nUnion types (for example `T<int> + T<string>`) can create method overloads,\nbut also `Union` typed properties or method return types when the cases can be\ndistinguished in JavaScript using the `typeof`, `Array.isArray` and the\n`arr.length` functions.\nIn F# this means either at most one array case or possibly multiple tuple cases\nwith all different length, at most one number type (including `DateTime` and\n`TimeSpan`, which are proxied as a Number), `string`, `bool`, and at most one other\nobject type.\nIf there are cases which can't be separated, the type will default to `obj`.",
+    "text": "#### Custom Inline Transformations\nYou can add a custom defined inline transformation with the `WithInterop` helper. This takes a record with an `In` and an `Out` field, both `string -> string`. For example:\n\n```fsharp\nlet Index =\n    T<int> |> WithInterop {\n        In  = fun s -> s + \" - 1\"\n        Out = fun s -> s + \" + 1\"\n    }\n```\n\nUse this `Type.Type` value instead of `T<int>` in your member declarations where you want to handle an index as 1-based in your code, but pass it to and get it from a 0-based value in a JavaScript library. On method parameters and property setters the `In` function will be used on the parameter or property value in the automatic inline. On method return values and property getters the `Out` function will be used on the whole inline of the method or property getter.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-39",
-    "text": "#### Option\nBy using the `!?` operator on the type of a property, it will be an option\ntype in F# which is converted to and from an existing or missing field on a\nJavaScript object.\nOn method returns, undefined is converted to `None`, all other values\n(including `null`) to `Some ...`.",
+    "text": "#### Erasing Inline Transformations\nUse the `WithNoInterop` helper to clean any automatic and custom inline transformations from a `Type.Type` value.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-40",
-    "text": "#### Custom Inline Transformations\nYou can add a custom defined inline transformation with the `WithInterop` helper.\nThis takes a record with an `In` and an `Out` field, both `string -> string`.\nFor example:\n\n    let Index =\n        T<int> |> WithInterop {\n            In  = fun s -> s + \" - 1\"\n            Out = fun s -> s + \" + 1\"\n        }\n\nUse this `Type.Type` value instead of `T<int>` in your member\ndeclarations where you want to handle an index as 1-based in your code,\nbut pass it to and get it from a 0-based value in a JavaScript library.\nOn method parameters and property setters the `In` function will be used on the\nparameter or property value in the automatic inline. On method return values and\nproperty getters the `Out` function will be used on the whole inline of the\nmethod or property getter.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-41",
-    "text": "#### Erasing Inline Transformations\nUse the `WithNoInterop` helper to clean any automatic and custom inline\ntransformations from a `Type.Type` value.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-42",
     "text": "### Customizations",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-41",
+    "text": "#### Custom Names\nThe simplest form of customization allows to decouple the .NET name of a member from the name used by the inline generation process. This is done by the `WithSourceName` function. For example:\n\n```fsharp\n\"ClonePoint\" => Point ^-> Point\n|> WithSourceName \"clone\"\n```    \n\nThis generates a method that is available as `ClonePoint` from .NET but calls `clone` in JavaScript.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-42",
+    "text": "#### Custom Inline Methods\nThe method and constructor inlines can be set explicitly by using `WithInline`.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-43",
-    "text": "#### Custom Names\nThe simplest form of customization allows to decouple the .NET name of\na member from the name used by the inline generation process.  This is\ndone by the `WithSourceName` function.  For example:\n\n    \"ClonePoint\" => Point ^-> Point\n    |> WithSourceName \"clone\"\n\nThis generates a method that is available as `ClonePoint` from .NET\nbut calls `clone` in JavaScript.",
+    "text": "#### Custom Inline Properties\nProperties have separate inlines for the getter and the setter methods. These can be set explicitly by using `WithGetterInline` and `WithSetterInline` respectively.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-44",
-    "text": "#### Custom Inline Methods\nThe method and constructor inlines can be set explicitly by using\n`WithInline`.",
+    "text": "#### Custom Inlines Using Transformations\nTo define a custom inline for a method that still makes use of the default or custom inline transformations on parameters and return value, use the `WithInteropInline` helper. It takes a function typed `(string -> string) -> string`, use the provided function on a parameter name or index to get its transformed inline. For example, defining an `on` event setter with function argument detupling:\n\n```fsharp\n\"onChange\" => (T<int> * T<obj> ^-> T<unit>)?callback ^-> T<unit>\n|> WithInteropInline (fun tr -> \"$this.on('change', \" + tr \"callback\" + \")\")\n```\n    \n\nSimilar helpers exists for property getters and setters: `WithInteropGetterInline` and `WithInteropSetterInline`. For getters, provided function is only usable for transforming `\"index\"` in the case of an indexed property, and for setters transforming `\"value\"` or `\"index\"`.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-45",
-    "text": "#### Custom Inline Properties\nProperties have separate inlines for the getter and the setter\nmethods.  These can be set explicitly by using `WithGetterInline` and\n`WithSetterInline` respectively.",
+    "text": "#### Obsoleted Members and Types\nUse the `Obsolate` helper to mark a type or member definition with `System.ObsoleteAttribute`. `ObsolateWithMessage` also sets a custom warning message.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-46",
-    "text": "#### Custom Inlines Using Transformations\nTo define a custom inline for a method that still makes use of the default or\ncustom inline transformations on parameters and return value, use the\n`WithInteropInline` helper.\nIt takes a function typed `(string -> string) -> string`, use the provided\nfunction on a parameter name or index to get its transformed inline.\nFor example, defining an `on` event setter with function argument detupling:\n\n    \"onChange\" => (T<int> * T<obj> ^-> T<unit>)?callback ^-> T<unit>\n    |> WithInteropInline (fun tr -> \"$this.on('change', \" + tr \"callback\" + \")\"\n\nSimilar helpers exists for property getters and setters:\n`WithInteropGetterInline` and `WithInteropSetterInline`.\nFor getters, provided function is only usable for transforming `\"index\"`\nin the case of an indexed property, and for setters transforming `\"value\"` or `\"index\"`.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-47",
-    "text": "#### Obsoleted Members and Types\nUse the `Obsolate` helper to mark a type or member definition with\n`System.ObsoleteAttribute`.\n`ObsolateWithMessage` also sets a custom warning message.",
-    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
-    "title": "interface generator"
-  },
-  {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-48",
     "text": "#### WebSharper warnings\nUse the `WithWarning` helper to make the compiler emit a specific warning when the type or member is used.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-49",
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-47",
     "text": "#### Pure functions\nUse the `Pure` helper to mark a member definition with `WebSharper.PureAttribute`,\nmeaning the compiler can optimize the call away if the result is unused.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
-    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-50",
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-48",
     "text": "#### TypeScript Type\nUse the `WithTSType` helper to set the TypeScript type of a type.\nThis is by default the same as the JavaScript name (the constructor function name) of the type.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-49",
+    "text": "## Best Practices\nThe benefit of using F# for generating the bindings is that repetitive tasks or patterns can be distributed as functions. Several such patterns are pre-defined in the standard library.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-50",
+    "text": "### Configuration Class Patterns\nThese patterns for constructing member lists are useful for describing JavaScript configuarion objects. Configuration objects typically are simple collections of fields, most of them optional, that are used to describe how another object it to be constructed or operate. Let us take a simple example:\n\n```fsharp\nlet MyConfig : Class =\n    Class \"classname\"\n    |+> Pattern.RequiredFields [\n            \"name\", T<string>\n        ]\n    |+> Pattern.OptionalFields [\n            \"width\", T<int>\n            \"height\", T<int>\n        ]\n```\n\nOR\n\n```fsharp\nlet MyConfig = \n    Pattern.Config \"classname\" {\n        Required = [\n            \"name\", T<string>\n        ]\n        Optional = [\n            \"width\", T<int>\n            \"height\", T<int>\n        ]\n    }\n```\n(`Pattern.Config` does not work with `Inherit`. Please be caution)\n\nThis definition would produce a class useable from F# that would compile to simple JavaScript object literals:\n\n```fsharp\nMyConfig(\"Alpha\", Width=140)\n```\n    \n\nThe `Width` property is write-only, but there is also a `WidthOpt` property generated which allow access to the optional field typed as an F# `option` value.\n\n`Pattern.ObsoleteFields` can be used similarly, to create a list of properties with the `Obsolete` attribute.",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-51",
-    "text": "## Best Practices\nThe benefit of using F# for generating the bindings is that repetitive\ntasks or patterns can be distributed as functions.  Several such\npatterns are pre-defined in the standard library.",
+    "text": "### Enumeration Patterns\nJavaScript functions often accept only a fixed set of constants, such as strings. Typing such parameters with `string` would be misleading to the user. The enumeration pattern allows to generate a type that is limited to a specific set of constants, specified as either inlines or strings literals. See `Pattern.EnumInlines` and `Pattern.EnumStrings`, both of which generate `Class` values.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-52",
-    "text": "### Configuration Class Patterns\nThese patterns for constructing member lists are useful for describing\nJavaScript configuarion objects.\nConfiguration objects typically are simple collections of fields, most\nof them optional, that are used to describe how another object it to\nbe constructed or operate.  Let us take a simple example:\n\n    let MyConfig : Class =\n        Class \"classname\"\n        |+> Pattern.RequiredFields [\n                \"name\", T<string>\n            ]\n        |+> Pattern.OptionalFields [\n                \"width\", T<int>\n                \"height\", T<int>\n            ]\n\nThis definition would produce a class useable from F# that would\ncompile to simple JavaScript object literals:\n\n    MyConfig(\"Alpha\", Width=140)\n\nThe `Width` property is write-only, but there is also a `WidthOpt`\nproperty generated which allow access to the optional field typed as\nan F# `option` value.\n\n`Pattern.ObsoleteFields` can be used similarly, to create a list of\nproperties with the `Obsolete` attribute.",
+    "text": "## Assembly and Namespaces\nYou have to provide the WIG compiler with a single `CodeModel.Assembly` value as described in the \"Getting Started\" section. Construct this with the `Assembly` helper which takes a list of `CodeModel.Namespace` values which can be created with the `Namespace` helper specifying its name and a list of `CodeModel.NamespaceEntity` values. These latter can be type definitions or resource types.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-53",
-    "text": "### Enumeration Patterns\nJavaScript functions often accept only a fixed set of constants, such\nas strings.  Typing such parameters with `string` would be misleading\nto the user.  The enumeration pattern allows to generate a type that\nis limited to a specific set of constants, specified as either inlines\nor strings literals.  See `Pattern.EnumInlines` and\n`Pattern.EnumStrings`, both of which generate `Class` values.",
+    "text": "### Missing Type Definitions\nIf you have a type definition which you refer to but does not get included in a namespace in the assembly definition, when building the library, you will get an error.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-54",
-    "text": "## Assembly and Namespaces\nYou have to provide the WIG compiler with a single `CodeModel.Assembly`\nvalue as described in the \"Getting Started\" section.\nConstruct this with the `Assembly` helper which takes a list of\n`CodeModel.Namespace` values which can be created with the `Namespace` helper\nspecifying its name and a list of `CodeModel.NamespaceEntity` values.\nThese latter can be type definitions or resource types.",
+    "text": "## Resources\nYou can define WebSharper resource classes using the `Resource` function. Pass it to `AssemblyWide` to make the resource loaded if anything from the currently created assembly is used.\n\n```fsharp\nNamespace \"WebSharper.JQuery.Resources\" [\n    Resource \"JQuery\" \"http://code.jquery.com/jquery-1.11.2.min.js\"\n    |> AssemblyWide\n]\n```\n\nUse the `Requires` helper to add a list of defined resources as a dependency to a type definition or another resource definition. Use the `RequiresExternal` to add a list of resource classes from another assembly to a type definition or a resource definition.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-55",
-    "text": "### Missing Type Definitions\nIf you have a type definition which you refer to but does not get included in a\nnamespace in the assembly definition, when building the library, you will get\nan error.",
+    "text": "## Import from JavaScript Module\nWhen working with JavaScript libraries distributed via NPM, WebSharper provides several ways to import these libraries into your F# code. To define a WebSharper import binding, you use specific import functions depending on how the JavaScript library is structured. WebSharper supports the following import mechanisms:\n\n- **`ImportDefault`** – Imports the default export from a JavaScript module.\n- **`Import`** – Imports a named export from a JavaScript module.\n- **`ImportFile`** – Attaches a specific external file (e.g., a CSS or JS file) to a method. This ensures the file is included when the method is invoked.  \n  **Note**: `ImportFile` only works when applied to methods.",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
   {
     "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-56",
-    "text": "## Resources\nYou can define WebSharper resource classes using the `Resource` function.\nPass it to `AssemblyWide` to make the resource loaded if anything from the\ncurrently created assembly is used.\n\n    Namespace \"WebSharper.JQuery.Resources\" [\n        Resource \"JQuery\" \"http://code.jquery.com/jquery-1.11.2.min.js\"\n        |> AssemblyWide\n    ]\n\nUse the `Requires` helper to add a list of defined resources as a dependency to a\ntype definition or another resource definition.\nUse the `RequiresExternal` to add a list of resource classes from another assembly\nto a type definition or a resource definition.",
+    "text": "### Example\n```fsharp\nlet MyImportJS =\n    Class \"classname\"\n    |> Import \"exportName\" \"axios\" // Imports a specific named export from the 'axios' NPM package\n    |+> Instance [\n        \"style\" => T<unit> ^-> T<unit>\n        |> ImportFile \"./dist/style.css\" // Includes this file when 'style' is called\n    ]\n```",
+    "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
+    "title": "interface generator"
+  },
+  {
+    "id": "rag-knowledge-base\\websharper\\core\\interface-generator.md::chunk-57",
+    "text": "### Explanation\n- `Class \"classname\"`: Declares a new class for the binding.\n- `Import \"exportName\" \"axios\"`: Imports the `exportName` member from the `axios` package.\n- `\"style\"` method: A function with no parameters returning `unit`, enhanced with `ImportFile` to include a CSS file when the method is used.\n\nThis structure enables WebSharper to integrate cleanly with external JavaScript modules and their resources, such as stylesheets or scripts, providing type-safe bindings and modular loading.\n\n---",
     "source": "rag-knowledge-base\\websharper\\core\\interface-generator.md",
     "title": "interface generator"
   },
