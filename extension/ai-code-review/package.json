@@ -17,8 +17,19 @@
   "engines": {
     "vscode": "^1.99.0"
   },
-  "categories": ["Programming Languages", "Linters", "AI"],
-  "keywords": ["F#", "WebSharper", "Ollama", "AI", "code review", "offline"],
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "AI"
+  ],
+  "keywords": [
+    "F#",
+    "WebSharper",
+    "Ollama",
+    "AI",
+    "code review",
+    "offline"
+  ],
   "activationEvents": [
     "onLanguage:fsharp"
   ],
@@ -52,7 +63,6 @@
           "type": "boolean",
           "default": false,
           "description": "Use RAG to enrich reviews with built-in references packaged in the extension. If unavailable on your machine, it's skipped automatically."
-
         }
       }
     },
@@ -111,6 +121,7 @@
     "@typescript-eslint/parser": "^8.28.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.6.0",
     "esbuild": "^0.25.1",
     "eslint": "^9.23.0",
     "faiss-node": "^0.5.1",
