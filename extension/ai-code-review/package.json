@@ -1,6 +1,6 @@
 {
-  "name": "ai-code-review",
-  "displayName": "ai-code-review",
+  "name": "ws-code-review",
+  "displayName": "ws-code-review",
   "description": "AI-powered code review for F# and WebSharper",
   "version": "0.0.1",
   "engines": {
@@ -9,9 +9,27 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:fsharp"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
+    "keybindings": [
+      {
+        "command": "extension.showSuggestion",
+        "key": "ctrl+alt+r",
+        "when": "editorLangId == fsharp && editorHasSelection && editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.showSuggestion",
+          "when": "editorLangId == fsharp && editorHasSelection",
+          "group": "navigation@5"
+        }
+      ]
+    },
     "configuration": {
       "title": "WS Code Review",
       "properties": {
