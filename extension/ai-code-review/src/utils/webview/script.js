@@ -9,6 +9,7 @@ const stopButton = document.getElementById('stop-button');
 const refreshButton = document.getElementById('refresh-button');
 
 const modelSelect = document.getElementById('model-select');
+const ragPill = document.getElementById('rag-pill');
 
 const jumpToLatestBtn = document.getElementById('jump-to-latest');
 
@@ -24,7 +25,8 @@ let jsCurrentDocumentUri = null;
 let jsUserPreferences = null;
 let jsCurrentModel = null;
 let jsAiExplanation = null;
-let jsApplyMode = 'full';   
+let jsApplyMode = 'full';
+let jsRagEnabled = false;
 
 let autoScrollEnabled = true;
 const BOTTOM_THRESH_PX = 30;
@@ -243,6 +245,15 @@ function renderPreferenceSection() {
     streamingResponseArea.append(card);
 }
 
+function renderRagPill() {
+    if (!ragPill) {
+        return;
+    }
+    ragPill.textContent = `RAG: ${jsRagEnabled ? 'ON' : 'OFF'}`;
+    ragPill.classList.toggle('pill-on',  jsRagEnabled);
+    ragPill.classList.toggle('pill-off', !jsRagEnabled);
+}
+
 function ensurePlainPre() {
     if (!plainPreEl) {
         plainPreEl = document.createElement('pre');
@@ -284,11 +295,19 @@ window.addEventListener('message', event => {
             jsUserPreferences = message.userPreferences;
             jsCurrentModel = message.currentModel || 'N/A';
             jsApplyMode = message.applyMode || 'full';
+            jsRagEnabled = !!message.ragEnabled;
+            renderRagPill();
 
             stopButton.disabled = false;
             refreshButton.disabled = true;
 
             vscode.postMessage(buildMessagePayload('requestModels'));
+            break;
+
+        case 'ragStatus':
+            jsRagEnabled = !!message.enabled;
+            renderRagPill();
+            refreshButton.disabled = false;
             break;
 
         case 'modelsList':
@@ -429,3 +448,9 @@ modelSelect.addEventListener('change', () => {
     jsCurrentModel = selectedModelValue;
     vscode.postMessage({ ...buildMessagePayload('setModelDirect'), model: selectedModelValue });
 });
+
+if (ragPill) {
+    ragPill.addEventListener('click', () => {
+        vscode.postMessage(buildMessagePayload('toggleRag'));
+    });
+}

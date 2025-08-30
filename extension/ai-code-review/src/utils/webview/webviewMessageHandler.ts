@@ -81,7 +81,27 @@ export function handleWebviewMessage(
                         }
 
                         await vscode.commands.executeCommand('extension.showSuggestion');
-                        break;                    
+                        break;   
+                        
+                    case 'toggleRag':
+                        try {
+                            const cfg = vscode.workspace.getConfiguration('wsCodeReview');
+                            const cur = cfg.get<boolean>('rag.enable', false);
+                            const next = !cur;
+
+                            try {
+                                await cfg.update('rag.enable', next, vscode.ConfigurationTarget.Workspace);
+                            } catch {
+                            // fallback if no workspace
+                                await cfg.update('rag.enable', next, vscode.ConfigurationTarget.Global);
+                            }
+
+                            panelInstance.webview.postMessage({ command: 'ragStatus', enabled: next });
+                            vscode.window.setStatusBarMessage(`RAG ${next ? 'enabled' : 'disabled'}`, 3000);
+                        } catch (e: any) {
+                            vscode.window.showErrorMessage(`Failed to toggle RAG: ${e?.message ?? e}`);
+                        }
+                        break;
                     
                     default:
                         console.warn(`Unhandled command received from webview: ${message.command}`);

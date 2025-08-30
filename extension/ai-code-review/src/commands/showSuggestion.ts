@@ -66,6 +66,9 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         const userPreferences = await getUserPreferences(context);
         const currentModel = getCurrentModel(context);
 
+        const workspaceConfig = vscode.workspace.getConfiguration('wsCodeReview');
+        const ragEnabled = workspaceConfig.get<boolean>('rag.enable', false);
+
         // Initialize value from extension to webview
         suggestionPanel.webview.postMessage({
             command: 'init',
@@ -78,6 +81,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             userPreferences,
             currentModel,
             applyMode,
+            ragEnabled
         });
 
         let accumulatedResponse = '';

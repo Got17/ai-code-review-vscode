@@ -232,3 +232,39 @@ button:disabled {
     font-size: .9em;
     opacity: .8;
 }
+/* --- RAG status pill --- */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: 0 .6rem;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--vscode-editorWidget-border, #444);
+    font-size: .75em;
+    user-select: none;
+    cursor: pointer;
+}
+.pill::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.pill-on {
+    background: var(--vscode-badge-background, #2d2d2d);
+    color: var(--vscode-badge-foreground, #ddd);
+}
+.pill-on::before {
+    /* green dot */
+    background: var(--vscode-testing-iconPassed, #3fb950);
+}
+.pill-off {
+    background: transparent;
+    color: var(--vscode-descriptionForeground, #999);
+    opacity: .9;
+}
+.pill-off::before {
+    /* red dot */
+    background: var(--vscode-errorForeground, #f85149);
+}
