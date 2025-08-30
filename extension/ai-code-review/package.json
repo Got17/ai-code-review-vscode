@@ -13,14 +13,14 @@
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
-      "title": "AI Code Review",
+      "title": "WS Code Review",
       "properties": {
-        "aiCodeReview.git.enable": {
+        "wsCodeReview.git.enable": {
           "type": "boolean",
           "default": false,
           "description": "When enabled, accepted suggestions are snapshot-committed into a private shadow Git repo (keeps user repo untouched)."
         },
-        "aiCodeReview.rag.enable": {
+        "wsCodeReview.rag.enable": {
           "type": "boolean",
           "default": false,
           "description": "Use local RAG context (requires faiss-node + a local embedding model)."
@@ -30,31 +30,31 @@
     "commands": [
       {
         "command": "extension.clearShadowHistory",
-        "title": "AI Code Review: Clear Shadow Git History"
+        "title": "WS Code Review: Clear Shadow Git History"
       },
       { 
         "command": "extension.showShadowHistory", 
-        "title": "AI Code Review: Show Shadow Git History (Current File)" 
+        "title": "WS Code Review: Show Shadow Git History (Current File)" 
       },
       {
         "command": "extension.showSuggestion",
-        "title": "AI Code Review: Show suggestion"
+        "title": "WS Code Review: Show suggestion"
       },
       {
         "command": "extension.changeOllamaModel",
-        "title": "AI Code Review: Change Ollama Model"
+        "title": "WS Code Review: Change Ollama Model"
       },
       {
         "command": "extension.setAIPreferences",
-        "title": "AI Code Review: Set AI Preferences"
+        "title": "WS Code Review: Set AI Preferences"
       },
       {
         "command": "extension.showAIPreferences",
-        "title": "AI Code Review: Show AI Preferences"
+        "title": "WS Code Review: Show AI Preferences"
       },
       {
         "command": "extension.clearAIPreferences",
-        "title": "AI Code Review: Clear AI Preferences"
+        "title": "WS Code Review: Clear AI Preferences"
       }
     ]
   },

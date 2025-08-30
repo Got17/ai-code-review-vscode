@@ -125,7 +125,7 @@ async function handleAccept(
     }
 
     const docUri = vscode.Uri.parse(message.documentUri);
-    const workspaceConfig = vscode.workspace.getConfiguration('aiCodeReview');
+    const workspaceConfig = vscode.workspace.getConfiguration('wsCodeReview');
     const enableShadow = workspaceConfig.get<boolean>('git.enable', false);
 
     try {

@@ -25,7 +25,7 @@ export async function showSuggestionWebview(
 
 	const newPanel = vscode.window.createWebviewPanel(
 		'aiSuggestionPanel',
-		'AI Code Review Suggestion for WebSharper',
+		'WS Code Review',
 		vscode.ViewColumn.Beside,
 		{
 			enableScripts: true,

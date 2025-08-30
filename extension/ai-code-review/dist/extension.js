@@ -1490,7 +1490,7 @@ ${surroundingCode}
     applyMode
   );
   let finalPrompt = baseTemplate;
-  const useRag = vscode6.workspace.getConfiguration().get("aiCodeReview.rag.enable", false);
+  const useRag = vscode6.workspace.getConfiguration().get("wsCodeReview.rag.enable", false);
   if (useRag) {
     try {
       const { getRagContext: getRagContext2 } = await Promise.resolve().then(() => (init_ragContext(), ragContext_exports));
@@ -1544,7 +1544,7 @@ ${reminder}
 // src/utils/ui/outputChannel.ts
 var vscode7 = __toESM(require("vscode"));
 function showOutput(fileName, response) {
-  const outputChannel = vscode7.window.createOutputChannel("AI Code Review");
+  const outputChannel = vscode7.window.createOutputChannel("WS Code Review");
   outputChannel.clear();
   outputChannel.appendLine(`File: ${fileName || "Unknown"}`);
   outputChannel.appendLine(`
@@ -6281,7 +6281,7 @@ async function handleAccept(context, message, originalSelection, panelInstance2)
     return;
   }
   const docUri = vscode10.Uri.parse(message.documentUri);
-  const workspaceConfig = vscode10.workspace.getConfiguration("aiCodeReview");
+  const workspaceConfig = vscode10.workspace.getConfiguration("wsCodeReview");
   const enableShadow = workspaceConfig.get("git.enable", false);
   try {
     let doc = await vscode10.workspace.openTextDocument(docUri);
@@ -6324,7 +6324,7 @@ async function showSuggestionWebview(_initialResponsePlaceholder, context, fileN
   }
   const newPanel = vscode11.window.createWebviewPanel(
     "aiSuggestionPanel",
-    "AI Code Review Suggestion for WebSharper",
+    "WS Code Review",
     vscode11.ViewColumn.Beside,
     {
       enableScripts: true,
