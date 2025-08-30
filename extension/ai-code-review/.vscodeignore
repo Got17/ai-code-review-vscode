@@ -1,7 +1,6 @@
 .vscode/**
 .vscode-test/**
 out/**
-node_modules/**
 src/**
 .gitignore
 .yarnrc
@@ -12,4 +11,16 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+node_modules/**
+
 models
+resources/models/**
+
+!dist/**
+!resources/** 
+!webview-lib/**
+!README.md
+!CHANGELOG.md
+!LICENSE
+!THIRD_PARTY_NOTICES.md

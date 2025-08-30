@@ -6248,6 +6248,22 @@ function handleWebviewMessage(panelInstance2, context) {
             }
             await vscode10.commands.executeCommand("extension.showSuggestion");
             break;
+          case "toggleRag":
+            try {
+              const cfg = vscode10.workspace.getConfiguration("wsCodeReview");
+              const cur = cfg.get("rag.enable", false);
+              const next = !cur;
+              try {
+                await cfg.update("rag.enable", next, vscode10.ConfigurationTarget.Workspace);
+              } catch {
+                await cfg.update("rag.enable", next, vscode10.ConfigurationTarget.Global);
+              }
+              panelInstance2.webview.postMessage({ command: "ragStatus", enabled: next });
+              vscode10.window.setStatusBarMessage(`RAG ${next ? "enabled" : "disabled"}`, 3e3);
+            } catch (e) {
+              vscode10.window.showErrorMessage(`Failed to toggle RAG: ${e?.message ?? e}`);
+            }
+            break;
           default:
             console.warn(`Unhandled command received from webview: ${message.command}`);
             break;
@@ -6396,6 +6412,8 @@ function registerShowSuggestion(context) {
     }
     const userPreferences = await getUserPreferences(context);
     const currentModel = getCurrentModel(context);
+    const workspaceConfig = vscode12.workspace.getConfiguration("wsCodeReview");
+    const ragEnabled = workspaceConfig.get("rag.enable", false);
     suggestionPanel.webview.postMessage({
       command: "init",
       wholeFileContent,
@@ -6406,7 +6424,8 @@ function registerShowSuggestion(context) {
       documentUri: document2.uri?.toString() || null,
       userPreferences,
       currentModel,
-      applyMode
+      applyMode,
+      ragEnabled
     });
     let accumulatedResponse = "";
     let hadStreamError = false;
