@@ -12,11 +12,31 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 * **Shadow Git**: accepted suggestions are snapshot-committed to a private repo (your real repo is untouched).
 * **Model switching**: change your Ollama model from the Command Palette.
 * **RAG (toggle)**: when enabled, reviews are enriched with **built-in reference material** bundled with the extension. If RAG isn't available on your machine, it's skipped automatically—normal reviews still work.
+* **RAG status pill (webview)**: the top bar shows **RAG: ON/OFF** — click to toggle, then press **Refresh** to re-run with the new mode.
+
+![RAG status pill](resources/demo/rag-pill.gif)
 
 ## Quick Start
 
 1. Install the extension.
-2. Ensure **Ollama** is running locally (default `localhost:11434`) with a code model (e.g., `qwen2.5-coder:7b-instruct`).
+2. Ensure **Ollama** service is running locally 
+
+   * You can start the service by running the following command in your terminal:
+
+      ```bash
+      ollama serve
+      ```
+
+      By default, Ollama will be available at [http://localhost:11434](http://localhost:11434)
+
+   * To verify it’s running correctly, open the URL in your browser. If you see the message:
+
+      ```text
+      Ollama is running
+      ```
+
+      then the service is up and ready to use.
+
 3. Open an `.fs` file, select code, then:
 
    * Press **Ctrl+Alt+R**, or
@@ -104,3 +124,7 @@ With RAG enabled (context-aware):
 ## License
 
 See [LICENSE](./LICENSE).
+
+## Third-Party Licenses
+
+This project bundles third-party dependencies whose licenses are listed in [THIRD_PARTY_NOTICES.](./THIRD_PARTY_NOTICES.md).
