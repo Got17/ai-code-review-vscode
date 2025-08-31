@@ -3,63 +3,74 @@
 **Offline AI code review for F# and WebSharper.**
 Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Streams diffs, handles large files safely, and snapshots accepted changes into a **private Shadow Git** history. Turn on **RAG** to enrich reviews with **built-in references packaged in the extension**.
 
-![Small file suggestion](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/small-file-suggestion.gif)
+![Small file suggestion](resources/demo/small-file-suggestion.gif)
 
 ## Features
 
 * **Selection-based reviews** with streamed markdown + diff preview.
+* **Default apply scope: whole file**: on typical files, suggestions apply to the **entire file**.
 * **Large file safety**: for big files (≥ 600 lines), the tool automatically switches to **selection-only** edits.
 * **Shadow Git**: accepted suggestions are snapshot-committed to a private repo (your real repo is untouched).
 * **Model switching**: change your Ollama model from the Command Palette.
+* **Preferences**: adjust the AI’s coding style to match your own preferences.
+
+![Preferences](resources/demo/preferences.gif)
+
 * **RAG (toggle)**: when enabled, reviews are enriched with **built-in reference material** bundled with the extension. If RAG isn't available on your machine, it's skipped automatically—normal reviews still work.
 * **RAG status pill (webview)**: the top bar shows **RAG: ON/OFF** — click to toggle, then press **Refresh** to re-run with the new mode.
 
-![RAG status pill](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/rag-pill.gif)
+![RAG status pill](resources/demo/rag-pill.gif)
 
 ## Quick Start
 
 1. Install the extension.
-2. Ensure **Ollama** service is running locally 
 
-   * You can start the service by running the following command in your terminal:
+2. Ensure **Ollama** service is running locally
 
-      ```bash
-      ollama serve
-      ```
+   * Start the service:
 
-      By default, Ollama will be available at [http://localhost:11434](http://localhost:11434)
+     ```bash
+     ollama serve
+     ```
 
-   * To verify it’s running correctly, open the URL in your browser. If you see the message:
+     By default: [http://localhost:11434](http://localhost:11434)
 
-      ```text
-      Ollama is running
-      ```
+   * Verify in your browser: you should see
 
-      then the service is up and ready to use.
+     ```
+     Ollama is running
+     ```
 
-3. Open an `.fs` file, select code, then:
+3. Open an `.fs` file:
 
-   * Press **Ctrl+Alt+R**, or
+   * If you want to scope the change, **select code first**.
+   * Otherwise, the tool will operate on the **whole file** (for non-large files).
+
+4. Run:
+
+   * **Ctrl+Alt+R**, or
    * Right-click → **WS Code Review: Show Suggestion**.
-4. (Optional) Use the **RAG pill** in the top bar to turn RAG **ON/OFF**, then click **Refresh** to re-run.
-5. Review the streamed suggestion → **Accept** to apply (and snapshot if Shadow Git is enabled).
 
-![Model switcher](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/model-switcher.gif)
+5. (Optional) Use the **RAG pill** in the top bar to turn RAG **ON/OFF**, then click **Refresh** to re-run.
+
+6. Review the streamed suggestion → **Accept** to apply (and snapshot if Shadow Git is enabled).
+
+![Model switcher](resources/demo/model-switcher.gif)
 
 ## Commands
 
-| Command                                                    | What it does                                                      |
-| ---------------------------------------------------------- | ----------------------------------------------------------------- |
-| **WS Code Review: Show Suggestion**                        | Runs review on the current selection and shows a streamed diff.   |
-| **WS Code Review: Change Ollama Model**                    | Pick a different local model (e.g., `qwen2.5-coder:7b-instruct`). |
-| **WS Code Review: Set/Show/Clear AI Preferences**          | Manage per-user review preferences.                               |
-| **WS Code Review: Show Shadow Git History (Current File)** | Browse snapshots made by accepted suggestions.                    |
-| **WS Code Review: Clear Shadow Git History**               | Purge the private snapshot repo.                                  |
+| Command                                                    | What it does                                                                                                          |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **WS Code Review: Show Suggestion**                        | Runs review on the current selection or **whole file** (if no selection & file not large), and shows a streamed diff. |
+| **WS Code Review: Change Ollama Model**                    | Pick a different local model (e.g., `qwen2.5-coder:7b-instruct`).                                                     |
+| **WS Code Review: Set/Show/Clear AI Preferences**          | Manage your **coding-style preferences** used to steer suggestions.                                                   |
+| **WS Code Review: Show Shadow Git History (Current File)** | Browse snapshots made by accepted suggestions.                                                                        |
+| **WS Code Review: Clear Shadow Git History**               | Purge the private snapshot repo.                                                                                      |
 
 **Editor context menu:** shows on right-click in F# when you have a selection.
 **Keybinding:** `Ctrl+Alt+R` (only in F# with selection).
 
-![Shadow history](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/shadow-history.gif)
+![Shadow history](resources/demo/shadow-history.gif)
 
 ## Settings
 
@@ -71,10 +82,13 @@ All settings live under **WS Code Review** (Workspace Settings):
 * `wsCodeReview.rag.enable` (boolean, default `false`)
   Enrich reviews using **built-in references packaged with the extension**. You can toggle this in Settings **or** directly via the webview's **RAG ON/OFF pill**. If RAG is unavailable, it's skipped automatically.
 
+## Preferences (coding style)
+
+Use the **Set/Show/Clear AI Preferences** commands to tailor suggestions to your style—naming, formatting choices, typical WebSharper idioms, and other reviewer hints. Preferences are applied each time you run **Show Suggestion**.
 
 ## RAG: Why enable it?
 
-When **RAG is on**, the assistant receives concise, relevant **built-in reference context** before reviewing the selection. This often yields:
+When **RAG is on**, the assistant receives concise, relevant **built-in reference context** before reviewing the selection or file. This often yields:
 
 * **More project-aware suggestions** (naming, idioms, WebSharper patterns).
 * **Fewer generic rewrites**; more precise, domain-specific changes.
@@ -82,16 +96,16 @@ When **RAG is on**, the assistant receives concise, relevant **built-in referenc
 **Comparison (example):**
 
 Without RAG (generic):
-![RAG off](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/rag-off.png)
+![RAG off](resources/demo/rag-off.png)
 
 With RAG enabled (context-aware):
-![RAG on](https://github.com/Got17/ai-code-review-vscode/raw/HEAD/resources/demo/rag-on.png)
+![RAG on](resources/demo/rag-on.png)
 
 > If RAG cannot run in your environment, reviews continue normally without it.
 
 ## How it works (high level)
 
-1. Collects **selection + file info** → builds a **concise review prompt**.
+1. Collects **selection + file info** (or the whole file when no selection on non-large files) → builds a **concise review prompt**.
 2. Streams the AI response into a **diff view** (line-by-line).
 3. On **Accept**, applies the change. If `wsCodeReview.git.enable=true`, creates a **Shadow Git** snapshot commit.
 
@@ -118,13 +132,18 @@ With RAG enabled (context-aware):
 
 * Selection-based, streamed suggestions for F# + WebSharper.
 * Shadow Git snapshots (optional).
-* Large-file safety (selection-only).
+* **Default whole-file apply** for non-large files; **selection-only** safety for large files (≥ 600 lines).
 * RAG toggle for context-aware reviews.
+* Preferences to tailor the AI’s coding style.
+
+### 0.0.2
+
+* Add Preference demo GIF in README.md
 
 ## License
 
-See [LICENSE](https://github.com/Got17/ai-code-review-vscode/blob/HEAD/LICENSE).
+See [LICENSE](./LICENSE).
 
 ## Third-Party Licenses
 
-This project bundles third-party dependencies whose licenses are listed in [THIRD_PARTY_NOTICES.](https://github.com/Got17/ai-code-review-vscode/blob/HEAD/THIRD_PARTY_NOTICES.md).
+This project bundles third-party dependencies whose licenses are listed in [THIRD\_PARTY\_NOTICES.md](./THIRD_PARTY_NOTICES.md).
