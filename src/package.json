@@ -1,14 +1,10 @@
 {
   "name": "ws-code-review",
   "icon": "resources/icon.png",
-  "galleryBanner": {
-    "color": "#C80000",
-    "theme": "dark"
-  },
   "publisher": "souvanxay",
   "displayName": "WebSharper Code Review",
   "description": "Offline AI code review for F# and WebSharper",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "license": "MIT",
   "repository": {
     "type": "git",
