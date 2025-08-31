@@ -48,9 +48,9 @@ async function getIndex(context: vscode.ExtensionContext): Promise<MiniSearch<Me
     }
 
     const docs = await getDocs(context);
-    const idx = buildIndex(docs);
-    cache.set(key, { ...entry, index: idx });
-    return idx;
+    const docsIndex = buildIndex(docs);
+    cache.set(key, { ...entry, index: docsIndex });
+    return docsIndex;
 }
 
 /** Returns a formatted context block or an empty string if RAG is disabled/unavailable. */
@@ -65,10 +65,9 @@ export async function getRagContext(
     }
 
     try {
-        const idx = await getIndex(context);
+        const contextIndex = await getIndex(context);
 
-        const hits = idx.search(queryText, {
-            // BM25+ (defaults are good); helpful tweaks:
+        const hits = contextIndex.search(queryText, {
             boost: { title: 2 },   // prefer title matches
             prefix: true,          // prefix matching for code tokens
             fuzzy: 0.1,            // small fuzzy tolerance
@@ -80,8 +79,8 @@ export async function getRagContext(
         }
 
         return hits
-        .map(h => `[source: ${h.source} | score: ${h.score.toFixed(3)}]\n${h.text}`)
-        .join('\n\n---\n\n');
+            .map(hit => `[source: ${hit.source} | score: ${hit.score.toFixed(3)}]\n${hit.text}`)
+            .join('\n\n---\n\n');
     } catch (e) {
         console.warn('[RAG] MiniSearch failed:', e);
         return '';
