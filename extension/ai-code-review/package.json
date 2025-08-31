@@ -5,8 +5,8 @@
     "color": "#C80000",
     "theme": "dark"
   },
-  "publisher": "websharper",
-  "displayName": "WS Code Review",
+  "publisher": "Websharper",
+  "displayName": "WebSharper Code Review",
   "description": "Offline AI code review for F# and WebSharper",
   "version": "0.0.1",
   "license": "MIT",

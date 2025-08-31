@@ -1,4 +1,4 @@
-# WS Code Review
+# WebSharper Code Review
 
 **Offline AI code review for F# and WebSharper.**
 Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Streams diffs, handles large files safely, and snapshots accepted changes into a **private Shadow Git** history. Turn on **RAG** to enrich reviews with **built-in references packaged in the extension**.
