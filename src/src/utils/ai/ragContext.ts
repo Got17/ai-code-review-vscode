@@ -67,20 +67,45 @@ export async function getRagContext(
     try {
         const contextIndex = await getIndex(context);
 
-        const hits = contextIndex.search(queryText, {
-            boost: { title: 2 },   // prefer title matches
-            prefix: true,          // prefix matching for code tokens
-            fuzzy: 0.1,            // small fuzzy tolerance
-            combineWith: 'AND',    // all terms should contribute
-        }).slice(0, topK);
+        const searchOptions = {
+            boost: { title: 2 },
+            prefix: true,
+            fuzzy: 0.1 as const,
+        };
+
+        // Precise search (AND)
+        const hitsAND = contextIndex.search(queryText, { ...searchOptions, combineWith: 'AND' });
+        
+        let hits = hitsAND.slice(0, topK);
+
+        // If fewer than k, backfill with OR (looser) and dedupe by id
+        if (hits.length < topK) {
+            const hitsOR = contextIndex.search(queryText, { ...searchOptions, combineWith: 'OR' });
+            const seen = new Set(hits.map(hit => (hit as any).id ?? hit.id));
+
+            for (const hit of hitsOR) {
+                const id = (hit as any).id ?? hit.id;
+
+                if (!seen.has(id)) {
+                    hits.push(hit);
+                    seen.add(id);
+
+                    if (hits.length >= topK) {
+                        break;
+                    }
+                }
+            }
+        }
 
         if (!hits.length) {
             return '';
         }
 
         return hits
-            .map(hit => `[source: ${hit.source} | score: ${hit.score.toFixed(3)}]\n${hit.text}`)
+            .slice(0, topK)
+            .map(h => `[source: ${h.source} | score: ${h.score.toFixed(3)}]\n${h.text}`)
             .join('\n\n---\n\n');
+
     } catch (e) {
         console.warn('[RAG] MiniSearch failed:', e);
         return '';
