@@ -24,12 +24,9 @@ export async function getTransformers(
     const modelsUri = vscode.Uri.joinPath(context.extensionUri, "models");
     await vscode.workspace.fs.createDirectory(modelsUri);
 
-    env.localModelPath = modelsUri;
-    env.cacheDir = modelsUri;
+    env.localModelPath = modelsUri.fsPath;
+    env.cacheDir = modelsUri.fsPath;
     env.allowRemoteModels = (mode === "bootstrap");
 
-    return {
-        env,
-        pipeline: module.pipeline as any,
-    };
+    return { env, pipeline };
 }

@@ -40,7 +40,9 @@ async function main() {
 			'vscode',
 			'onnxruntime-node',
 			'@xenova/onnxruntime-node',
-			'faiss-node'
+			'faiss-node',
+			'@huggingface/transformers',
+			'sharp'
 		],
 		logLevel: 'silent',
 		plugins: [
