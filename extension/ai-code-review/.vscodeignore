@@ -17,6 +17,9 @@ node_modules/**
 models
 resources/models/**
 
+!src/utils/webview/*.html
+!src/utils/webview/*.css
+!src/utils/webview/*.js
 !dist/**
 !resources/** 
 !webview-lib/**
