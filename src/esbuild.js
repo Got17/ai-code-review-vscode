@@ -37,12 +37,7 @@ async function main() {
 		target: 'node18',
 		outfile: 'dist/extension.js',
 		external: [
-			'vscode',
-			'onnxruntime-node',
-			'@xenova/onnxruntime-node',
-			'faiss-node',
-			'@huggingface/transformers',
-			'sharp'
+			'vscode'
 		],
 		logLevel: 'silent',
 		plugins: [

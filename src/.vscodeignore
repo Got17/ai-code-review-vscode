@@ -13,14 +13,6 @@ vsc-extension-quickstart.md
 **/.vscode-test.*
 
 node_modules/**
-!node_modules/@huggingface/**
-!node_modules/onnxruntime-web/**
-!node_modules/onnxruntime-common/**
-!node_modules/onnxruntime-node/**
-!node_modules/detect-libc/**
-!node_modules/sharp/**
-!node_modules/faiss-node/**
-!node_modules/semver/**
 
 models
 resources/models/**
