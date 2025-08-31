@@ -41,8 +41,8 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         const selection = isBig ? expandToWholeLines(document, rawSel) : rawSel;
         const selectedCode = document.getText(selection);
         if (selection.isEmpty || !selectedCode.trim()) {
-        vscode.window.showWarningMessage('Please select some F# code to review.');
-        return;
+            vscode.window.showWarningMessage('Please select some F# code to review.');
+            return;
         }
 
         // Build prompt for AI

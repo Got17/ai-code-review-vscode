@@ -158,7 +158,7 @@ async function downloadModel(context: vscode.ExtensionContext): Promise<boolean>
 
         try {
             // Allow remote fetch just for the bootstrap
-            const { pipeline, module } = await getTransformers(context, "bootstrap");
+            const { pipeline, env } = await getTransformers(context, "bootstrap");
 
             // Trigger download
             const pipe  = await pipeline("feature-extraction", MODEL_ID);
@@ -167,7 +167,7 @@ async function downloadModel(context: vscode.ExtensionContext): Promise<boolean>
             progress.report({ increment: 80 });
 
             // Back to strict local-only for normal runs
-            module.env.allowRemoteModels = false;
+            env.allowRemoteModels = false;
 
             // Verify files exist
             const ok = await hasLocalModel(context);
