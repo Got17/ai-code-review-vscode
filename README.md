@@ -8,11 +8,17 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 ## Features
 
 * **Selection-based reviews** with streamed markdown + diff preview.
-* **Default apply scope: whole file**: on typical files, suggestions apply to the **entire file**.
+* **Default apply scope (whole file)**: on typical files, suggestions apply to the **entire file**.
 * **Large file safety**: for big files (≥ 600 lines), the tool automatically switches to **selection-only** edits.
 * **Shadow Git**: accepted suggestions are snapshot-committed to a private repo (your real repo is untouched).
-* **Model switching**: change your Ollama model from the Command Palette.
-* **Preferences**: adjust the AI’s coding style to match your own preferences.
+
+![Shadow history](resources/demo/shadow-history.gif)
+
+* **Model switching**: change your Ollama model from the Command Palette or on the webview.
+
+![Model switcher](resources/demo/model-switcher.gif)
+
+* **Preferences**: adjust the AI's coding style to match your own preferences.
 
 ![Preferences](resources/demo/preferences.gif)
 
@@ -25,43 +31,50 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 
 1. Install the extension.
 
-2. Ensure **Ollama** service is running locally
+2. Ensure **Ollama** service is running locally.
 
-   * Start the service:
+    * Install **Ollama**:  
+      Download and run the installer from the [official site](https://ollama.com/download).
 
-     ```bash
-     ollama serve
-     ```
+    * Pull the **default model** (recommended):  
+      This extension defaults to **`qwen2.5-coder:7b-instruct`**. Pull it to get started quickly:
+      ```bash
+      ollama pull qwen2.5-coder:7b-instruct
+      ```
 
-     By default: [http://localhost:11434](http://localhost:11434)
+    * Prefer a **different model**?  
+      Pull your chosen model first, then run the Command Palette action:
+      ```
+      WS Code Review: Change Ollama Model
+      ```
+      Select the default endpoint (http://localhost:11434) and enter your model name (exactly as pulled). Do this **before** running **Show Suggestion**.
 
-   * Verify in your browser: you should see
+    * Start the service:
+      ```bash
+      ollama serve
+      ```
+      Default endpoint: http://localhost:11434
 
-     ```
-     Ollama is running
-     ```
+    * Verify in your browser: you should see
+      ```
+      Ollama is running
+      ```
 
-3. Open an `.fs` file:
+3. Activate **Show Suggestion**
+    * **Select the code** you want reviewed.
+    * Run the command:
+      * Press **Ctrl+Alt+R**, or
+      * Right-click → **WS Code Review: Show Suggestion**.
 
-   * If you want to scope the change, **select code first**.
-   * Otherwise, the tool will operate on the **whole file** (for non-large files).
+4. (Optional) Use the **RAG pill** in the top bar to turn RAG **ON/OFF**, then click **Refresh** to re-run.
 
-4. Run:
-
-   * **Ctrl+Alt+R**, or
-   * Right-click → **WS Code Review: Show Suggestion**.
-
-5. (Optional) Use the **RAG pill** in the top bar to turn RAG **ON/OFF**, then click **Refresh** to re-run.
-
-6. Review the streamed suggestion → **Accept** to apply (and snapshot if Shadow Git is enabled).
-
-![Model switcher](resources/demo/model-switcher.gif)
+5. Review the streamed suggestion → **Accept** to apply (and snapshot if Shadow Git is enabled).
 
 ## Commands
 
 | Command                                                    | What it does                                                                                                          |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **WS Code Review: Show Suggestion**                        | Runs review on the current selection or **whole file** (if no selection & file not large), and shows a streamed diff. |
+| **WS Code Review: Show Suggestion**                        | **Requires a selection.** For files **≥ 600 lines**, only the selected region (plus nearby context and relevant `open`/`module` headers) is sent to the AI. For smaller files, the **entire file** is sent. A streamed diff is shown. |
 | **WS Code Review: Change Ollama Model**                    | Pick a different local model (e.g., `qwen2.5-coder:7b-instruct`).                                                     |
 | **WS Code Review: Set/Show/Clear AI Preferences**          | Manage your **coding-style preferences** used to steer suggestions.                                                   |
 | **WS Code Review: Show Shadow Git History (Current File)** | Browse snapshots made by accepted suggestions.                                                                        |
@@ -69,8 +82,6 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 
 **Editor context menu:** shows on right-click in F# when you have a selection.
 **Keybinding:** `Ctrl+Alt+R` (only in F# with selection).
-
-![Shadow history](resources/demo/shadow-history.gif)
 
 ## Settings
 
@@ -105,9 +116,12 @@ With RAG enabled (context-aware):
 
 ## How it works (high level)
 
-1. Collects **selection + file info** (or the whole file when no selection on non-large files) → builds a **concise review prompt**.
+1. Collects your **selection + file info** (selection is required).
+   - For files **≥ 600 lines**: builds the prompt from the **selected region** plus nearby context and relevant `open`/`module` lines.
+   - For smaller files: builds the prompt from the **entire file** (even though a selection is required to trigger the command).
 2. Streams the AI response into a **diff view** (line-by-line).
-3. On **Accept**, applies the change. If `wsCodeReview.git.enable=true`, creates a **Shadow Git** snapshot commit.
+3. On **Accept**, applies the change and (if `wsCodeReview.git.enable=true`) creates a **Shadow Git** snapshot.
+   - **Apply behavior:** files **≥ 600 lines** → **selection-only** apply; smaller files → **whole-file** apply by default.
 
 ## Requirements
 
@@ -122,23 +136,23 @@ With RAG enabled (context-aware):
 
 ## Troubleshooting
 
-* **"Failed to connect to AI"** → Start Ollama; ensure the model is installed and available.
-* **RAG feels the same** → That's fine; for simple snippets, built-in context may not change much.
-* **Shadow history not updating** → Ensure `wsCodeReview.git.enable` is on and you accepted a suggestion.
+* **"Failed to connect to AI"**
 
-## Release Notes
+  * Start the service: `ollama serve`
+  * Verify: open `http://localhost:11434` or `curl http://localhost:11434/api/tags`
+  * Ensure the endpoint/model are set via **Change Ollama Model**
 
-### 0.0.1
+* **Model not found**
 
-* Selection-based, streamed suggestions for F# + WebSharper.
-* Shadow Git snapshots (optional).
-* **Default whole-file apply** for non-large files; **selection-only** safety for large files (≥ 600 lines).
-* RAG toggle for context-aware reviews.
-* Preferences to tailor the AI’s coding style.
+  * Pull the model, e.g.: `ollama pull qwen2.5-coder:7b-instruct`
 
-### 0.0.2
+* **RAG feels the same**
 
-* Add Preference demo GIF in README.md
+  * That's fine; for simple snippets, built-in context may not change much.
+
+* **Shadow history not updating**
+
+  * Ensure `wsCodeReview.git.enable` is on and you **Accepted** a suggestion.
 
 ## License
 
