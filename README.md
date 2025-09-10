@@ -25,8 +25,6 @@ Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Str
 * **RAG (toggle)**: when enabled, reviews are enriched with **built-in reference material** bundled with the extension. If RAG isn't available on your machine, it's skipped automatically—normal reviews still work.
 * **RAG status pill (webview)**: the top bar shows **RAG: ON/OFF** — click to toggle, then press **Refresh** to re-run with the new mode.
 
-![RAG status pill](resources/demo/rag-pill.gif)
-
 ## Quick Start
 
 1. Install the extension.
