@@ -2,3 +2,4 @@
 out/**
 models
 *.vsix
+dist
