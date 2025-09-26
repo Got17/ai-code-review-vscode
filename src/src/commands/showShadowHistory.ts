@@ -17,7 +17,7 @@ export function registerShowShadowHistory(context: vscode.ExtensionContext) {
         const docUri = editor.document.uri;
 
         try {
-            // Open shadow repo bucket for this document’s workspace
+            // Open shadow repo bucket for this document's workspace
             const shadow = await openShadowRepoForDocument(context, docUri);
             const relativePath = relPosix(shadow.workTree, docUri.fsPath);
 
@@ -57,7 +57,8 @@ export function registerShowShadowHistory(context: vscode.ExtensionContext) {
                 viewColumn: vscode.ViewColumn.Beside,
             });
         } catch (e: any) {
-            vscode.window.showErrorMessage(`Shadow history error: ${e?.message ?? e}`);
+            console.error(`Shadow history error: ${e?.message ?? e}`);
+            vscode.window.showErrorMessage(`Shadow history error. Please check if Git is enabled`);
         }
     });
 }
