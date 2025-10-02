@@ -7,3 +7,7 @@ docs/websharper
 temp
 /rag-artifacts/
 /docs/
+.vs
+bin
+obj
+*/wwwroot/Scripts
