@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { AI_API, AI_MODEL } from "../constants";
 import { getCurrentApi, getCurrentModel } from './modelManager';
 
 let activeAbort: AbortController | null = null;

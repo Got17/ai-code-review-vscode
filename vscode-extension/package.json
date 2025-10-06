@@ -4,7 +4,7 @@
   "publisher": "souvanxay",
   "displayName": "WebSharper Code Review",
   "description": "Offline AI code review for F# and WebSharper",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "MIT",
   "repository": {
     "type": "git",

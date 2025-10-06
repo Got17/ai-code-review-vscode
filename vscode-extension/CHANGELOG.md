@@ -1,3 +1,8 @@
+## [0.0.4] – 2025-10-06
+
+- Remove the unused code
+- Improve READM.md
+
 ## [0.0.3] – 2025-08-31
 
 - Remove Gallery Banner

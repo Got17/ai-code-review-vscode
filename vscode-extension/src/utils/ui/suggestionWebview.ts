@@ -5,7 +5,6 @@ import { getPanel, setPanel } from './panelManager';
 import { getUserPreferences } from '../ai';
 
 export async function showSuggestionWebview(
-	_initialResponsePlaceholder: string,
     context: vscode.ExtensionContext,
     fileName: string | undefined,
 ) {	

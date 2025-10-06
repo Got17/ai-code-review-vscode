@@ -55,7 +55,7 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
         );
 
         // Open the suggestion webview panel
-        const suggestionPanel = await showSuggestionWebview('', context, fileName);
+        const suggestionPanel = await showSuggestionWebview(context, fileName);
         if (!suggestionPanel) {
             vscode.window.showErrorMessage('Failed to open suggestion panel.');
             return;

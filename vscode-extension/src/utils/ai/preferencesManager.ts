@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { getPanel } from '../ui';
 
 const PREFERENCES_KEY = 'aiPreferences';
 
