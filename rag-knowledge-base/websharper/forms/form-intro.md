@@ -282,7 +282,6 @@ submit.View.Through firstName
 
 Here is now the complete example, showcasing all the elements described in this tutorial.
 
-F# code
 ```fsharp
 [<JavaScript>]
 module Client =
@@ -386,23 +385,4 @@ module Client =
     let Main () =
         Form
         |> Doc.RunById "main"
-```
-
-`index.html` code
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>forms_example_1</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" type="text/css" href="Content/forms_example_1.css" />
-    <script type="module" src="Content/forms_example_1.head.js"></script>
-</head>
-<body>
-    <div id="main">
-    </div>
-    <script type="module" src="Content/forms_example_1.min.js"></script>
-</body>
-</html>
 ```

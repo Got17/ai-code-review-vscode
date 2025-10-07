@@ -76,9 +76,9 @@ The prebundle created will contain all necessary JavaScript code to run this inc
 Example:
 ```fsharp
 let HomePage ctx =
-    Content.Page(
+    UI.Server.Content.Page(
         Templating.Main ctx EndPoint.Home "Home" [
-            div [] [client (Client.Main())] // the Client.Main() function will be included in the prebundle "home"
+            UI.Html.div [] [UI.ClientServer.client (Client.Main())] // the Client.Main() function will be included in the prebundle "home"
         ], 
         Bundle = "home" // name of the bundle
     )
@@ -89,9 +89,9 @@ This can happen when you use helper functions that invoke client-side content ou
 This is when you can use the `Content.Bundle` and `Content.BundleScope` functions to mark those code pieces as part of a bundle too. For example:
 
 ```fsharp
-    let SidebarWidget () =
-        Content.BundleScopes [| "home"; "about" |]
-            (div [] [ client (Client.SidebarWidget()) ])
+let SidebarWidget () =
+  Sitelets.Content.BundleScopes [| "home"; "about" |]
+    (UI.Html.div [] [ UI.ClientServer.client (Client.SidebarWidget()) ])
 
 ```
 

@@ -2,7 +2,7 @@
 title: Client-side routing
 ---
 
-If you have a `WebSharper.Sitelets.Router<'T>` value, it can be shared between server and client. A router encapsulates two things: parsing a URL path to an abstract value and writing a value as a URL fragment. So this allows generating links safely on both client  When initializing a page on the client side, you can decide to install a custom click handler for your page which recognizes some or all local links to handle without browser navigation.
+If you have a `WebSharper.Sitelets.Router<'T>` value, it can be shared between server and client. A router encapsulates two things: parsing a URL path to an abstract value and writing a value as a URL fragment. So this allows generating links safely on both client and server. When initializing a page on the client side, you can decide to install a custom click handler for your page which recognizes some or all local links to handle without browser navigation.
 
 ### Install client-side routing
 
@@ -31,15 +31,15 @@ Also, you need to make sure that your router value is `[<JavaScript>]` annotated
 Example for `Router.Slice` and `Router.Install`:
 ```fsharp
 let ContactMain() =    
-    let location =
-        rPages |> Router.Slice
-            (function Contact p -> Some p | _ -> None)
-            Contact
-        |> Router.Install ("unknown", 0)
-    location.View.Doc(fun p -> 
-        div [] [ text (sprintf "Contact name:%s, age:%d" p.Name p.Age) ]
-    )
-```
+  let location =
+      rPages |> Router.Slice
+          (function Contact p -> Some p | _ -> None)
+          Contact
+      |> Router.Install ("unknown", 0)
+  location.View.Doc(fun p -> 
+      div [] [ text (sprintf "Contact name:%s, age:%d" p.Name p.Age) ]
+  )
+```s
 Here we only install a click handler for the contact pages, which means that a link to root will be a browser navigation, but links between contacts work fully on the client. The first function argument maps a full page value to an option of a value that we handle, and the second function maps this back to a full page value. So instead of a `Var<Pages>` here we get only a `Var<Person>`.
 
 In a real world application, usually you would have some `View.MapAsync` from the `location` variable, to pull some data related to the subpage from the server by an RPC call, and exposing that as content:
@@ -49,12 +49,95 @@ In a real world application, usually you would have some `View.MapAsync` from th
 let GetContactDetails p = async { ... }
 
 let ContactMain() =    
-    let location = // ...
-    let contactDetails = location.View |> View.MapAsync GetContactDetails
+  let location = // ...
+  let contactDetails = location.View |> View.MapAsync GetContactDetails
     contactDetails.Doc(fun p -> 
-        // show contact details
+      // show contact details
     )
 ```
 
 You can navigate programmatically with `location.Value <- newLoc`, `location |> Var.Set newLoc` or `location := newLoc` (if you have `open WebSharper.UI.Next.Notation`). 
 
+### Sample
+
+This sample demonstrates:
+* Defining a router with `Router.Infer` and an `EndPoint` type.
+* Using `Router.InstallHash` to set up client-side routing.
+* Handling URL changes and rendering different content based on the current route.
+
+```fsharp
+namespace Routing
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Client
+open WebSharper.UI.Html
+open WebSharper.Sitelets
+ 
+[<JavaScript>]
+module Client =
+  // Define the possible routes
+  type EndPoint =
+    | [<EndPoint "">] Home
+    | [<EndPoint "about">] About
+    | [<EndPoint "contact">] Contact
+    | [<EndPoint "notfound">] NotFound
+
+  // Main UI component
+  let Render (router: Router<EndPoint>) (currentRoute: Var<EndPoint>) =
+    // Navigation bar
+    let navBar =
+      div [attr.``class`` "navbar"] [
+        a [attr.href (router.HashLink Home)] [text "Home"]
+        a [attr.href (router.HashLink About)] [text "About"]
+        a [attr.href (router.HashLink Contact)] [text "Contact"]
+      ]
+
+    // Page content based on current route
+    let pageContent =
+      currentRoute.View.Doc (fun route ->
+        match route with
+        | Home ->
+            div [] [
+              h2 [] [text "Welcome to the Home Page"]
+              p [] [text "This is the main page of our SPA."]
+            ]
+        | About ->
+            div [] [
+              h2 [] [text "About Us"]
+              p [] [text "Learn more about our application."]
+              button [
+                  on.click (fun _ _ -> currentRoute.Set Contact)
+              ] [text "Go to Contact"]
+            ]
+        | Contact ->
+            div [] [
+              h2 [] [text "Contact Us"]
+              p [] [text "Get in touch with us!"]
+            ]
+        | NotFound ->
+            div [] [
+              h2 [] [text "404 - Page Not Found"]
+              p [] [text "The page you requested does not exist."]
+            ]
+      )
+
+    // Combine navigation and content
+    div [] [
+      navBar
+      pageContent
+    ]
+
+  [<SPAEntryPoint>]
+  let Main () =
+    let router = Router.Infer<EndPoint>()
+
+    // Install the router, with a fallback if no route matches
+    let currentRoute =
+      router 
+      |> Router.InstallHash NotFound
+
+    Render router currentRoute
+    |> Doc.RunById "main"
+```

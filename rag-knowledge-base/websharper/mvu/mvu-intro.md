@@ -80,25 +80,6 @@ module Counter =
         |> App.Run
         |> Doc.RunById "main"
 ```
-
-`index.html` code
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Counter</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script type="text/javascript" src="Scripts/Counter.head.js"></script>
-</head>
-<body>
-    <div id="main">
-    </div>
-    <script type="module" src="Scripts/Counter.min.js"></script>
-</body>
-</html>
-```
-
 You can iterate on this example to create a list of counters that operate independently, each with its own state:
 
 F# code
@@ -172,25 +153,6 @@ module CountersApp =
         App.CreateSimple initModel Update Render
         |> App.Run
         |> Doc.RunById "main"
-```
-
-`index.html` code
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>CounterList</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script type="text/javascript" src="Scripts/CounterList.head.js"></script>
-</head>
-<body>
-    <div id="main">
-    </div>
-    <script type="module" src="Scripts/CounterList.min.js"></script>
-</body>
-</html> 
 ```
 
 ### Advanced Update functions
@@ -351,57 +313,6 @@ module Client =
         |> App.WithLocalStorage "mvu-tests"
         |> App.Run
         |> Doc.RunById "main"
-```
-
-`index.html` code
-```html
-﻿<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Paging</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.7.0/css/bulma.min.css" />
-    <link rel="stylesheet" type="text/css" href="Scripts/Paging.css" />
-    <style>
-        .hidden {
-            display: none;
-        }
- 
-        .ws-page-container {
-            position: absolute !important;
-            top: 0;
-            bottom: 0;
-            left: 0;
-            right: 0;
-        }
- 
-        .home-page {
-            transition: opacity 0.2s;
-        }
- 
-            .home-page[aria-hidden=true] {
-                opacity: 0;
-                transition: opacity 0.2s, left 0.2s step-end;
-            }
- 
-        .entry-page {
-            transition: left 0.2s;
-            background: white;
-        }
- 
-            .entry-page[aria-hidden=true] {
-                left: 100% !important;
-            }
-    </style>
-    <script type="text/javascript" src="Scripts/Paging.head.js"></script>
-</head>
-<body>
-    <div id="main">
-    </div>
-    <script type="module" src="Scripts/Paging.min.js"></script>
-</body>
-</html>
 ```
 
 Create a paged application by using `App.CreatePaged` or `App.CreateSimplePaged`. They are constrained in only that the `Render` function must return a `Page` value.  

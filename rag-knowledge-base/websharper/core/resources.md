@@ -50,25 +50,23 @@ Here, the `Import` attribute specifies the JavaScript file to import, and the `I
 
 Alternatively, you can use the `WebSharper.JavaScript.JS.Import` family of function to import a JavaScript module and use its exports directly in your code.
 ```fsharp
-open JavaScript
-
 [<Inline>]
-let importTestJs : obj = JS.Import("testExport", "./test.js")
+let importTestJs : obj = JavaScript.JS.Import("testExport", "./test.js")
 // translates to: import { testExport } from "./test.js"
 
 [<Inline>]
-let importTestJsAll : obj = JS.ImportAll "./test.js" // alternatively JS.Import("*", "./test.js")
+let importTestJsAll : obj = JavaScript.JS.ImportAll "./test.js" // alternatively JS.Import("*", "./test.js")
 // translates to: import * as test from "./test.js"
 
 [<Inline>]
-let importTestJsDefault : obj = JS.ImportDefault "./test.js" // alternatively JS.Import("default", "./test.js")
+let importTestJsDefault : obj = JavaScript.JS.ImportDefault "./test.js" // alternatively JS.Import("default", "./test.js")
 // translates to: import test from "./test.js"
 ```
 
 The `JS.ImportDynamic` function can be used to import a module dynamically at runtime, which is useful for code-splitting or loading modules conditionally.
 ```fsharp
 [<Inline>]
-let importTestJsDyn : obj = JS.ImportDynamic("testExport", "./test.js")
+let importTestJsDyn : obj = JavaScript.JS.ImportDynamic("testExport", "./test.js")
 // translates to: import("./test.js")
 ```
 
@@ -81,6 +79,7 @@ The relative paths are automatically changed by WebSharper when necessary for mu
 To use npm, instead of a relative path, you can use a package name. 
 
 ```fsharp
+open WebSharper.JavaScript
 [<Import ("sqrt", "mathjs")>]
 let sqrt (x: float) = X<float> 
 // translates to: import sqrt from "mathjs"

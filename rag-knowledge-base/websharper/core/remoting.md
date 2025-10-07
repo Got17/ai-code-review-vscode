@@ -301,6 +301,9 @@ You can inherit from `AjaxRemotingProvider` to create a custom remoting provider
 An example:
 
 ```fsharp
+open WebSharper
+open WebSharper.Web
+
 [<JavaScript>]
 type SafeRemotingProvider() =
     inherit Remoting.AjaxRemotingProvider()

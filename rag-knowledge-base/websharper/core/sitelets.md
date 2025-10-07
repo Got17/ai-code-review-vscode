@@ -26,15 +26,15 @@ module SampleSite =
     type EndPoint =
         | Index
 
-    let IndexContent context : Async<Content<EndPoint>> =
+    let IndexContent context : Async<Sitelets.Content<EndPoint>> =
         let time = System.DateTime.Now.ToString()
-        Content.Page(
+        Sitelets.Content.Page(
             Title = "Index",
-            Body = [h1 [] [text ("Current time: " + time)]]
+            Body = [UI.Html.h1 [] [UI.Html.text ("Current time: " + time)]]
         )
 
-    let MySampleWebsite : Sitelet<EndPoint> =
-        Sitelet.Content "/index" EndPoint.Index IndexContent
+    let MySampleWebsite : Sitelets.Sitelet<EndPoint> =
+        Sitelets.Sitelet.Content "/index" EndPoint.Index IndexContent
 ```
 
 First, a custom endpoint type is defined. It is used for linking requests to content within your sitelet. Here, you only need one endpoint, `EndPoint.Index`, corresponding to your only page.
@@ -92,21 +92,21 @@ module SampleSite =
         | BlogArticle of id: int * slug: string
 
     let MyWebsite =
-        Sitelet.Infer <| fun context endpoint ->
+        Sitelets.Sitelet.Infer <| fun context endpoint ->
             match endpoint with
             | Index ->
-                 // Content of the index page
-                 Content.Page(
-                     Title = "Welcome!",
-                     Body = [h1 [] [text "Index page"]])
+                    // Content of the index page
+                    Sitelets.Content.Page(
+                        Title = "Welcome!",
+                        Body = [UI.Html.h1 [] [UI.Html.text "Index page"]])
             | Stats username ->
-                 // Content of the stats page, which depends on the username
-                 Content.Page(
-                    Body = [text ("Stats for " + username)])
+                    // Content of the stats page, which depends on the username
+                    Sitelets.Content.Page(
+                    Body = [UI.Html.text ("Stats for " + username)])
             | BlogArticle (id, slug) ->
                 // Content of the article page, which depends on id and slug
-                Content.Page(
-                    Body = [text (sprintf "Article id %i, slug %s" id slug)])
+                Sitelets.Content.Page(
+                    Body = [UI.Html.text (sprintf "Article id %i, slug %s" id slug)])
 ```
 
 The above sitelet accepts URLs with the following shape:
@@ -513,19 +513,19 @@ module SampleSite =
     type EndPoint =
     | [<Method "GET"; Query "page">] Articles of page: int
 
-    let MySitelet = Sitelet.InferWithCustomErrors <| fun context endpoint ->
+    let MySitelet = Sitelets.Sitelet.InferWithCustomErrors <| fun context endpoint ->
         match endpoint with
-        | ParseRequestResult.Success (Articles page) ->
-            Content.Text ("serving page " + string page)
-        | ParseRequestResult.InvalidMethod (_, m) ->
-            Content.Text ("Invalid method: " + m)
-            |> Content.SetStatus Http.Status.MethodNotAllowed
-        | ParseRequestResult.MissingQueryParameter (_, p) ->
-            Content.Text ("Missing parameter: " + p)
-            |> Content.SetStatus (Http.Status.Custom 400 (Some "Bad Request"))
+        | Sitelets.ParseRequestResult.Success (Articles page) ->
+            Sitelets.Content.Text ("serving page " + string page)
+        | Sitelets.ParseRequestResult.InvalidMethod (_, m) ->
+            Sitelets.Content.Text ("Invalid method: " + m)
+            |> Sitelets.Content.SetStatus Sitelets.Http.Status.MethodNotAllowed
+        | Sitelets.ParseRequestResult.MissingQueryParameter (_, p) ->
+            Sitelets.Content.Text ("Missing parameter: " + p)
+            |> Sitelets.Content.SetStatus (Sitelets.Http.Status.Custom 400 (Some "Bad Request"))
         | _ ->
-            Content.Text "We don't have JSON or FormData, so this shouldn't happen"
-            |> Content.SetStatus Http.Status.InternalServerError
+            Sitelets.Content.Text "We don't have JSON or FormData, so this shouldn't happen"
+            |> Sitelets.Content.SetStatus Sitelets.Http.Status.InternalServerError
 
 // Accepted Request:    GET /Articles?page=123
 // Parsed Endpoint:     Articles 123
@@ -557,7 +557,7 @@ The following functions are available to build simple sitelets or compose more c
 * `Sitelet.Content`, as shown in the first example, builds a sitelet that accepts a single URL and maps it to a given endpoint and content.
 
     ```fsharp
-    Sitelet.Content "/index" Index IndexContent
+    Sitelets.Sitelet.Content "/index" Index IndexContent
 
     // Accepted Request:    GET /index
     // Parsed Endpoint:     Index
@@ -569,9 +569,9 @@ The following functions are available to build simple sitelets or compose more c
   The following sitelet accepts `/index` and `/about`:
 
     ```fsharp
-    Sitelet.Sum [
-        Sitelet.Content "/index" Index IndexContent
-        Sitelet.Content "/about" About AboutContent
+    Sitelets.Sitelet.Sum [
+        Sitelets.Sitelet.Content "/index" Index IndexContent
+        Sitelets.Sitelet.Content "/about" About AboutContent
     ]
 
     // Accepted Request:    GET /index
@@ -586,9 +586,9 @@ The following functions are available to build simple sitelets or compose more c
 * `+` takes two sitelets and tries them in order. `s1 + s2` is equivalent to `Sitelet.Sum [s1; s2]`.
 
     ```fsharp
-    Sitelet.Content "/index" Index IndexContent
+    Sitelets.Sitelet.Content "/index" Index IndexContent
     +
-    Sitelet.Content "/about" About AboutContent
+    Sitelets.Sitelet.Content "/about" About AboutContent
 
     // Same as above.
     ```
@@ -598,8 +598,9 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
 * `Sitelet.Shift` takes a sitelet and shifts it by a path segment.
 
     ```fsharp
-    Sitelet.Content "index" Index IndexContent
-    |> Sitelet.Shift "folder"
+    open WebSharper.Sitelets
+    Sitelets.Sitelet.Content "index" Index IndexContent
+    |> Sitelets.Sitelet.Shift "folder"
 
     // Accepted Request:    GET /folder/index
     // Parsed Endpoint:     Index
@@ -609,9 +610,9 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
 * `Sitelet.Folder` takes a sequence of sitelets and shifts them by a path segment. It is effectively a combination of `Sum` and `Shift`.
 
     ```fsharp
-    Sitelet.Folder "folder" [
-        Sitelet.Content "/index" Index IndexContent
-        Sitelet.Content "/about" About AboutContent
+    Sitelets.Sitelet.Folder "folder" [
+        Sitelets.Sitelet.Content "/index" Index IndexContent
+        Sitelets.Sitelet.Content "/about" About AboutContent
     ]
 
     // Accepted Request:    GET /folder/index
@@ -641,11 +642,12 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
 * `Sitelet.Map` converts a sitelet to a different endpoint type using mapping functions in both directions.
 
     ```fsharp
+    open WebSharper.Sitelets
     type EndPoint = Article of string
 
-    let s : Sitelet<string> = Sitelet.Infer sContent
+    let s : Sitelets.Sitelet<string> = Sitelets.Sitelet.Infer sContent
 
-    let s2 : Sitelet<EndPoint> = Sitelet.Map Article (fun (Article a) -> a) s
+    let s2 : Sitelets.Sitelet<EndPoint> = Sitelet.Map Article (fun (Article a) -> a) s
     ```
 
 * `Sitelet.Embed` similarly converts a sitelet to a different endpoint type, but with a partial mapping function: the input endpoint type represents only a subset of the result endpoint type.
@@ -655,12 +657,12 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
         | Index
         | Article of string
 
-    let index : Sitelet<EndPoint> = Sitelet.Content "/" Index indexContent
-    let article : Sitelet<string> = Sitelet.Infer articleContent
+    let index : Sitelets.Sitelet<EndPoint> = Sitelets.Sitelet.Content "/" Index indexContent
+    let article : Sitelets.Sitelet<string> = Sitelets.Sitelet.Infer articleContent
     let fullSitelet =
-        Sitelet.Sum [
+        Sitelets.Sitelet.Sum [
             index
-            article |> Sitelet.Embed Article (function Article a -> Some a | _ -> None)
+            article |> Sitelets.Sitelet.Embed Article (function Article a -> Some a | _ -> None)
         ]
     ```
 
@@ -671,13 +673,13 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
         | Index
         | Article of string
 
-    let index : Sitelet<EndPoint> = Sitelet.Content "/" Index indexContent
-    let article : Sitelet<string> = Sitelet.Infer articleContent
+    let index : Sitelets.Sitelet<EndPoint> = Sitelets.Sitelet.Content "/" Index indexContent
+    let article : Sitelets.Sitelet<string> = Sitelets.Sitelet.Infer articleContent
     let fullSitelet =
-        Sitelet.Sum [
+        Sitelets.Sitelet.Sum [
             index
-            article |> Sitelet.EmbedInUnion <@ Article @>
-        ]
+            article |> Sitelets.Sitelet.EmbedInUnion <@ Article @>
+        ]  article |> Sitelet.EmbedInUnion <@ Article @>
     ```
 
 * `Sitelet.InferPartial` is equivalent to combining `Sitelet.Infer` and `Sitelet.Embed`, except the context passed to the infer function is of the outer endpoint type instead of the inner. For example, in the example for `Sitelet.Embed` above, the function `articleContent` receives a `Context<string>` and can therefore only create links to articles. Whereas with `InferPartial`, it receives a full `Context<EndPoint>` and can create links to `Index`.
@@ -687,10 +689,10 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
         | Index
         | Article of string
 
-    let index : Sitelet<EndPoint> = Sitelet.Content "/" Index indexContent
-    let article : Sitelet<EndPoint> =
-        Sitelet.InferPartial Article (function Article a -> Some a | _ -> None) articleContent
-    let fullSitelet = Sitelet.Sum [ index; article ]
+    let index : Sitelets.Sitelet<EndPoint> = Sitelets.Sitelet.Content "/" Index indexContent
+    let article : Sitelets.Sitelet<EndPoint> =
+        Sitelets.Sitelet.InferPartial Article (function Article a -> Some a | _ -> None) articleContent
+    let fullSitelet = Sitelets.Sitelet.Sum [ index; article ]
     ```
 
 * `Sitelet.InferPartialInUnion` is a simpler version of `Sitelet.InferPartial` when the mapping function is a union case constructor.
@@ -700,15 +702,15 @@ For the mathematically inclined, the functions `Sitelet.Empty` and `+` make site
         | Index
         | Article of string
 
-    let index : Sitelet<EndPoint> = Sitelet.Content "/" Index indexContent
-    let article : Sitelet<EndPoint> = Sitelet.InferPartialInUnion <@ Article @> articleContent
-    let fullSitelet = Sitelet.Sum [ index; article ]
+    let index : Sitelets.Sitelet<EndPoint> = Sitelets.Sitelet.Content "/" Index indexContent
+    let article : Sitelets.Sitelet<EndPoint> = Sitelets.Sitelet.InferPartialInUnion <@ Article @> articleContent
+    let fullSitelet = Sitelets.Sitelet.Sum [ index; article ]
     ```
 
 * `Sitelet.CorsContent` is a helper for creating a sitelet that serves content from a single endpoint with CORS (Cross-Origin Resource Sharing) checking enabled. It takes a URL, an endpoint, and content, and returns a sitelet that serves the content with the appropriate CORS headers.
 
 ```fsharp
-Sitelet.CorsContent "/index" (Cors.Of Index) 
+Sitelets.Sitelet.CorsContent "/index" (Sitelets.Cors.Of Index) 
     (fun allows -> { allows with
         Origins = ["*"]
         Headers = ["Content-Type"; "Authorization"] })

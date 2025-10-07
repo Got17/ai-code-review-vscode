@@ -10,7 +10,7 @@ The simplest response is plain text content, created by passing a string to `Con
 
 ```fsharp
 let simpleResponse =
-    Content.Text "This is the response body."
+    Sitelets.Content.Text "This is the response body."
 ```
 
 ### Content.File
@@ -20,23 +20,21 @@ You can serve files using `Content.File`.  Optionally, you can set the content t
 ```fsharp
 type EndPoint = //. . .
 
-let fileResponse: Async<Content<EndPoint>> =
-    Content.File("../Main.fs", AllowOutsideRootFolder=true, ContentType="text/plain")
+let fileResponse: Async<Sitelets.Content<EndPoint>> =
+    Sitelets.Content.File("../Main.fs", AllowOutsideRootFolder=true, ContentType="text/plain")
 ```
 
 ### Content.Page
 
 You can return full HTML pages, with managed dependencies using `Content.Page`. Here is a simple example:
 
-```fsharp
-open WebSharper.UI.Html
-    
-let IndexPage : Async<Content<EndPoint>> =
-    Content.Page(
+```fsharp    
+let IndexPage : Async<Sitelets.Content<EndPoint>> =
+    UI.Server.Content.Page(
         Title = "Welcome!",
-        Head = [ link [attr.href "/css/style.css"; attr.rel "stylesheet"] [] ],
+        Head = [ UI.Html.link [UI.Html.attr.href "/css/style.css"; UI.Html.attr.rel "stylesheet"] [] ],
         Body = [
-            h1 [] [text "Welcome to my site."] 
+            UI.Html.h1 [] [UI.Html.text "Welcome to my site."] 
         ]
     )
 ```
@@ -53,8 +51,8 @@ Any `Web.Control` instantiations or quoted code (for example with the `client` h
 An implementation of a simple form of templating, `PageFromFile` allows you to use a static HTML file as a template for your page and insert some startup code.
 
 ```fsharp
-let IndexPage : Async<Content<EndPoint>> =
-    Content.PageFromFile(
+let IndexPage : Async<Sitelets.Content<EndPoint>> =
+    Sitelets.Content.PageFromFile(
         "index.html",
         fun () -> InitializeHomePage() // This function is called when the page is loaded 
     )
@@ -76,7 +74,7 @@ type BlogArticleResponse =
     }
 
 let content id =
-    Content.Json
+    Sitelets.Content.Json
         {
             id = id
             slug = "some-blog-article"
@@ -86,7 +84,7 @@ let content id =
 type EndPoint =
     | GetBlogArticle of id: int
 
-let sitelet = Sitelet.Infer <| fun context endpoint ->
+let sitelet = Sitelets.Sitelet.Infer <| fun context endpoint ->
     match endpoint with
     | GetBlogArticle id -> content id
 
@@ -113,13 +111,13 @@ type ApiEndPoint =
     
 type MainEndPoint =
     | [<EndPoint "GET /">] Home
-    | [<EndPoint "/">] Api of Cors<ApiEndPoint>
+    | [<EndPoint "/">] Api of Sitelets.Cors<ApiEndPoint>
     
 let Website = Application.MultiPage (fun ctx endpoint ->
     match endpoint with
     | Home -> // ...
     | Api cors ->
-        Content.Cors cors
+        Sitelets.Content.Cors cors
         <| fun allows ->
             { allows with
                 Origins = ["*"]
@@ -155,10 +153,10 @@ However, for a page to find which bundle to use, you will still need to use the 
 * `WriteBody` writes the response body.
 
 ```fsharp
-let content =
-    Content.Custom(
-        Status = Http.Status.Ok,
-        Headers = [Http.Header.Custom "Content-Type" "text/plain"],
+let content ctx =
+    Sitelets.Content.Custom(
+        Status = Sitelets.Http.Status.Ok,
+        Headers = [Sitelets.Http.Header.Custom "Content-Type" "text/plain"],
         WriteBody = fun stream ->
             use w = new System.IO.StreamWriter(stream)
             w.Write("The contents of the text file.")
@@ -167,7 +165,7 @@ let content =
 type EndPoint =
     | GetSomeTextFile
 
-let sitelet = Sitelet.Content "/someTextFile.txt" GetSomeTextFile content
+let sitelet = Sitelets.Sitelet.Content "/someTextFile.txt" GetSomeTextFile content
 
 // Accepted Request:    GET /someTextFile.txt
 // Parsed Endpoint:     GetSomeTextFile
@@ -240,21 +238,19 @@ The functions to create sitelets from content, namely `Sitelet.Infer` and `Sitel
 Since every accepted URL is uniquely mapped to a strongly typed endpoint value, it is also possible to generate internal links from an endpoint value. For this, you can use the method `context.Link`.
 
 ```fsharp
-open WebSharper.UI.Html
-
 type EndPoint = | BlogArticle of id:int * slug:string
 
-let HomePage (context: Context<EndPoint>) =
-    Content.Page(
+let HomePage1 (context: Sitelets.Context<EndPoint>) =
+    UI.Server.Content.Page(
         Title = "Welcome!",
         Body = [
-            h1 [] [text "Index page"]
-            a [attr.href (context.Link (BlogArticle(1423, "some-article-slug")))] [
-                text "Go to some article"
+            UI.Html.h1 [] [UI.Html.text "Index page"]
+            UI.Html.a [UI.Html.attr.href (context.Link (BlogArticle(1423, "some-article-slug")))] [
+                UI.Html.text "Go to some article"
             ]
-            br [] []
-            a [attr.href (context.ResolveUrl "~/Page2.html")] [
-                text "Go to page 2"
+            UI.Html.br [] []
+            UI.Html.a [UI.Html.attr.href (context.ResolveUrl "~/Page2.html")] [
+                UI.Html.text "Go to page 2"
             ]
         ]
     )
@@ -280,15 +276,15 @@ Note how `context.Link` is used in order to resolve the URL to the `BlogArticle`
     Example:
     
     ```fsharp
-    let LoggedInPage (context: Context<EndPoint>) (username: string) =
+    let LoggedInPage (context: Sitelets.Context<EndPoint>) (username: string) =
         async {
             // We're assuming here that the login is successful,
             // eg you have verified a password against a database.
             do! context.UserSession.LoginUser(username, 
                     duration = System.TimeSpan.FromDays(30.))
-            return! Content.Page(
+            return! UI.Server.Content.Page(
                 Title = "Welcome!",
-                Body = [ text (sprintf "Welcome, %s!" username) ]
+                Body = [ UI.Html.text (sprintf "Welcome, %s!" username) ]
             )
         }
     ```
@@ -300,13 +296,13 @@ Note how `context.Link` is used in order to resolve the URL to the `BlogArticle`
     Example:
     
     ```fsharp
-    let HomePage (context: Context<EndPoint>) =
+    let HomePage (context: Sitelets.Context<EndPoint>) =
         async {
             let! username = context.UserSession.GetLoggedInUser()
-            return! Content.Page(
+            return! UI.Server.Content.Page(
                 Title = "Welcome!",
                 Body = [
-                    text (
+                    UI.Html.text (
                         match username with
                         | None -> "Welcome, stranger!"
                         | Some u -> sprintf "Welcome back, %s!" u
@@ -323,10 +319,10 @@ Note how `context.Link` is used in order to resolve the URL to the `BlogArticle`
     Example:
     
     ```fsharp
-    let Logout (context: Context<EndPoint>) =
+    let Logout (context: Sitelets.Context<EndPoint>) =
         async {
             do! context.UserSession.Logout()
-            return! Content.RedirectTemporary Home
+            return! Sitelets.Content.RedirectTemporary Home
         }
     ```
 

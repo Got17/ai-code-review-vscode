@@ -171,7 +171,7 @@ You can create Views using the following functions and combinators from the `Vie
     // [[v]] = 42
     ```
 
-* `View.ConstAnyc` is similar to `Const`, but is initialized asynchronously. Until the async returns, the resulting View is uninitialized.
+* `View.ConstAsync` is similar to `Const`, but is initialized asynchronously. Until the async returns, the resulting View is uninitialized.
 
 * <a name="view-map"></a>`View.Map` takes an existing View and maps its value through a function.
 
@@ -357,7 +357,7 @@ There are different versions of these functions, which differ in how they decide
     // so it is not re-rendered as Bobby.
     ```
 
-* `View.MapSeqCachedViewBy : ('T -> 'K) -> ('K -> View<'T> -> 'V) -> View<seq<'V>> covers the situation where items are identified by a key function and can be updated. Instead of passing the item's value to the mapping function, it passes a View of it, so you can react to the changes.
+* `View.MapSeqCachedViewBy : ('T -> 'K) -> ('K -> View<'T> -> 'V) -> View<seq<'V>>` covers the situation where items are identified by a key function and can be updated. Instead of passing the item's value to the mapping function, it passes a View of it, so you can react to the changes.
 
     ```fsharp
     varPeople.View
@@ -391,6 +391,78 @@ Each of these `View.MapSeqCached*` functions has a corresponding `Doc.BindSeqCac
 These functions map each item of the sequence to a Doc and then concatenates them. They are basically equivalent to passing the result of the corresponding `View.MapSeqCached*` to `Doc.BindView Doc.Concat`, like we did in the examples above.
 
 Finally, all of the above functions are also available as extension methods on the `View<seq<'T>>` type. `.MapSeqCached()` overloads correspond to `View.MapSeqCached*` functions, and `.DocSeqCached()` overloads correspond to `Doc.BindSeqCached*` functions.
+
+#### Sample for `Var` and `View`
+
+This sample demonstrates:
+
+* Creating Vars for state.
+* Composing views with View.Map2.
+* Two-way binding via events and UI.Client.Doc.TextView for reactive display.
+
+```fsharp
+namespace Vars
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Client
+open WebSharper.UI.Html
+ 
+[<JavaScript>]
+module Client =
+    [<SPAEntryPoint>]
+    let Main () =
+ 
+        // Create a reactive variable for the name
+        let nameVar = UI.Var.Create "Guest"
+        
+        // Create a reactive variable for the counter
+        let countVar = UI.Var.Create 0
+        
+        // Create a reactive view that combines name and count
+        let greetingView = 
+            UI.View.Map2 (fun name count -> 
+                sprintf "Hello, %s! Current count is %d." name count)
+                nameVar.View
+                countVar.View
+ 
+        // UI components
+        UI.Html.div [] [
+            // Name input with two-way binding
+            UI.Html.div [] [
+                UI.Html.text "Enter your name: "
+                UI.Client.Doc.InputType.Text [] nameVar
+                // Display the current name
+                UI.Html.div [] [
+                    UI.Html.text "Current name: "
+                    UI.Client.Doc.TextView nameVar.View
+                ]
+            ]
+            
+            // Counter controls
+            UI.Html.div [] [
+                UI.Html.button [
+                    UI.Html.on.click (fun _ _ -> countVar.Value <- countVar.Value + 1)
+                ] [UI.Html.text "Increment"]
+                button [
+                    UI.Html.on.click (fun _ _ -> countVar.Value <- countVar.Value - 1)
+                ] [UI.Html.text "Decrement"]
+                // Display the current count
+                UI.Html.div [] [
+                    UI.Html.text "Current count: "
+                    UI.Client.Doc.TextView (countVar.View.Map string)
+                ]
+            ]
+            
+            // Display the combined greeting
+            UI.Html.div [] [
+                UI.Html.h3 [] [UI.Html.text "Greeting:"]
+                UI.Client.Doc.TextView greetingView
+            ]
+        ]
+        |> UI.Client.Doc.RunById "main"
+```
 
 <a name="lens"></a>
 ### Vars and lensing
@@ -608,6 +680,78 @@ let myForm =
         Doc.InputType.Text [ attr.placeholder "Last Name" ]
             (varPerson.Lens (fun p -> p.LastName) (fun p n -> { p with LastName = n }))
     ]
+```
+
+#### Sample for `.V` shorthand
+
+This sample demonstrates:
+
+* Combining the application state into a single variable.
+* Automatic mapping and lensing of Vars.
+* Using `.Update` to ensure updates are applied correctly on increase/decrease.
+
+```fsharp
+namespace VShorthand
+ 
+open WebSharper
+open WebSharper.JavaScript
+open WebSharper.UI
+open WebSharper.UI.Client
+open WebSharper.UI.Html
+ 
+[<JavaScript>]
+module Client =
+ 
+    // Define application state
+    type State = 
+        {
+            Name: string
+            Count: int
+        }
+    
+    [<SPAEntryPoint>]
+    let Main () =
+ 
+        // Create a reactive variable for the application state
+        let state = Var.Create { Name = "Guest"; Count = 0 }
+                
+        // Create a reactive view that combines name and count
+        let greetingView = 
+            V $"Hello, {state.V.Name}! Current count is {state.V.Count}."
+ 
+        // UI components
+        div [] [
+            // Name input with two-way binding
+            div [] [
+                text $"Enter your name: "
+                Doc.InputType.TextV [] state.V.Name
+                // Display the current name
+                div [] [
+                    text $"Current name: {state.V.Name}"
+                ]
+            ]
+            
+            // Counter controls
+            div [] [
+                button [
+                    on.click (fun _ _ -> state.Update(fun st -> { st with Count = st.Count + 1 }))
+                ] [text "Increment"]
+                button [
+                    on.click (fun _ _ -> state.Update(fun st -> { st with Count = st.Count - 1 }))
+                ] [text "Decrement"]
+                // Display the current count
+                div [] [
+                    text $"Current count: {state.V.Count}"
+                ]
+            ]
+            
+            // Display the combined greeting
+            div [] [
+                h3 [] [text "Greeting:"]
+                UI.Client.Doc.TextView greetingView
+            ]
+        ]
+        |> Doc.RunById "main"
 ```
 
 ### ListModels

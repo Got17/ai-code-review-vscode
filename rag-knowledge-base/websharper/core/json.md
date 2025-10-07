@@ -85,7 +85,7 @@ The following base types are handled:
 * Integers: `int8`, `int16`, `int32` (aka `int`), `int64`
 
 ```fsharp
-Content.Json 12y
+Sitelets.Content.Json 12y
 
 // Output: 12
 ```
@@ -93,7 +93,7 @@ Content.Json 12y
 * Unsigned integers: `uint8` (aka `byte`), `uint16`, `uint32`, `uint64`
 
 ```fsharp
-Content.Json 12ul
+Sitelets.Content.Json 12ul
 
 // Output: 12
 ```
@@ -101,7 +101,7 @@ Content.Json 12ul
 * Floats: `single`, `double` (aka `float`)
 
 ```fsharp
-Content.Json 12.34
+Sitelets.Content.Json 12.34
 
 // Output: 12.34
 ```
@@ -109,7 +109,7 @@ Content.Json 12.34
 * Decimals: `decimal`
 
 ```fsharp
-Content.Json 12.34m
+Sitelets.Content.Json 12.34m
 
 // Output: "12.34"
 ```
@@ -117,7 +117,7 @@ Content.Json 12.34m
 * Strings: `string` and `char`
 
 ```fsharp
-Content.Json """A string with some "content" inside"""
+Sitelets.Content.Json """A string with some "content" inside"""
 
 // Output: "A string with some \"content\" inside"
 ```
@@ -125,7 +125,7 @@ Content.Json """A string with some "content" inside"""
 * Booleans: `bool`
 
 ```fsharp
-Content.Json true
+Sitelets.Content.Json true
 
 // Output: true
 ```
@@ -135,11 +135,11 @@ Content.Json true
 Values of type `list<'T>`, `'T[]`, `ResizeArray<'T>`, `Set<'T>`, `Queue<'T>`, and `Stack<'T>` are represented as JSON arrays:
 
 ```fsharp
-Content.Json [|"a string"; "another string"|]
+Sitelets.Content.Json [|"a string"; "another string"|]
 
 // Output: ["a string", "another string"]
 
-Content.Json (Set ["a string"; "another string"])
+Sitelets.Content.Json (Set ["a string"; "another string"])
 
 // Output: ["another string", "a string"]
 ```
@@ -147,7 +147,7 @@ Content.Json (Set ["a string"; "another string"])
 Values of type `Map<string, 'T>` and `System.Collections.Generic.Dictionary<string, 'T>` are represented as flat JSON objects:
 
 ```fsharp
-Content.Json (Map [("somekey", 12); ("otherkey", 34)])
+Sitelets.Content.Json (Map [("somekey", 12); ("otherkey", 34)])
 
 // Output: {"somekey": 12, "otherkey": 34}
 ```
@@ -155,7 +155,7 @@ Content.Json (Map [("somekey", 12); ("otherkey", 34)])
 Other `Map` and `Dictionary` values are represented as an array of key-value pairs:
 
 ```fsharp
-Content.Json (Map [(1, 12); (3, 34)])
+Sitelets.Content.Json (Map [(1, 12); (3, 34)])
 
 // Output: [[1, 12], [3, 34]]
 ```
@@ -165,11 +165,11 @@ Content.Json (Map [(1, 12); (3, 34)])
 Tuples (including struct tuples) are also represented as JSON arrays:
 
 ```fsharp
-Content.Json ("a string", "another string")
+Sitelets.Content.Json ("a string", "another string")
 
 // Output: ["a string", "another string"]
 
-Content.Json (struct ("a string", "another string")
+Sitelets.Content.Json (struct ("a string", "another string"))
 
 // Output: ["another string", "a string"]
 ```
@@ -192,7 +192,7 @@ type User =
         age: int
     }
 
-Content.Json {name = {FirstName = "John"; LastName = "Doe"}; age = 42}
+Sitelets.Content.Json {name = {FirstName = "John"; LastName = "Doe"}; age = 42}
 
 // Output: {"name": {"first-name": "John", "LastName": "Doe"}, "age": 42}
 ```
@@ -214,7 +214,7 @@ type Contact =
         Address of street: string * zip: string * city: string
     | Email of email: string
 
-Content.Json
+Sitelets.Content.Json
     [
         Address("12 Random St.", "15243", "Unknownville")
         Email "john.doe@example.com"
@@ -239,7 +239,7 @@ type Contact =
     | Address of street: string * zip: string * city: string
     | Email of email: string
 
-Content.Json
+Sitelets.Content.Json
     [
         Address("12 Random St.", "15243", "Unknownville")
         Email "john.doe@example.com"
@@ -265,7 +265,7 @@ type Contact =
     | Address of street: string * zip: string * city: string
     | Email of email: string
 
-Content.Json
+Sitelets.Content.Json
     [
         Address("12 Random St.", "15243", "Unknownville")
         Email "john.doe@example.com"
@@ -291,7 +291,7 @@ type Contact =
     | Address of Address
     | Email of email: string
 
-Content.Json
+Sitelets.Content.Json
     [
         Address {
             street = "12 Random St."
@@ -326,7 +326,7 @@ type User =
         contact: Contact
     }
 
-Content.Json
+Sitelets.Content.Json
     [
         {
             fullName = "John Doe"
@@ -361,10 +361,10 @@ Union cases annotated with the attribute `[<Constant c>]` are represented as the
 ```fsharp
 type Color =
     | [<Constant "blue">] Blue
-	| [<Constant "red">] Red
-	| [<Constant "green">] Green
+    | [<Constant "red">] Red
+    | [<Constant "green">] Green
 
-Content.Json [Blue; Red; Green]
+Sitelets.Content.Json [Blue; Red; Green]
 
 // Output: ["blue","red","green"]
 ```
@@ -411,7 +411,7 @@ public class Name
 Then from F#:
 
 ```fsharp
-Content.Json (User(Name("John", "Doe"), 36));
+Sitelets.Content.Json (User(Name("John", "Doe"), 36));
 
 // Output: {"name": {"first-name": "John", "lastName": "Doe"}, "age": 36}
 ```
@@ -421,7 +421,7 @@ Content.Json (User(Name("John", "Doe"), 36));
 Values of type `System.DateTime` are encoded using an ISO 8601 round-trip format string:
 
 ```fsharp
-Content.Json System.DateTime.UtcNow
+Sitelets.Content.Json System.DateTime.UtcNow
 
 // Output: "2015-03-06T17:05:19.2077851Z"
 ```
@@ -435,7 +435,7 @@ type Action =
         [<DateTimeFormat "yyyy-MM-dd">] dateOnly: System.DateTime
     }
 
-Content.Json { dateOnly = System.DateTime.UtcNow }
+Sitelets.Content.Json { dateOnly = System.DateTime.UtcNow }
 
 // Output: { dateOnly: "2015-03-24" }
 
@@ -443,7 +443,7 @@ Content.Json { dateOnly = System.DateTime.UtcNow }
 type Action =
     | [<DateTimeFormat("time", "HH.mm.ss")>] A of time: System.DateTime
 
-Content.Json (A (time = System.DateTime.UtcNow))
+Sitelets.Content.Json (A (time = System.DateTime.UtcNow))
 
 // Output: { time: "15.03.32" }
 ```

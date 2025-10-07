@@ -90,13 +90,13 @@ open WebSharper.Core
 open WebSharper.Core.AST
 
 type ReadFileGenerator() =
-    inherit Generator()
-    override this.Generate g =
-        match g.Parameter with
-        | Some (:? string as path) ->
-            let contents = System.IO.File.ReadAllText(path)
-            GeneratedAST (Lambda([], None, Value (String contents)))
-        | _ -> GeneratorError "ReadFileGenerator expects a file path parameter"
+  inherit Core.Generator()
+  override this.Generate g =
+    match g.Parameter with
+    | Some (:? string as path) ->
+      let contents = System.IO.File.ReadAllText(path)
+      Core.GeneratedAST (Lambda([], None, Value (String contents)))
+    | _ -> Core.GeneratorError "ReadFileGenerator expects a file path parameter"
 
 open WebSharper.JavaScript
 
@@ -178,7 +178,7 @@ open WebSharper.Core
 open WebSharper.Core.AST
 
 type AddMacro() =
-    inherit Macro()
+    inherit Core.Macro()
     override this.TranslateCall(c) =
         match c.Arguments with
         | [a; b] ->
@@ -319,7 +319,7 @@ Inherit from the `WebSharper.Core.AST.Transformer` type to create AST transforme
 
 ```fsharp
 type SubstituteId(fromId, toId) =
-    inherit Transformer()
+    inherit Core.AST.Transformer()
 
     override this.TransformId(i) = if i = fromId then toId else i
 ```
@@ -330,7 +330,7 @@ Inherit from the `WebSharper.Core.AST.Visitor` type to create AST visitors. Visi
 
 ```fsharp
 type CountIdUse(countingId) =
-    inherit Visitor()
+    inherit Core.AST.Visitor()
 
     let mutable c = 0
 
