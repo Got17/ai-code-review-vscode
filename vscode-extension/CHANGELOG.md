@@ -1,3 +1,7 @@
+## [0.0.5] – 2025-10-06
+
+- Update WebSharper docs to latest version for RAG context
+
 ## [0.0.4] – 2025-10-06
 
 - Remove the unused code

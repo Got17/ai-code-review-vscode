@@ -54,6 +54,8 @@ export function registerShowSuggestion(context: vscode.ExtensionContext) {
             context
         );
 
+        console.log('prompt:', prompt);
+
         // Open the suggestion webview panel
         const suggestionPanel = await showSuggestionWebview(context, fileName);
         if (!suggestionPanel) {
