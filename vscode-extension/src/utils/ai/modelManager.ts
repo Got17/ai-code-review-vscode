@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { AI_API, AI_MODEL } from "../constants";
+import { DEFAULT_API, AI_MODEL } from "../constants";
 
 const STORAGE_KEYS = {
     model: "ollamaModel",
@@ -55,7 +55,7 @@ function deriveOllamaBaseUrl(apiEndpoint: string): string {
 
 // Resolve current API endpoint (globalState override -> constant).
 export function getCurrentApi(context: vscode.ExtensionContext): string {
-    return getStringPref(context, STORAGE_KEYS.api) ?? AI_API;
+    return getStringPref(context, STORAGE_KEYS.api) ?? DEFAULT_API;
 }
 
 // Save custom API endpoint.

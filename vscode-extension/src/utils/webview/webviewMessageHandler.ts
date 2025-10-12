@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { applySuggestion, abortActiveRequest } from '../ai';
 import { listOllamaModels, getCurrentModel, setCurrentModel } from '../ai/modelManager';
-import { promptAndShowSuggestion } from '../../commands';
+import { promptAndShowSuggestion } from '../editor/actions';
 import {
     openShadowRepoForDocument,
     shadowEnsureBaseline,
