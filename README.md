@@ -1,5 +1,7 @@
 # WebSharper Code Review
 
+This repository was developed as part of a B.Sc. thesis project in collaboration with IntelliFactory at the University of Dunaújváros (2025). It implements a privacy-first, offline code review extension for F# and WebSharper in Visual Studio Code using local LLMs via Ollama.
+
 **Offline AI code review for F# and WebSharper.**
 Runs locally with your **Ollama** model (e.g., `qwen2.5-coder:7b-instruct`). Streams diffs, handles large files safely, and snapshots accepted changes into a **private Shadow Git** history. Turn on **RAG** to enrich reviews with **built-in references packaged in the extension**.
 
