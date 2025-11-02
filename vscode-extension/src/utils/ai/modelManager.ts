@@ -83,7 +83,7 @@ export async function listOllamaModels(context: vscode.ExtensionContext): Promis
         const res = await fetchWithTimeout(tagsUrl, { method: "GET" }, 5000);
         if (!res.ok) {
             return [];
-        }                                                                                                                                                                                                           
+        }                                                                                                  
 
         const json = (await res.json()) as OllamaTagsResponse;
         const raw = Array.isArray(json?.models) ? json.models : [];

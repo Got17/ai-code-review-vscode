@@ -1,16 +1,15 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { WEBVIEW_LIBRARY_DIR } from '../constants';
+import { WEBVIEW_LIBRARY_DIR, WEBVIEW_CONTENT_DIR } from '../constants';
 
 export function getWebviewContent(
 	webview: vscode.Webview,           
     extensionUri: vscode.Uri,
-	fileName: string | undefined,
-	userPreferences: string
+	fileName: string | undefined
 ): string {
 	const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 
-	const htmlPath = vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'index.html');
+	const htmlPath = vscode.Uri.joinPath(extensionUri, ...WEBVIEW_CONTENT_DIR, 'index.html');
 	let htmlContent = fs.readFileSync(htmlPath.fsPath, 'utf8');
 
 	// DiffJs Library URI
@@ -24,8 +23,8 @@ export function getWebviewContent(
 	const highlightJsSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs', 'highlight.min.js'));
 	const fSharpSrcUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, WEBVIEW_LIBRARY_DIR, 'highlightjs', 'fsharp.min.js'));
 
-	const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'style.css'));
-	const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'src', 'utils', 'webview', 'script.js'));
+	const cssUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, ...WEBVIEW_CONTENT_DIR, 'style.css'));
+	const jsUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, ...WEBVIEW_CONTENT_DIR, 'script.js'));
 
 	htmlContent = htmlContent
 		.replace('{{fileName}}', escapeHtml(fileName || 'N/A'))

@@ -7,7 +7,7 @@ export type BuiltPrompt = {
 	applyMode: ApplyMode;
 };
  
-const CONTEXT_WINDOW_LINES = 200;        // lines before/after selection
+const CONTEXT_WINDOW_LINES = 60;        // lines before/after selection
 
 export async function buildPrompt(
 	selectedCode: string,

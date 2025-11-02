@@ -13,7 +13,7 @@ type Shadow = {
 const AI_COMMIT_PREFIX = 'chore(ai): apply suggestion';
 export const LAST_COMMIT_PREFIX_KEY = 'ai.shadow.lastCommit';
 
-// --- utils ---
+// utils
 function convertToPosix(p: string) { 
     return p.replace(/\\/g, '/'); 
 }
@@ -43,7 +43,7 @@ async function ensureDir(fsPath: string) {
     await vscode.workspace.fs.createDirectory(vscode.Uri.file(fsPath));
 }
 
-// --- API ---
+// API
 export async function openShadowRepoForDocument(
     context: vscode.ExtensionContext,
     docUri: vscode.Uri
@@ -96,30 +96,6 @@ export async function shadowCommitFiles(
     const head = (await shadow.git.raw(['--git-dir', shadow.gitDir, 'rev-parse', 'HEAD'])).trim();
     await context.globalState.update(shadow.lastKey, head);
     return head;
-}
-
-export async function shadowRevertLast(
-    context: vscode.ExtensionContext,
-    docUri?: vscode.Uri  // optional: if given, we’ll use its workTree bucket
-) {
-    // Choose a shadow bucket based on doc or fall back to the first folder
-    const workspaceRoot = docUri ? getWorkspaceRootForUri(docUri) :
-        (vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '');
-
-    if (!workspaceRoot) {
-        throw new Error('No workspace to revert in.');
-    }
-
-    const shadowRepo = await openShadowRepoForDocument(context, vscode.Uri.file(path.join(workspaceRoot, '.__anchor__')));
-
-    const last = context.globalState.get<string>(shadowRepo.lastKey);
-    if (!last) {
-        vscode.window.showWarningMessage('No AI commit to revert (shadow).');
-        return;
-    }
-    await shadowRepo.git.raw(['--git-dir', shadowRepo.gitDir, '-C', shadowRepo.workTree, 'revert', '--no-edit', last]);
-    await context.globalState.update(shadowRepo.lastKey, undefined);
-    vscode.window.showInformationMessage(`Reverted AI commit ${last.slice(0,7)} (shadow).`);
 }
 
 export async function shadowIsTracked(

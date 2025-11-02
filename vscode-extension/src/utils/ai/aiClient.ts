@@ -5,7 +5,10 @@ let activeAbort: AbortController | null = null;
 let abortReason: 'user' | 'timeout' | null = null;
 
 export class UserAbort extends Error {
-	constructor() { super('User aborted'); this.name = 'UserAbort'; }
+	constructor() { 
+		super('User aborted'); 
+		this.name = 'UserAbort'; 
+	}
 }
 
 export function abortActiveRequest() {
@@ -64,9 +67,40 @@ export async function* queryAIStream(
 }
 
 async function handleAPIError(response: Response) {
-	const errorBody = await response.text();
-	console.error(`AI API Error: ${response.status} ${response.statusText}`, errorBody);
-	vscode.window.showErrorMessage('AI Server Error');
+	const rawBody = await response.text();
+	let parsedBody: { error?: string } | null = null;
+
+	try {
+		parsedBody = JSON.parse(rawBody);
+	} catch {}
+
+	console.error(`AI API Error: ${response.status} ${response.statusText}`, parsedBody ?? rawBody);
+
+	// Special handling for "model not found" (404 from local AI server)
+	if (response.status === 404) {
+		const maybeModelMissing =
+			parsedBody?.error?.toLowerCase().includes("model") &&
+			parsedBody.error.toLowerCase().includes("not found");
+
+		if (maybeModelMissing) {
+			vscode.window.showErrorMessage(
+				"AI model not found. Please make sure the model is installed and available in your AI server."
+			);
+			return;
+		}
+
+		vscode.window.showErrorMessage(
+			"AI Server Error (404): resource not found. Please verify your AI model / endpoint configuration."
+		);
+		
+		return;
+	}
+
+	// Generic error handler for all other status codes
+	const details = parsedBody?.error || rawBody || "Unknown error";
+	vscode.window.showErrorMessage(
+		`AI Server Error (${response.status} ${response.statusText}): ${details}`
+	);
 }
 
 function handleStreamError(suggestionPanel: vscode.WebviewPanel, error: any) {
